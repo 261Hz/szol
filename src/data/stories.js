@@ -4,8 +4,6 @@ export const LANGS = {
   de: { name: 'Deutsch', wiki: 'de', rtl: false, script: false },
   it: { name: 'Italiano', wiki: 'it', rtl: false, script: false },
   pt: { name: 'Português', wiki: 'pt', rtl: false, script: false },
-  nl: { name: 'Nederlands', wiki: 'nl', rtl: false, script: false },
-  pl: { name: 'Polski', wiki: 'pl', rtl: false, script: false },
   ru: { name: 'Русский', wiki: 'ru', rtl: false, script: true },
   he: { name: 'עברית', wiki: 'he', rtl: true, script: true },
   ar: { name: 'العربية', wiki: 'ar', rtl: true, script: true },

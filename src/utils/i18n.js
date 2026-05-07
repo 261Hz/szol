@@ -119,18 +119,6 @@ export const UI = {
     typeHere: 'Escreve aqui...',
     noStory: 'Seleciona uma história da biblioteca.',
   },
-  nl: {
-    read: 'Lezen',
-    retype: 'Herschrijven',
-    speak: 'Spreken',
-    vocab: 'Woordenschat',
-    library: 'Bibliotheek',
-    check: 'Controleren',
-    save: 'Opslaan',
-    newStory: 'Nieuw verhaal',
-    typeHere: 'Typ hier...',
-    noStory: 'Selecteer een verhaal uit de bibliotheek.',
-  },
   zh: {
   read: '阅读',
   retype: '重写',
