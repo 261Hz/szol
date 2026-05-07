@@ -11,6 +11,8 @@ export const LANGS = {
   ar: { name: 'العربية', wiki: 'ar', rtl: true, script: true },
   arz: { name: 'مصري', wiki: 'ar', rtl: true, script: true, franco: true },
   ja: { name: '日本語', wiki: 'ja', rtl: false, script: true },
+  zh: { name: '中文', wiki: 'zh', rtl: false, script: true },
+hu: { name: 'Magyar', wiki: 'hu', rtl: false, script: false },
 }
 
 export const STORIES = [
