@@ -19,7 +19,7 @@
             {{ story.title }}
           </div>
           <div class="text-xs text-gray-400 mt-0.5">
-            {{ LANGS[lang]?.name }} · {{ story.level }}
+            {{ LANGS[lang]?.name }}
             <span v-if="story.author"> · {{ story.author }}</span>
             <span v-if="story.source"> · {{ story.source }}</span>
           </div>
@@ -52,10 +52,7 @@
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right text-lg' : ''"
       >
-        <span
-          v-for="(token, i) in tokens"
-          :key="i"
-        >
+        <span v-for="(token, i) in tokens" :key="i">
           <span
             v-if="token.type === 'word'"
             @click="lookup(token.text)"
@@ -111,11 +108,12 @@ import { LANGS } from '../data/stories.js'
 import { isRTL, hasFranco } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
 import { normalize } from '../utils/scoring.js'
+import { lookupCached, cacheWord } from '../utils/supabase.js'
 
 const props = defineProps({
   story: Object,
   lang: String,
-  savedWords: Object, // Set of normalized words
+  savedWords: Object,
 })
 
 const emit = defineEmits(['go', 'saveWord'])
@@ -136,6 +134,19 @@ async function lookup(word) {
   if (!clean) return
   lookupResult.value = { word: clean, pos: '', def: 'Looking up…', ex: '' }
 
+  // Check cache first
+  const cached = await lookupCached(clean, props.lang)
+  if (cached) {
+    lookupResult.value = {
+      word: clean,
+      pos: cached.pos || '',
+      def: cached.definition || 'No definition found.',
+      ex: cached.example || '',
+    }
+    return
+  }
+
+  // Fall back to Wiktionary
   const wikiLang = LANGS[props.lang]?.wiki || 'en'
   try {
     const r = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(clean)}`)
@@ -145,17 +156,28 @@ async function lookup(word) {
     if (!entries.length) throw new Error()
     const entry = entries[0]
     const def = entry.definitions?.[0]
-    lookupResult.value = {
+    const result = {
       word: clean,
       pos: entry.partOfSpeech || '',
       def: def?.definition?.replace(/<[^>]+>/g, '') || 'Definition not found.',
       ex: def?.examples?.[0]?.replace(/<[^>]+>/g, '') || '',
     }
+    lookupResult.value = result
+
+    // Cache the result
+    await cacheWord({
+      word: clean,
+      lang: props.lang,
+      pos: result.pos,
+      definition: result.def,
+      example: result.ex,
+      source: 'wiktionary',
+    })
   } catch {
     lookupResult.value = {
       word: clean,
       pos: '',
-      def: 'Not found on Wiktionary. You can still save the word.',
+      def: 'Not found. You can still save the word.',
       ex: '',
     }
   }

@@ -32,6 +32,13 @@
         @load="loadStory"
       />
 
+      <VocabView
+       v-if="activeTab === 'vocab'"
+       :words="vocabBank"
+       :lang="activeLang"
+       @remove="vocabBank.splice($event, 1)"
+      />
+
     </main>
   </div>
 </template>
@@ -42,6 +49,7 @@ import NavBar from './components/NavBar.vue'
 import ReadView from './views/ReadView.vue'
 import RetypeView from './views/RetypeView.vue'
 import LibraryView from './views/LibraryView.vue'
+import VocabView from './views/VocabView.vue'
 
 const activeTab = ref('library')
 const activeLang = ref('es')
