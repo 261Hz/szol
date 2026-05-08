@@ -5,11 +5,11 @@
       <div class="text-sm font-medium text-gray-700">
         {{ t(lang, 'vocab') }}
       </div>
-      <div class="text-xs text-gray-400">{{ words.length }} words</div>
+      <div class="text-xs text-gray-400">{{ words.length }} {{ t(lang, 'words') }}</div>
     </div>
 
     <div v-if="!words.length" class="text-gray-400 text-sm text-center py-12">
-      Tap any word in a story to look it up and save it here.
+      {{ t(lang, 'tapWord') }}
     </div>
 
     <div v-else class="flex flex-col gap-3">

@@ -91,7 +91,7 @@
             :disabled="savedWords.has(normalize(lookupResult.word))"
             class="text-xs px-3 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
           >
-            {{ savedWords.has(normalize(lookupResult.word)) ? 'Saved' : t(lang, 'save') }}
+            {{ savedWords.has(normalize(lookupResult.word)) ? t(lang, 'saved') : t(lang, 'save') }}
           </button>
         </div>
         <div class="text-sm text-gray-600">{{ lookupResult.def }}</div>
@@ -132,7 +132,7 @@ const tokens = computed(() => {
 async function lookup(word) {
   const clean = word.replace(/[^\p{L}\p{M}]/gu, '')
   if (!clean) return
-  lookupResult.value = { word: clean, pos: '', def: 'Looking up…', ex: '' }
+  lookupResult.value = { word: clean, pos: '', def: t(props.lang, 'lookingUp'), ex: '' }
 
   // Check cache first
   const cached = await lookupCached(clean, props.lang)
@@ -140,7 +140,7 @@ async function lookup(word) {
     lookupResult.value = {
       word: clean,
       pos: cached.pos || '',
-      def: cached.definition || 'No definition found.',
+      def: cached.definition || t(props.lang, 'noDefinition'),
       ex: cached.example || '',
     }
     return
@@ -159,7 +159,7 @@ async function lookup(word) {
     const result = {
       word: clean,
       pos: entry.partOfSpeech || '',
-      def: def?.definition?.replace(/<[^>]+>/g, '') || 'Definition not found.',
+      def: def?.definition?.replace(/<[^>]+>/g, '') || t(props.lang, 'noDefinition'),
       ex: def?.examples?.[0]?.replace(/<[^>]+>/g, '') || '',
     }
     lookupResult.value = result
@@ -177,7 +177,7 @@ async function lookup(word) {
     lookupResult.value = {
       word: clean,
       pos: '',
-      def: 'Not found. You can still save the word.',
+      def: t(props.lang, 'notFound'),
       ex: '',
     }
   }
