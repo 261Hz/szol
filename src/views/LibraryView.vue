@@ -33,64 +33,73 @@
     </div>
 
     <!-- Add your own -->
-    <div class="border border-gray-200 rounded-lg p-4 flex flex-col gap-3">
-      <div class="text-xs font-medium text-gray-500 uppercase tracking-wide">
-        {{ t(lang, 'addStory') }}
-      </div>
-      <input
-        v-model="customTitle"
-        type="text"
-        :placeholder="t(lang, 'titleHere')"
-        class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400"
-      />
-      <textarea
-        v-model="customText"
-        rows="4"
-        :placeholder="t(lang, 'pasteStory')"
-        class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 resize-none"
-      />
-      <input
-        v-if="lang === 'arz'"
-        v-model="customFranco"
-        type="text"
-        placeholder="Franco transliteration (optional)..."
-        class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400"
-      />
-      <div class="flex items-center justify-between">
-        <select
-          v-model="customLevel"
-          class="text-sm border border-gray-200 rounded-md px-2 py-1"
-        >
-          <option>A1</option>
-          <option>A2</option>
-          <option>B1</option>
-          <option>B2</option>
-        </select>
-        <div class="flex gap-2">
-          <button
-            @click="addLocal"
-            class="text-sm px-4 py-1.5 rounded-md border border-gray-200 hover:border-emerald-400 transition-all"
-          >
-            {{ t(lang, 'saveLocal') }}
-          </button>
-          <button
-            @click="shareGlobal"
-            class="text-sm px-4 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-all"
-          >
-            {{ t(lang, 'shareGlobal') }}
-          </button>
-        </div>
-      </div>
-    </div>
+<div class="border border-gray-200 rounded-lg p-4 flex flex-col gap-3">
+  <div class="text-xs font-medium text-gray-500 uppercase tracking-wide">
+    Add a story
+  </div>
+  <input
+    v-model="customTitle"
+    type="text"
+    placeholder="Title..."
+    class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400"
+  />
+  <textarea
+    v-model="customText"
+    rows="4"
+    placeholder="Paste story text here..."
+    class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 resize-none"
+  />
+  <input
+    v-if="lang === 'arz'"
+    v-model="customFranco"
+    type="text"
+    placeholder="Franco transliteration (optional)..."
+    class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400"
+  />
+
+  <!-- Share form -->
+  <div v-if="showShareForm" class="flex flex-col gap-2 border-t border-gray-100 pt-3">
+    <div class="text-xs text-gray-500">Your name and source (required to share)</div>
+    <input
+      v-model="customAuthor"
+      type="text"
+      placeholder="Your name or username..."
+      class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400"
+    />
+    <input
+      v-model="customSource"
+      type="text"
+      placeholder="Source / attribution (e.g. Original, Project Gutenberg)..."
+      class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400"
+    />
+  </div>
+
+  <div class="flex items-center justify-end gap-2">
+    <button
+      @click="addLocal"
+      class="text-sm px-4 py-1.5 rounded-md border border-gray-200 hover:border-emerald-400 transition-all"
+    >
+      Save locally
+    </button>
+    <button
+      @click="shareGlobal"
+      :disabled="submitting"
+      class="text-sm px-4 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
+    >
+      {{ submitting ? 'Sharing...' : 'Share with community' }}
+    </button>
+  </div>
+</div>
 
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { STORIES, LANGS } from '../data/stories.js'
 import { isRTL } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
+import { fetchCommunityStories, submitStory } from '../utils/supabase.js'
 
 const props = defineProps({
   lang: String,
@@ -99,41 +108,78 @@ const props = defineProps({
 
 defineEmits(['load'])
 
-const levels = ['all']
-const activeLevel = ref('all')
 const localStories = ref([])
-
+const communityStories = ref([])
 const customTitle = ref('')
 const customText = ref('')
 const customFranco = ref('')
-const customLevel = ref('B1')
+const customAuthor = ref('')
+const customSource = ref('')
+const showShareForm = ref(false)
+const submitting = ref(false)
+
+// Load local stories from localStorage
+onMounted(async () => {
+  const saved = localStorage.getItem('szol_local_stories')
+  if (saved) localStories.value = JSON.parse(saved)
+  communityStories.value = await fetchCommunityStories()
+})
 
 const filtered = computed(() => {
-  const all = [...STORIES, ...localStories.value]
-  return all.filter(s =>
-    s.lang === props.lang &&
-    (activeLevel.value === 'all' || s.level === activeLevel.value)
-  )
+  const all = [...STORIES, ...localStories.value, ...communityStories.value]
+  return all.filter(s => s.lang === props.lang)
 })
 
 function addLocal() {
   if (!customTitle.value.trim() || !customText.value.trim()) return
-  localStories.value.push({
+  const story = {
     id: 'l' + Date.now(),
     title: customTitle.value.trim(),
     text: customText.value.trim(),
     franco: customFranco.value.trim() || null,
-    level: customLevel.value,
     lang: props.lang,
     local: true,
-  })
+  }
+  localStories.value.push(story)
+  localStorage.setItem('szol_local_stories', JSON.stringify(localStories.value))
+  clearForm()
+}
+
+async function shareGlobal() {
+  if (!customTitle.value.trim() || !customText.value.trim()) {
+    alert('Please add a title and text first.')
+    return
+  }
+  if (!customAuthor.value.trim()) {
+    showShareForm.value = true
+    return
+  }
+  submitting.value = true
+  try {
+    const story = await submitStory({
+      title: customTitle.value.trim(),
+      text: customText.value.trim(),
+      franco: customFranco.value.trim() || null,
+      lang: props.lang,
+      author: customAuthor.value.trim() || 'Anonymous',
+      source: customSource.value.trim() || 'Original',
+      reviewed: false,
+    })
+    communityStories.value.unshift({ ...story, community: true })
+    clearForm()
+    showShareForm.value = false
+    alert('Story shared with the community!')
+  } catch (e) {
+    alert('Error submitting story: ' + e.message)
+  }
+  submitting.value = false
+}
+
+function clearForm() {
   customTitle.value = ''
   customText.value = ''
   customFranco.value = ''
-}
-
-function shareGlobal() {
-  // Supabase integration coming next
-  alert(t(props.lang, 'comingSoon'))
+  customAuthor.value = ''
+  customSource.value = ''
 }
 </script>
