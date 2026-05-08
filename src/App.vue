@@ -19,6 +19,12 @@
         @save-word="addToVocab"
       />
 
+      <RetypeView
+        v-if="activeTab === 'retype'"
+        :story="currentStory"
+        :lang="activeLang"
+      />
+
       <LibraryView
         v-if="activeTab === 'library'"
         :lang="activeLang"
@@ -34,6 +40,7 @@
 import { ref, computed } from 'vue'
 import NavBar from './components/NavBar.vue'
 import ReadView from './views/ReadView.vue'
+import RetypeView from './views/RetypeView.vue'
 import LibraryView from './views/LibraryView.vue'
 
 const activeTab = ref('library')

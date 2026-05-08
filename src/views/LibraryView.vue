@@ -1,26 +1,6 @@
 <template>
   <div class="flex flex-col gap-6">
 
-    <!-- Filters -->
-    <div class="flex items-center justify-between flex-wrap gap-3">
-      <div class="flex gap-2">
-        <button
-          v-for="lvl in levels"
-          :key="lvl"
-          @click="activeLevel = lvl"
-          :class="[
-            'px-3 py-1 rounded-full text-xs border transition-all',
-            activeLevel === lvl
-              ? 'bg-emerald-500 text-white border-emerald-500'
-              : 'border-gray-200 text-gray-500 hover:border-emerald-400'
-          ]"
-        >
-          {{ lvl === 'all' ? t(lang, 'library') : lvl }}
-        </button>
-      </div>
-      <div class="text-xs text-gray-400">{{ filtered.length }} {{ t(lang, 'library') }}</div>
-    </div>
-
     <!-- Story list -->
     <div class="flex flex-col gap-2">
       <div
@@ -43,8 +23,6 @@
         </div>
         <div class="flex gap-2 mt-1 flex-wrap">
           <span class="text-xs text-gray-400">{{ LANGS[story.lang]?.name }}</span>
-          <span class="text-xs text-gray-400">·</span>
-          <span class="text-xs text-gray-400">{{ story.level }}</span>
           <span class="text-xs text-gray-400">·</span>
           <span class="text-xs text-gray-400">{{ story.text.split(/\s+/).length }} words</span>
           <span v-if="story.curated" class="text-xs text-emerald-500">curated</span>
@@ -121,7 +99,7 @@ const props = defineProps({
 
 defineEmits(['load'])
 
-const levels = ['all', 'A1', 'A2', 'B1', 'B2']
+const levels = ['all']
 const activeLevel = ref('all')
 const localStories = ref([])
 
