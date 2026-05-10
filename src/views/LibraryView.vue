@@ -3,7 +3,7 @@
 
     <!-- Story list -->
     <div v-if="loading" class="text-gray-400 text-sm text-center py-12">
-      Loading stories...
+      {{ t(lang, 'loading') }}
     </div>
 
     <div v-else class="flex flex-col gap-2">
@@ -28,11 +28,11 @@
         <div class="flex gap-2 mt-1 flex-wrap">
           <span class="text-xs text-gray-400">{{ LANGS[story.lang]?.name }}</span>
           <span class="text-xs text-gray-400">·</span>
-          <span class="text-xs text-gray-400">{{ story.text.split(/\s+/).length }} words</span>
+          <span class="text-xs text-gray-400">{{ story.text.split(/\s+/).length }} {{ t(lang, 'words') }}</span>
           <span v-if="story.author" class="text-xs text-gray-400">· {{ story.author }}</span>
-          <span v-if="story.sequence_order" class="text-xs text-emerald-500">curated</span>
-          <span v-if="story.community" class="text-xs text-blue-400">community</span>
-          <span v-if="story.local" class="text-xs text-gray-400">local</span>
+          <span v-if="story.sequence_order" class="text-xs text-emerald-500">{{ t(lang, 'curated') }}</span>
+          <span v-if="story.community" class="text-xs text-blue-400">{{ t(lang, 'community') }}</span>
+          <span v-if="story.local" class="text-xs text-gray-400">{{ t(lang, 'local') }}</span>
           <span v-if="story.franco" class="text-xs text-orange-400">franco</span>
         </div>
       </div>
@@ -41,18 +41,18 @@
     <!-- Add your own -->
     <div class="border border-gray-200 rounded-lg p-4 flex flex-col gap-3">
       <div class="text-xs font-medium text-gray-500 uppercase tracking-wide">
-        Add a story
+        {{ t(lang, 'addStory') }}
       </div>
       <input
         v-model="customTitle"
         type="text"
-        placeholder="Title..."
+        :placeholder="t(lang, 'titleHere')"
         class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400"
       />
       <textarea
         v-model="customText"
         rows="4"
-        placeholder="Paste story text here..."
+        :placeholder="t(lang, 'pasteStory')"
         class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 resize-none"
       />
       <input
@@ -65,17 +65,17 @@
 
       <!-- Share form -->
       <div v-if="showShareForm" class="flex flex-col gap-2 border-t border-gray-100 pt-3">
-        <div class="text-xs text-gray-500">Your name and source (required to share)</div>
+        <div class="text-xs text-gray-500">{{ t(lang, 'shareRequired') }}</div>
         <input
           v-model="customAuthor"
           type="text"
-          placeholder="Your name or username..."
+          :placeholder="t(lang, 'authorHere')"
           class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400"
         />
         <input
           v-model="customSource"
           type="text"
-          placeholder="Source / attribution (e.g. Original, Project Gutenberg)..."
+          :placeholder="t(lang, 'sourceHere')"
           class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400"
         />
       </div>
@@ -85,14 +85,14 @@
           @click="addLocal"
           class="text-sm px-4 py-1.5 rounded-md border border-gray-200 hover:border-emerald-400 transition-all"
         >
-          Save locally
+          {{ t(lang, 'saveLocal') }}
         </button>
         <button
           @click="shareGlobal"
           :disabled="submitting"
           class="text-sm px-4 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
         >
-          {{ submitting ? 'Sharing...' : 'Share with community' }}
+          {{ submitting ? t(lang, 'sharing') : t(lang, 'shareGlobal') }}
         </button>
       </div>
     </div>

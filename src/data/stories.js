@@ -1,4 +1,5 @@
 export const LANGS = {
+  en: { name: 'English', wiki: 'en', rtl: false, script: false },
   es: { name: 'Español', wiki: 'es', rtl: false, script: false },
   fr: { name: 'Français', wiki: 'fr', rtl: false, script: false },
   de: { name: 'Deutsch', wiki: 'de', rtl: false, script: false },
