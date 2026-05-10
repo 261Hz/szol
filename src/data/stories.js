@@ -10,4 +10,5 @@ export const LANGS = {
   ja: { name: '日本語', wiki: 'ja', rtl: false, script: true },
   zh: { name: '中文', wiki: 'zh', rtl: false, script: true },
   hu: { name: 'Magyar', wiki: 'hu', rtl: false, script: false },
+  el: { name: 'Ελληνικά', wiki: 'el', rtl: false, script: true },
 }
