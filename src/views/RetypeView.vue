@@ -106,7 +106,8 @@ const activeText = computed(() => {
 
 // ── Build word/char structure ─────────────────────────────────────────────────
 function buildWords(text) {
-  return text.split(' ').map(word =>
+  // "/\s+/" used for whitespace issue
+  return text.split(/\s+/).map(word =>
     word.split('').map(char => ({ char, state: 'untouched' }))
   )
 }
@@ -125,6 +126,8 @@ watch([() => props.story, mode, activeText], () => {
   currentWordIndex.value = 0
   currentCharIndex.value = 0
   inputBuffer.value = ''
+// https://vuejs.org/guide/essentials/watchers.html#eager-watchers
+}, { immediate : true 
 })
 
 // ── Keydown handler ───────────────────────────────────────────────────────────
