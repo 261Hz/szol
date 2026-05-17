@@ -1,63 +1,59 @@
 <template>
   <div class="flex flex-col gap-6">
 
-    <!-- No story -->
     <div v-if="!story" class="text-gray-400 text-sm text-center py-12">
       {{ t(lang, 'noStory') }}
     </div>
 
     <div v-else class="flex flex-col gap-4">
 
-      <!-- Story display -->
+      <!-- Franco/Pinyin toggle -->
+      <div v-if="hasFranco" class="flex gap-2 text-sm">
+        <button
+          @click="mode = 'native'"
+          :class="mode === 'native' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-500'"
+          class="px-3 py-1 rounded-full transition-all"
+        >{{ nativeLabel }}</button>
+        <button
+          @click="mode = 'franco'"
+          :class="mode === 'franco' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-500'"
+          class="px-3 py-1 rounded-full transition-all"
+        >{{ francoLabel }}</button>
+      </div>
+
+      <!-- Overlay text -->
       <div
-        class="border border-gray-200 rounded-lg p-4 leading-loose text-sm text-gray-600 select-none"
+        class="leading-loose text-base select-none cursor-text outline-none"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
-        :class="isRTL(lang) ? 'text-right text-base' : ''"
+        :class="isRTL(lang) ? 'text-right' : ''"
+        tabindex="0"
+        @keydown="onKey"
+        @focus="focused = true"
+        @blur="focused = false"
+        ref="overlayEl"
       >
-        {{ story.text }}
-      </div>
-
-      <!-- Character by character for script languages -->
-      <div v-if="isScript(lang)" class="flex flex-col gap-3">
-        <div class="text-xs font-medium text-gray-400 uppercase tracking-wide">
-          {{ isRTL(lang) ? 'اكتب كل حرف' : 'Type character by character' }}
-        </div>
-        <div
-          class="font-mono text-xl leading-loose p-3 bg-gray-50 rounded-lg border border-gray-200 min-h-12"
-          :dir="isRTL(lang) ? 'rtl' : 'ltr'"
-        >
+        <template v-for="(word, wi) in words" :key="wi">
           <span
-            v-for="(char, i) in storyChars"
-            :key="i"
-            :class="{
-              'text-emerald-500': i < charPos,
-              'border-b-2 border-emerald-400': i === charPos,
-              'text-gray-300': i > charPos,
-            }"
-          >{{ char }}</span>
-        </div>
-        <textarea
-          v-model="scriptInput"
-          @input="onScriptType"
-          rows="3"
-          :placeholder="isRTL(lang) ? '...اكتب هنا' : 'Type here...'"
-          :dir="isRTL(lang) ? 'rtl' : 'ltr'"
-          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-base outline-none focus:border-emerald-400 resize-none"
-        />
+            v-for="(c, ci) in word"
+            :key="ci"
+            :class="charClass(wi, ci)"
+          >{{ c.char }}</span>
+          <!-- space between words -->
+          <span v-if="wi < words.length - 1" :class="spaceClass(wi)">&nbsp;</span>
+        </template>
       </div>
 
-      <!-- Word by word for latin scripts -->
-      <div v-else class="flex flex-col gap-3">
-        <div class="text-xs font-medium text-gray-400 uppercase tracking-wide">
-          {{ t(lang, 'retype') }}
-        </div>
-        <textarea
-          v-model="wordInput"
-          @input="onWordType"
-          rows="5"
-          :placeholder="t(lang, 'typeHere')"
-          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-emerald-400 resize-none font-mono"
-        />
+      <!-- Hidden input to capture mobile keyboard -->
+      <input
+        class="opacity-0 h-0 absolute"
+        ref="hiddenInput"
+        @keydown="onKey"
+        v-model="inputBuffer"
+      />
+
+      <!-- Click to focus hint -->
+      <div v-if="!focused" class="text-xs text-gray-400 text-center">
+        {{ t(lang, 'clickToType') ?? 'Click text to start typing' }}
       </div>
 
       <!-- Progress bar -->
@@ -69,26 +65,6 @@
           />
         </div>
         <div class="text-xs text-gray-400 min-w-8 text-right">{{ pct }}%</div>
-        <button
-          v-if="!isScript(lang)"
-          @click="check"
-          class="text-sm px-4 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-all"
-        >
-          {{ t(lang, 'check') }}
-        </button>
-      </div>
-
-      <!-- Feedback -->
-      <div
-        v-if="feedback"
-        :class="[
-          'text-sm px-4 py-3 rounded-lg border',
-          feedback.type === 'ok'
-            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-            : 'bg-red-50 border-red-200 text-red-700'
-        ]"
-      >
-        {{ feedback.msg }}
       </div>
 
     </div>
@@ -96,9 +72,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { isRTL, isScript } from '../utils/rtl.js'
-import { scoreWords, scoreChars } from '../utils/scoring.js'
+import { ref, computed, watch, nextTick } from 'vue'
+import { isRTL } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
 
 const props = defineProps({
@@ -106,58 +81,128 @@ const props = defineProps({
   lang: String,
 })
 
-const wordInput = ref('')
-const scriptInput = ref('')
-const pct = ref(0)
-const feedback = ref(null)
-const charPos = ref(0)
+// ── Mode (native vs franco/pinyin) ───────────────────────────────────────────
+const mode = ref('native')
 
-const storyChars = computed(() => props.story ? [...props.story.text] : [])
+const hasFranco = computed(() =>
+  ['ar', 'arz', 'zh'].includes(props.lang)
+)
+
+const nativeLabel = computed(() => {
+  if (props.lang === 'zh') return '中文'
+  if (['ar', 'arz'].includes(props.lang)) return 'عربي'
+  return 'Native'
+})
+
+const francoLabel = computed(() => {
+  if (props.lang === 'zh') return 'Pinyin'
+  return 'Franco'
+})
+
+const activeText = computed(() => {
+  if (mode.value === 'franco' && props.story?.franco) return props.story.franco
+  return props.story?.text ?? ''
+})
+
+// ── Build word/char structure ─────────────────────────────────────────────────
+function buildWords(text) {
+  return text.split(' ').map(word =>
+    word.split('').map(char => ({ char, state: 'untouched' }))
+  )
+}
+
+const words = ref([])
+const currentWordIndex = ref(0)
+const currentCharIndex = ref(0)
+const inputBuffer = ref('')
+const focused = ref(false)
+const overlayEl = ref(null)
+const hiddenInput = ref(null)
+
+// Reset when story or mode changes
+watch([() => props.story, mode, activeText], () => {
+  words.value = buildWords(activeText.value)
+  currentWordIndex.value = 0
+  currentCharIndex.value = 0
+  inputBuffer.value = ''
+})
+
+// ── Keydown handler ───────────────────────────────────────────────────────────
+function onKey(e) {
+  if (!words.value.length) return
+
+  const wi = currentWordIndex.value
+  const ci = currentCharIndex.value
+  const word = words.value[wi]
+
+  // Ignore modifier keys
+  if (e.key.length > 1 && e.key !== 'Backspace') return
+
+  if (e.key === 'Backspace') {
+    e.preventDefault()
+    if (ci > 0) {
+      words.value[wi][ci - 1].state = 'untouched'
+      currentCharIndex.value--
+    }
+    return
+  }
+
+  e.preventDefault()
+
+  const expected = word[ci].char
+  const typed = e.key
+
+  // Compare (loose: ignore diacritics for non-script langs)
+  const match = typed === expected
+
+  words.value[wi][ci].state = match ? 'correct' : 'wrong'
+  currentCharIndex.value++
+
+  // End of word
+  if (currentCharIndex.value === word.length) {
+    const hasError = word.some(c => c.state === 'wrong')
+    if (hasError) {
+      // Reset word and push back
+      words.value[wi].forEach(c => c.state = 'untouched')
+      currentCharIndex.value = 0
+    } else {
+      // Advance to next word
+      if (wi < words.value.length - 1) {
+        currentWordIndex.value++
+        currentCharIndex.value = 0
+      }
+    }
+  }
+}
+
+// ── Styling ───────────────────────────────────────────────────────────────────
+function charClass(wi, ci) {
+  const state = words.value[wi]?.[ci]?.state
+  const isCurrent = wi === currentWordIndex.value && ci === currentCharIndex.value
+  return {
+    'text-red-500': state === 'wrong',
+    'text-gray-800': state === 'correct' || state === 'untouched',
+    'border-b-2 border-gray-800': isCurrent,
+  }
+}
+
+function spaceClass(wi) {
+  // Space after completed correct word
+  const word = words.value[wi]
+  const done = word.every(c => c.state === 'correct')
+  return done ? 'text-gray-800' : 'text-gray-300'
+}
+
+// ── Progress ──────────────────────────────────────────────────────────────────
+const pct = computed(() => {
+  const total = words.value.length
+  if (!total) return 0
+  return Math.round((currentWordIndex.value / total) * 100)
+})
 
 const barColor = computed(() => {
   if (pct.value >= 90) return '#10b981'
   if (pct.value >= 60) return '#f59e0b'
   return '#ef4444'
 })
-
-watch(() => props.story, () => {
-  wordInput.value = ''
-  scriptInput.value = ''
-  pct.value = 0
-  feedback.value = null
-  charPos.value = 0
-})
-
-function onWordType() {
-  if (!props.story) return
-  const result = scoreWords(props.story.text, wordInput.value)
-  pct.value = result.pct
-  feedback.value = null
-}
-
-function onScriptType() {
-  if (!props.story) return
-  const result = scoreChars(props.story.text, scriptInput.value)
-  pct.value = result.pct
-  charPos.value = result.pos
-  if (result.pos === result.total) {
-    feedback.value = { type: 'ok', msg: '✓ Perfect!' }
-  }
-}
-
-function check() {
-  if (!props.story || !wordInput.value.trim()) return
-  const result = scoreWords(props.story.text, wordInput.value)
-  if (result.pct === 100) {
-    feedback.value = { type: 'ok', msg: '✓ Perfect — every word matched.' }
-    return
-  }
-  const top = result.errors.slice(0, 3).map(e =>
-    e.typed ? `"${e.typed}" → "${e.expected}"` : `missing "${e.expected}"`
-  ).join(', ')
-  feedback.value = {
-    type: 'err',
-    msg: `${result.pct}% accurate (${result.correct}/${result.total} words). ${top}${result.errors.length > 3 ? ` …and ${result.errors.length - 3} more.` : '.'}`
-  }
-}
 </script>
