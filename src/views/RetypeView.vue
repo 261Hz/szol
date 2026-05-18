@@ -106,16 +106,17 @@ const activeText = computed(() => {
 
 // ── Build word/char structure ─────────────────────────────────────────────────
 function buildWords(text) {
-  // "/\s+/" used for whitespace issue
-  return text.split(/\s+/).map(word =>
-    word.split('').map(char => ({ char, state: 'untouched' }))
-  )
+  return text.split(/\s+/)
+    .map(w => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
+    .filter(w => w.length > 0)
+    .map(word => word.split('').map(char => ({ char, state: 'untouched' })))
 }
 
 const words = ref([])
 const currentWordIndex = ref(0)
 const currentCharIndex = ref(0)
 const inputBuffer = ref('')
+const awaitingSpace = ref(false)
 const focused = ref(false)
 const overlayEl = ref(null)
 const hiddenInput = ref(null)
@@ -126,6 +127,7 @@ watch([() => props.story, mode, activeText], () => {
   currentWordIndex.value = 0
   currentCharIndex.value = 0
   inputBuffer.value = ''
+  awaitingSpace.value = false
 // https://vuejs.org/guide/essentials/watchers.html#eager-watchers
 }, { immediate : true 
 })
@@ -141,14 +143,30 @@ function onKey(e) {
   // Ignore modifier keys
   if (e.key.length > 1 && e.key !== 'Backspace') return
 
+  if (e.key === ' ') {
+    e.preventDefault()
+    if (awaitingSpace.value) {
+      awaitingSpace.value = false
+      currentWordIndex.value++
+      currentCharIndex.value = 0
+    }
+    return
+  }
+
   if (e.key === 'Backspace') {
     e.preventDefault()
-    if (ci > 0) {
+    if (awaitingSpace.value) {
+      awaitingSpace.value = false
+      words.value[wi].forEach(c => c.state = 'untouched')
+      currentCharIndex.value = 0
+    } else if (ci > 0) {
       words.value[wi][ci - 1].state = 'untouched'
       currentCharIndex.value--
     }
     return
   }
+
+  if (awaitingSpace.value) return
 
   e.preventDefault()
 
@@ -165,15 +183,10 @@ function onKey(e) {
   if (currentCharIndex.value === word.length) {
     const hasError = word.some(c => c.state === 'wrong')
     if (hasError) {
-      // Reset word and push back
       words.value[wi].forEach(c => c.state = 'untouched')
       currentCharIndex.value = 0
-    } else {
-      // Advance to next word
-      if (wi < words.value.length - 1) {
-        currentWordIndex.value++
-        currentCharIndex.value = 0
-      }
+    } else if (wi < words.value.length - 1) {
+      awaitingSpace.value = true
     }
   }
 }
@@ -190,9 +203,11 @@ function charClass(wi, ci) {
 }
 
 function spaceClass(wi) {
-  // Space after completed correct word
   const word = words.value[wi]
   const done = word.every(c => c.state === 'correct')
+  if (awaitingSpace.value && wi === currentWordIndex.value) {
+    return 'border-b-2 border-gray-800'
+  }
   return done ? 'text-gray-800' : 'text-gray-300'
 }
 
@@ -200,7 +215,8 @@ function spaceClass(wi) {
 const pct = computed(() => {
   const total = words.value.length
   if (!total) return 0
-  return Math.round((currentWordIndex.value / total) * 100)
+  const done = words.value.filter(w => w.every(c => c.state === 'correct')).length
+  return Math.round((done / total) * 100)
 })
 
 const barColor = computed(() => {
