@@ -30,6 +30,7 @@ export const UI = {
   authorHere: 'Your name or username...',
   sourceHere: 'Source / attribution (e.g. Original, Project Gutenberg)...',
   local: 'local',
+  clickToType: 'Click text to start typing',
 },
   es: {
     read: 'Leer',
@@ -62,6 +63,7 @@ export const UI = {
     authorHere: 'Tu nombre o usuario...',
     sourceHere: 'Fuente / atribución (ej. Original, Proyecto Gutenberg)...',
     local: 'local',
+    clickToType: 'Haz clic en el texto para empezar a escribir',
   },
   fr: {
     read: 'Lire',
@@ -94,6 +96,7 @@ export const UI = {
     authorHere: 'Ton nom ou pseudo...',
     sourceHere: 'Source / attribution (ex. Original, Project Gutenberg)...',
     local: 'local',
+    clickToType: 'Cliquez sur le texte pour commencer à écrire',
   },
   de: {
     read: 'Lesen',
@@ -126,6 +129,7 @@ export const UI = {
     authorHere: 'Dein Name oder Benutzername...',
     sourceHere: 'Quelle / Angabe (z.B. Original, Project Gutenberg)...',
     local: 'lokal',
+    clickToType: 'Klicke auf den Text, um zu tippen',
   },
   he: {
     read: 'קרא',
@@ -158,6 +162,7 @@ export const UI = {
     authorHere: 'שמך או שם משתמש...',
     sourceHere: 'מקור / קרדיט (לדוג׳: מקורי, פרויקט גוטנברג)...',
     local: 'מקומי',
+    clickToType: 'לחץ על הטקסט כדי להתחיל להקליד',
   },
   ar: {
     read: 'اقرأ',
@@ -190,6 +195,7 @@ export const UI = {
     authorHere: 'اسمك أو اسم المستخدم...',
     sourceHere: 'المصدر / الإسناد (مثل: أصلي، مشروع غوتنبرغ)...',
     local: 'محلي',
+    clickToType: 'انقر على النص لبدء الكتابة',
   },
   arz: {
     read: 'اقرا',
@@ -222,6 +228,7 @@ export const UI = {
     authorHere: 'اسمك أو اسم اليوزر...',
     sourceHere: 'المصدر (مثلاً: أصلي، مشروع جوتنبرج)...',
     local: 'محلي',
+    clickToType: 'اضغط على النص عشان تبدأ تكتب',
   },
   ja: {
     read: '読む',
@@ -254,6 +261,7 @@ export const UI = {
     authorHere: '名前またはユーザー名...',
     sourceHere: '出典・帰属（例：オリジナル、プロジェクト・グーテンベルク）...',
     local: 'ローカル',
+    clickToType: 'テキストをクリックして入力を開始',
   },
   ru: {
     read: 'Читать',
@@ -286,6 +294,7 @@ export const UI = {
     authorHere: 'Ваше имя или имя пользователя...',
     sourceHere: 'Источник / указание автора (напр. Оригинал, Проект Гутенберг)...',
     local: 'локальное',
+    clickToType: 'Нажмите на текст, чтобы начать печатать',
   },
   it: {
     read: 'Leggere',
@@ -318,6 +327,7 @@ export const UI = {
     authorHere: 'Il tuo nome o nome utente...',
     sourceHere: 'Fonte / attribuzione (es. Originale, Progetto Gutenberg)...',
     local: 'locale',
+    clickToType: 'Clicca sul testo per iniziare a digitare',
   },
   el: {
     read: 'Διαβάζω',
@@ -350,6 +360,7 @@ export const UI = {
     authorHere: 'Το όνομά σου ή username...',
     sourceHere: 'Πηγή / απόδοση (π.χ. Πρωτότυπο, Project Gutenberg)...',
     local: 'τοπική',
+    clickToType: 'Κάνε κλικ στο κείμενο για να αρχίσεις να γράφεις',
   },
   zh: {
     read: '阅读',
@@ -382,6 +393,7 @@ export const UI = {
     authorHere: '你的名字或用户名...',
     sourceHere: '来源 / 版权归属（如：原创，古腾堡计划）...',
     local: '本地',
+    clickToType: '点击文字开始输入',
   },
   hu: {
     read: 'Olvasás',
@@ -414,6 +426,7 @@ export const UI = {
     authorHere: 'A neved vagy felhasználóneved...',
     sourceHere: 'Forrás / hivatkozás (pl. Eredeti, Project Gutenberg)...',
     local: 'helyi',
+    clickToType: 'Kattints a szövegre a gépelés megkezdéséhez',
   },
 }
 
