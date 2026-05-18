@@ -28,13 +28,26 @@ async function fromFreeDictionary(word) {
   const r = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`)
   if (!r.ok) throw new Error()
   const data = await r.json()
-  const meaning = data[0]?.meanings?.[0]
-  const def = meaning?.definitions?.[0]
+  const meanings = data[0]?.meanings
+  if (!meanings?.length) throw new Error()
+
+  // prefer adjective, then noun, then whatever
+  const preferred = ['adjective', 'verb', 'noun']
+  let meaning = null
+  for (const pos of preferred) {
+    meaning = meanings.find(m => m.partOfSpeech === pos)
+    if (meaning) break
+  }
+  if (!meaning) meaning = meanings[0]
+
+  // prefer a definition with an example
+  const def = meaning.definitions.find(d => d.example) ?? meaning.definitions[0]
   if (!def) throw new Error()
+
   return {
     word,
-    pos: meaning?.partOfSpeech || '',
-    definition: def.definition || '',
+    pos: meaning.partOfSpeech,
+    definition: def.definition,
     example: def.example || '',
     source: 'freedictionary',
   }
