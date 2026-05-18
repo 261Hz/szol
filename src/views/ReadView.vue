@@ -109,6 +109,7 @@ import { isRTL, hasFranco } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
 import { normalize } from '../utils/scoring.js'
 import { lookupCached, cacheWord } from '../utils/supabase.js'
+import { lookupWord } from '../utils/dictionary.js'
 
 const props = defineProps({
   story: Object,
@@ -132,9 +133,13 @@ const tokens = computed(() => {
 async function lookup(word) {
   const clean = word.replace(/[^\p{L}\p{M}]/gu, '')
   if (!clean) return
+
+  const utt = new SpeechSynthesisUtterance(clean)
+  utt.lang = LANGS[props.lang]?.bcp47 ?? props.lang
+  speechSynthesis.speak(utt)
+
   lookupResult.value = { word: clean, pos: '', def: t(props.lang, 'lookingUp'), ex: '' }
 
-  // Check cache first
   const cached = await lookupCached(clean, props.lang)
   if (cached) {
     lookupResult.value = {
@@ -146,34 +151,23 @@ async function lookup(word) {
     return
   }
 
-  // Fall back to Wiktionary
-  const wikiLang = LANGS[props.lang]?.wiki || 'en'
-  try {
-    const r = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(clean)}`)
-    if (!r.ok) throw new Error()
-    const d = await r.json()
-    const entries = d[wikiLang] || d['en'] || Object.values(d)[0] || []
-    if (!entries.length) throw new Error()
-    const entry = entries[0]
-    const def = entry.definitions?.[0]
-    const result = {
+  const result = await lookupWord(clean, props.lang)
+  if (result) {
+    lookupResult.value = {
       word: clean,
-      pos: entry.partOfSpeech || '',
-      def: def?.definition?.replace(/<[^>]+>/g, '') || t(props.lang, 'noDefinition'),
-      ex: def?.examples?.[0]?.replace(/<[^>]+>/g, '') || '',
+      pos: result.pos,
+      def: result.definition || t(props.lang, 'noDefinition'),
+      ex: result.example,
     }
-    lookupResult.value = result
-
-    // Cache the result
     await cacheWord({
       word: clean,
       lang: props.lang,
       pos: result.pos,
-      definition: result.def,
-      example: result.ex,
-      source: 'wiktionary',
+      definition: result.definition,
+      example: result.example,
+      source: result.source,
     })
-  } catch {
+  } else {
     lookupResult.value = {
       word: clean,
       pos: '',
