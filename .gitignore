@@ -28,3 +28,5 @@ dist-ssr
 36205-0.txt
 insert_fonissa.mjs
 venv/
+__pycache__/
+*.pyc
