@@ -1,14 +1,13 @@
 from .database import Base
-from sqlalchemy import TIMESTAMP, Column, Integer, String, Boolean
+from sqlalchemy import TIMESTAMP, Column, Integer, String, Boolean, Uuid
 from sqlalchemy.sql.expression import text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.schema import ForeignKey
-from uuid import UUID
 
 
 class User(Base):
     __tablename__ = "users"
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    id = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
     username = Column(String, nullable=False)
     email = Column(String, nullable=False, unique=True, index=True)
     password = Column(String, nullable=False)
@@ -17,7 +16,7 @@ class User(Base):
 class CuratedStory(Base):
     __tablename__ = "curated_stories"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    id = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
     title = Column(String, nullable=False)
     text = Column(String, nullable=False)
     franco = Column(String)
@@ -30,7 +29,7 @@ class CuratedStory(Base):
 class WordCache(Base):
     __tablename__ = "word_cache"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    id = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
     word = Column(String, nullable=False, index=True)
     lang = Column(String, nullable=False, index=True)
     pos = Column(String)
@@ -42,7 +41,7 @@ class WordCache(Base):
 class CommunityStory(Base):
     __tablename__ = "community_stories"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    id = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
     title = Column(String, nullable=False)
     text = Column(String, nullable=False)
     franco = Column(String)
