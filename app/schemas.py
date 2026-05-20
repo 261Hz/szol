@@ -37,7 +37,7 @@ class TokenData(BaseModel):
 
 class CuratedStoryBase(BaseModel):
     title: str
-    text: str
+    content: str
     franco: Optional[str] = None
     lang: str
     author: Optional[str] = None
@@ -76,7 +76,7 @@ class WordCacheResponse(WordCacheBase):
 
 class CommunityStoryBase(BaseModel):
     title: str
-    text: str
+    content: str
     franco: Optional[str] = None
     lang: str
     author: Optional[str] = None

@@ -18,7 +18,7 @@ class CuratedStory(Base):
 
     id = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
     title = Column(String, nullable=False)
-    text = Column(String, nullable=False)
+    content = Column(String, nullable=False)
     franco = Column(String)
     lang = Column(String, nullable=False)
     author = Column(String)
@@ -43,7 +43,7 @@ class CommunityStory(Base):
 
     id = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
     title = Column(String, nullable=False)
-    text = Column(String, nullable=False)
+    content = Column(String, nullable=False)
     franco = Column(String)
     lang = Column(String, nullable=False)
     author = Column(String)
