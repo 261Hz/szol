@@ -1,29 +1,32 @@
-<!-- RetypeView.vue: typing practice. -->
-<!-- The story text is shown character by character. The user types along and gets instant feedback. -->
-<!-- Each character turns green when typed correctly, red when wrong. -->
-<!-- Wrong words reset (you must type the whole word correctly to move on). -->
+<!-- RetypeView.vue: typing practice through the story one sentence at a time. -->
+<!--                                                                              -->
+<!-- Layout:                                                                      -->
+<!--   ┌─ completed sentences (faded, scrolls up) ─────────────────────┐          -->
+<!--   │  [gray] Sentence one text here.                               │          -->
+<!--   │  [gray] Another sentence already done.                        │          -->
+<!--   ├─ active sentence ─────────────────────────────────────────────┤          -->
+<!--   │  [green]Typed [cursor]curr[dim]ent word remaining words here  │          -->
+<!--   ├─ progress ─────────────────────────────────────────────────────┤          -->
+<!--   │  sentence 3 of 8  ████████░░░░ 62%                           │          -->
+<!--   └───────────────────────────────────────────────────────────────┘          -->
 <template>
-  <!-- Outer container. -->
-  <div class="flex flex-col gap-6">
+  <div class="flex flex-col gap-4">
 
-    <!-- Shown when no story is selected yet. -->
+    <!-- No story selected yet. -->
     <div v-if="!story" class="text-gray-400 text-sm text-center py-12">
       {{ t(lang, 'noStory') }}
     </div>
 
     <!-- Main typing interface. -->
-    <div v-else class="flex flex-col gap-4">
+    <div v-else class="flex flex-col gap-3">
 
-      <!-- Toggle for Franco/Pinyin mode (only for Arabic and Chinese). -->
-      <!-- hasFranco = computed boolean: true if this language has an alternate romanized script. -->
+      <!-- Franco / Pinyin mode toggle (Arabic and Chinese only). -->
       <div v-if="hasFranco" class="flex gap-2 text-sm">
-        <!-- Native script button (e.g. Arabic, Chinese). Active when mode === 'native'. -->
         <button
           @click="mode = 'native'"
           :class="mode === 'native' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-500'"
           class="px-3 py-1 rounded-full transition-all"
         >{{ nativeLabel }}</button>
-        <!-- Romanized button (Franco for Arabic, Pinyin for Chinese). -->
         <button
           @click="mode = 'franco'"
           :class="mode === 'franco' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-500'"
@@ -31,56 +34,55 @@
         >{{ francoLabel }}</button>
       </div>
 
-      <!-- Story text display with per-character coloring. -->
-      <!-- "select-none" = prevents mouse selection of text (so double-click doesn't select). -->
-      <!-- "cursor-text" = shows a text cursor on hover (indicates you can type here). -->
-      <!-- "outline-none" = removes the browser's default blue focus box (we draw our own). -->
-      <!-- "border rounded-lg p-4" = visible box boundary with padding. -->
-      <!-- "border-gray-200" = light gray border by default. -->
-      <!-- "focus:border-emerald-400" = border turns green when the box is focused/active. -->
-      <!-- "transition-colors" = smoothly animates the border color change. -->
-      <!-- "break-words" = allows long words to wrap onto the next line if they overflow. -->
-      <!-- tabindex="0" = makes this div focusable via keyboard (Tab key). -->
-      <!-- @keydown="onKey" = calls onKey() whenever a key is pressed while focused. -->
-      <!-- @focus / @blur = update "focused" to show/hide the "click to type" hint. -->
-      <!-- ref="overlayEl" = gives us a JavaScript reference to this element. -->
+      <!-- ── Completed-sentence history ──────────────────────────────────── -->
+      <!-- Scrollable area that shows all sentences typed so far, faded gray. -->
+      <!-- "max-h-40 overflow-y-auto" = max 10rem tall, scrolls if more. -->
+      <!-- ref="historyEl" = JS reference so we can .scrollTop it automatically. -->
       <div
-        class="leading-loose text-base select-none cursor-text outline-none border border-gray-200 rounded-lg p-4 transition-colors focus:border-emerald-400 break-words"
+        v-if="completedSentences.length"
+        ref="historyEl"
+        class="max-h-40 overflow-y-auto flex flex-col gap-1 border border-gray-100 rounded-lg px-4 py-2"
+      >
+        <div
+          v-for="(s, i) in completedSentences"
+          :key="i"
+          class="text-sm text-gray-300 leading-snug break-words"
+          :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+        >{{ s }}</div>
+      </div>
+
+      <!-- ── Active sentence ─────────────────────────────────────────────── -->
+      <!-- This is the div the user focuses to type.                          -->
+      <!-- tabindex="0" = makes a non-input element keyboard-focusable.       -->
+      <!-- @keydown = captures every keypress while focused.                  -->
+      <!-- @focus/@blur = show/hide the "click to type" hint.                 -->
+      <!-- break-words = long words (URLs, German compounds) wrap gracefully.  -->
+      <div
+        class="leading-loose text-base select-none cursor-text outline-none border border-gray-200 rounded-lg p-4 transition-colors focus:border-emerald-400 break-words min-h-16"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right' : ''"
         tabindex="0"
         @keydown="onKey"
-        @focus="focused = true"
+        @focus="focused = true; focusMobileInput()"
         @blur="focused = false"
         ref="overlayEl"
       >
-        <!-- Loop over each word in the words array. wi = word index. -->
-        <!-- <template> is a Vue grouping element -- it renders no HTML itself. -->
-        <template v-for="(word, wi) in words" :key="wi">
-          <!-- Loop over each character in this word. ci = character index. -->
-          <!-- charClass(wi, ci) returns Tailwind color classes based on state. -->
-          <span
-            v-for="(c, ci) in word"
-            :key="ci"
-            :class="charClass(wi, ci)"
-          >{{ c.char }}</span>
-          <!-- Space between words (not after the last word). -->
-          <!-- v-if="wi < words.length - 1" = show space for all words except the last. -->
-          <!-- spaceClass(wi) colors the space based on whether the word was completed. -->
-          <!-- {{ ' ' }} = Vue interpolation of a plain space character. -->
-          <!-- A bare space between tags gets stripped by Vue's template compiler in production. -->
-          <!-- Wrapping it in {{ }} forces Vue to treat it as a real rendered value, not whitespace. -->
-          <!-- This allows the line to wrap here naturally (unlike &nbsp; which never wraps). -->
-          <span v-if="wi < words.length - 1" :class="spaceClass(wi)">{{ ' ' }}</span>
+        <!-- Done state: all sentences completed. -->
+        <span v-if="done" class="text-emerald-500 font-medium">✓ {{ t(lang, 'done') ?? 'Complete!' }}</span>
+
+        <!-- Active sentence: render each word and space with color-coded state. -->
+        <template v-else>
+          <template v-for="(word, wi) in words" :key="wi">
+            <!-- Characters of this word. charClass() picks the right color. -->
+            <span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span>
+            <!-- Space after the word (not after the last word). -->
+            <!-- spaceClass() shows an underline cursor when waiting for Space. -->
+            <span v-if="wi < words.length - 1" :class="spaceClass(wi)">{{ ' ' }}</span>
+          </template>
         </template>
       </div>
 
-      <!-- Hidden input element captures keyboard input on mobile devices. -->
-      <!-- On mobile, a physical keyboard isn't always available, so a hidden <input> -->
-      <!-- triggers the on-screen keyboard when focused. The input itself is invisible. -->
-      <!-- "opacity-0 h-0 absolute" = invisible, no height, positioned out of normal flow. -->
-      <!-- ref="hiddenInput" = JS reference so we can call .focus() on it programmatically. -->
-      <!-- v-model="inputBuffer" = two-way binding (captures what's typed). -->
+      <!-- Hidden input triggers the on-screen keyboard on mobile devices. -->
       <input
         class="opacity-0 h-0 absolute"
         ref="hiddenInput"
@@ -88,25 +90,25 @@
         v-model="inputBuffer"
       />
 
-      <!-- "Click to type" hint: shown when nothing is focused. -->
-      <!-- ?? = nullish coalescing: fallback string if translation is missing. -->
-      <div v-if="!focused" class="text-xs text-gray-400 text-center">
+      <!-- "Click to type" hint shown when the typing area is not focused. -->
+      <div v-if="!focused && !done" class="text-xs text-gray-400 text-center">
         {{ t(lang, 'clickToType') ?? 'Click text to start typing' }}
       </div>
 
-      <!-- Progress bar row. -->
+      <!-- ── Progress row ────────────────────────────────────────────────── -->
       <div class="flex items-center gap-3">
-        <!-- Bar track: full width, gray background. "overflow-hidden" clips the colored fill. -->
+        <!-- Sentence counter. -->
+        <div class="text-xs text-gray-400 whitespace-nowrap">
+          {{ Math.min(completedSentences.length + 1, sentences.length) }} / {{ sentences.length }}
+        </div>
+        <!-- Progress bar track. -->
         <div class="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-          <!-- Colored fill: width is the completion percentage. Color changes by score. -->
-          <!-- :style="{ width: pct + '%', background: barColor }" applies inline CSS. -->
-          <!-- "transition-all duration-200" = smoothly animates width changes over 200ms. -->
+          <!-- Fill: width = % of sentences completed. -->
           <div
             class="h-full rounded-full transition-all duration-200"
             :style="{ width: pct + '%', background: barColor }"
           />
         </div>
-        <!-- Percentage number on the right. "min-w-8" prevents layout shifting. -->
         <div class="text-xs text-gray-400 min-w-8 text-right">{{ pct }}%</div>
       </div>
 
@@ -115,212 +117,252 @@
 </template>
 
 <script setup>
-// ref = reactive variable. computed = auto-updating value.
-// watch = run code when something changes. nextTick = wait for DOM update.
 import { ref, computed, watch, nextTick } from 'vue'
 import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 
-// This component receives the story and language from App.vue.
 const props = defineProps({
   story: Object,
   lang:  String,
 })
 
-// ── Mode (native vs franco/pinyin) ──────────────────────────────────────────────
+// ── Mode (native / franco / pinyin) ──────────────────────────────────────────
 
-// mode tracks which script the user is practicing: 'native' or 'franco'.
 const mode = ref('native')
 
-// hasFranco = true if this language has a Latin-alphabet alternative (Arabic, Egyptian Arabic, Chinese).
-const hasFranco = computed(() =>
-  ['ar', 'arz', 'zh'].includes(props.lang)
-)
+// hasFranco = true for Arabic (both varieties) and Chinese, which have Latin-script alternates.
+const hasFranco = computed(() => ['ar', 'arz', 'zh'].includes(props.lang))
 
-// nativeLabel = the button label for the native script toggle.
 const nativeLabel = computed(() => {
-  if (props.lang === 'zh') return '中文'            // Chinese characters
-  if (['ar', 'arz'].includes(props.lang)) return 'عربي' // Arabic script
-  return 'Native'                                   // default fallback
+  if (props.lang === 'zh')               return '中文'
+  if (['ar', 'arz'].includes(props.lang)) return 'عربي'
+  return 'Native'
 })
 
-// francoLabel = the button label for the romanized script toggle.
-const francoLabel = computed(() => {
-  if (props.lang === 'zh') return 'Pinyin' // romanized Chinese pronunciation
-  return 'Franco'                          // romanized Arabic (used online)
-})
+const francoLabel = computed(() => props.lang === 'zh' ? 'Pinyin' : 'Franco')
 
-// activeText = the text being practiced: either the native text or the franco/pinyin version.
+// activeText = the text being practiced: native script or its romanised version.
 const activeText = computed(() => {
-  // Use franco text only if mode is franco AND the story actually has franco text.
   if (mode.value === 'franco' && props.story?.franco) return props.story.franco
-  // Otherwise use the main story text (or empty string if no story loaded).
   return props.story?.text ?? ''
 })
 
-// ── Word / character data structure ─────────────────────────────────────────────
+// ── Sentence splitting ────────────────────────────────────────────────────────
 
-// buildWords() converts a text string into a structured array used for rendering and tracking.
-// Returns an array of words, where each word is an array of character objects.
-// Example: "Hi!" → [ [{char:'H', state:'untouched'}, {char:'i', state:'untouched'}] ]
-// (Punctuation at the start/end of each word is stripped for clean comparison.)
-function buildWords(text) {
-  return text.split(/\s+/)                                  // split text into words by whitespace
-    .map(w => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')) // strip leading/trailing punctuation
-    // [^\p{L}\p{N}] = NOT a Unicode letter (\p{L}) or number (\p{N})
-    // ^ at the start of the pattern = "beginning of string"
-    // $ at the end = "end of string"
-    // | = "OR": strip from start OR from end
-    .filter(w => w.length > 0)                             // remove empty strings (pure punctuation words)
-    .map(word => word.split('').map(char => ({ char, state: 'untouched' })))
-    // .split('') = split word into individual characters
-    // Each character becomes an object { char: 'H', state: 'untouched' }
-    // state can be 'untouched', 'correct', or 'wrong'
-}
+// splitSentences() breaks a text into sentence-sized chunks for the practice loop.
+// Splits after sentence-ending punctuation (covering Latin, Arabic, CJK, Indic scripts).
+// Falls back to fixed 10-word chunks when the text has no sentence punctuation.
+function splitSentences(text) {
+  // Lookbehind (?<=...) splits AFTER the punctuation mark, keeping it with its sentence.
+  const parts = text
+    .split(/(?<=[.!?؟।。！？…])\s+/)
+    .map(s => s.trim())
+    .filter(Boolean)
 
-// Reactive state variables for the typing exercise.
-const words            = ref([])    // the structured word/char array (built by buildWords)
-const currentWordIndex = ref(0)     // which word the user is currently typing
-const currentCharIndex = ref(0)     // which character within that word
-const inputBuffer      = ref('')    // captures mobile keyboard input (not displayed)
-const awaitingSpace    = ref(false) // true when a word is complete and waiting for Space key
-const focused          = ref(false) // true when the typing area has keyboard focus
-const overlayEl        = ref(null)  // reference to the clickable text div
-const hiddenInput      = ref(null)  // reference to the hidden mobile input
-
-// watch() monitors multiple values and re-runs when any change.
-// Here: rebuild the word structure whenever the story, mode, or text changes.
-// { immediate: true } = also run once immediately when the component first loads.
-watch([() => props.story, mode, activeText], () => {
-  words.value            = buildWords(activeText.value) // rebuild from scratch
-  currentWordIndex.value = 0     // reset to the beginning
-  currentCharIndex.value = 0
-  inputBuffer.value      = ''
-  awaitingSpace.value    = false
-}, { immediate: true })
-
-// ── Keyboard handler ─────────────────────────────────────────────────────────────
-
-// onKey() processes every keypress while the typing area is focused.
-function onKey(e) {
-  if (!words.value.length) return // no words = nothing to type
-
-  // Shorthand variables for current position.
-  const wi   = currentWordIndex.value // current word index
-  const ci   = currentCharIndex.value // current character index within word
-  const word = words.value[wi]        // the current word array
-
-  // Ignore modifier-only keys (Shift, Ctrl, Alt, etc.) and non-character keys except Backspace.
-  // e.key.length > 1 catches things like 'Shift', 'ArrowLeft', 'Enter'.
-  // But 'Backspace'.length === 9 > 1, so we exclude it with the && !== check.
-  if (e.key.length > 1 && e.key !== 'Backspace') return
-
-  // Handle the Space key: advances to the next word after completing the current one.
-  if (e.key === ' ') {
-    e.preventDefault() // prevent the page from scrolling or the browser doing something with the space
-    if (awaitingSpace.value) {
-      awaitingSpace.value    = false      // consume the space: no longer waiting
-      currentWordIndex.value++            // move to the next word
-      currentCharIndex.value = 0          // start at the first character of the new word
+  // If only one chunk came out but the text is long, split it into ~10-word pieces.
+  if (parts.length <= 1) {
+    const wordArr = text.trim().split(/\s+/).filter(Boolean)
+    if (wordArr.length <= 10) return [text.trim()]
+    const chunks = []
+    for (let i = 0; i < wordArr.length; i += 10) {
+      chunks.push(wordArr.slice(i, i + 10).join(' '))
     }
-    return // don't process space as a typed character
+    return chunks
   }
 
-  // Handle Backspace: undo the last action.
-  if (e.key === 'Backspace') {
+  return parts
+}
+
+// ── Per-word / per-character data structure ───────────────────────────────────
+
+// buildWords() converts a sentence string into a structured array for rendering.
+// Returns: [ [{char:'H', state:'untouched'}, ...], [...], ... ]
+// Strips leading/trailing punctuation from each word so comparison is clean.
+function buildWords(text) {
+  return text.split(/\s+/)
+    .map(w => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
+    .filter(w => w.length > 0)
+    .map(word => word.split('').map(char => ({ char, state: 'untouched' })))
+}
+
+// ── Reactive state ────────────────────────────────────────────────────────────
+
+const sentences          = ref([])  // all sentences in the story, split from activeText
+const sentenceIdx        = ref(0)   // index of the sentence currently being typed
+const completedSentences = ref([])  // the text of each sentence already finished (for history)
+const words              = ref([])  // the structured word/char array for the current sentence
+const currentWordIndex   = ref(0)
+const currentCharIndex   = ref(0)
+const awaitingSpace      = ref(false) // true = word just completed, waiting for Space/Enter
+const focused            = ref(false)
+const done               = ref(false) // true when all sentences have been typed
+const inputBuffer        = ref('')    // mobile keyboard capture
+const overlayEl          = ref(null)
+const historyEl          = ref(null)
+const hiddenInput        = ref(null)
+
+// Rebuild the exercise whenever the story or mode changes.
+// { immediate: true } = also runs on first mount, not only when values change later.
+watch([() => props.story, mode, activeText], () => {
+  sentences.value          = splitSentences(activeText.value)
+  sentenceIdx.value        = 0
+  completedSentences.value = []
+  done.value               = false
+  loadSentence(0)
+}, { immediate: true })
+
+// loadSentence() prepares the word/char structure for a given sentence index.
+function loadSentence(idx) {
+  words.value            = buildWords(sentences.value[idx] ?? '')
+  currentWordIndex.value = 0
+  currentCharIndex.value = 0
+  awaitingSpace.value    = false
+}
+
+// advanceSentence() is called when the user correctly finishes the last word of a sentence.
+// It pushes the completed text to history and moves to the next sentence.
+async function advanceSentence() {
+  completedSentences.value.push(sentences.value[sentenceIdx.value])
+  sentenceIdx.value++
+
+  if (sentenceIdx.value >= sentences.value.length) {
+    done.value = true // all sentences done — exercise complete
+    return
+  }
+
+  loadSentence(sentenceIdx.value)
+
+  // Scroll the history panel to the bottom so the latest completed sentence is visible.
+  await nextTick()
+  if (historyEl.value) {
+    historyEl.value.scrollTop = historyEl.value.scrollHeight
+  }
+}
+
+// ── Keyboard handler ──────────────────────────────────────────────────────────
+
+function onKey(e) {
+  if (done.value || !words.value.length) return
+
+  const wi   = currentWordIndex.value
+  const ci   = currentCharIndex.value
+  const word = words.value[wi]
+  const isLastWord = wi === words.value.length - 1
+
+  // Ignore all modifier/control keys except Backspace.
+  if (e.key.length > 1 && e.key !== 'Backspace') return
+
+  // ── Space: advance word (or sentence) ──────────────────────────────────
+  if (e.key === ' ' || e.key === 'Enter') {
     e.preventDefault()
-    if (awaitingSpace.value) {
-      // If waiting for space, cancel completion and go back to fixing the last character.
-      awaitingSpace.value = false
-      words.value[wi].forEach(c => c.state = 'untouched') // reset all chars in word
-      currentCharIndex.value = 0 // go back to start of word
-    } else if (ci > 0) {
-      // Otherwise, un-type the previous character.
-      words.value[wi][ci - 1].state = 'untouched' // mark it as not yet typed
-      currentCharIndex.value--                      // move cursor back one position
+    if (!awaitingSpace.value) return
+
+    awaitingSpace.value = false
+
+    if (!isLastWord) {
+      // Move to the next word within the same sentence.
+      currentWordIndex.value++
+      currentCharIndex.value = 0
+    } else {
+      // Last word of the sentence done — advance to the next sentence.
+      advanceSentence()
     }
     return
   }
 
-  // If we're waiting for Space (word just completed), ignore all other keys.
+  // ── Backspace ──────────────────────────────────────────────────────────
+  if (e.key === 'Backspace') {
+    e.preventDefault()
+    if (awaitingSpace.value) {
+      // Cancel the completed state and go back to fixing the last character.
+      awaitingSpace.value = false
+      words.value[wi].forEach(c => c.state = 'untouched')
+      currentCharIndex.value = 0
+    } else if (ci > 0) {
+      words.value[wi][ci - 1].state = 'untouched'
+      currentCharIndex.value--
+    }
+    return
+  }
+
+  // If waiting for Space, ignore any other keys.
   if (awaitingSpace.value) return
 
-  // Prevent the browser's default action for this key (e.g. typing in a textarea).
   e.preventDefault()
 
-  // Compare the typed key against the expected character.
-  const expected = word[ci].char // the character the user needs to type
-  const typed    = e.key         // what the user actually pressed
+  // ── Character matching ─────────────────────────────────────────────────
+  const expected = word[ci].char
+  const match    = e.key === expected
 
-  // Strict match: must type exactly the right character (including diacritics like é, ñ, ü).
-  const match = typed === expected
-
-  // Update the character's state based on whether it matched.
   words.value[wi][ci].state = match ? 'correct' : 'wrong'
-  currentCharIndex.value++   // advance to next character position
+  currentCharIndex.value++
 
-  // Check if the user has typed the last character of this word.
+  // Check if the full word has been typed.
   if (currentCharIndex.value === word.length) {
-    // Check if any character in this word was typed incorrectly.
     const hasError = word.some(c => c.state === 'wrong')
     if (hasError) {
-      // Reset the whole word: user must retype it from the beginning.
+      // Reset word — user must retype it from scratch.
       words.value[wi].forEach(c => c.state = 'untouched')
-      currentCharIndex.value = 0 // go back to start of word
-    } else if (wi < words.value.length - 1) {
-      // Word typed perfectly! Require Space to advance to the next word.
+      currentCharIndex.value = 0
+    } else {
+      // Word typed correctly: wait for Space before advancing.
       awaitingSpace.value = true
-      // Don't advance yet -- wait for the space keypress.
     }
-    // If it's the last word (wi === words.value.length - 1), do nothing. Exercise complete!
   }
 }
 
-// ── Character / space styling ────────────────────────────────────────────────────
+// ── Character / space styling ─────────────────────────────────────────────────
 
-// charClass() returns CSS classes for a single character based on its state and position.
+// charClass() returns CSS classes for a single character based on state + cursor position.
 function charClass(wi, ci) {
-  // ?. = optional chaining: safely access nested properties.
-  const state     = words.value[wi]?.[ci]?.state // 'untouched', 'correct', or 'wrong'
-  // isCurrent = true if this is the character the user should type next (shows underline cursor).
-  const isCurrent = wi === currentWordIndex.value && ci === currentCharIndex.value
-  // Return an object where keys are CSS class names and values are booleans.
-  // Vue applies the class only when the value is true.
+  const state     = words.value[wi]?.[ci]?.state
+  const isCurrent = wi === currentWordIndex.value && ci === currentCharIndex.value && !awaitingSpace.value
+
+  // Future words (not yet reached) are shown in light gray so the full sentence is readable.
+  const isFuture = wi > currentWordIndex.value
+
   return {
-    'text-red-500':          state === 'wrong',                                  // wrong = red
-    'text-gray-800':         state === 'correct' || state === 'untouched',       // normal = dark gray
-    'border-b-2 border-gray-800': isCurrent,                                     // cursor = underline
+    'text-emerald-600':          state === 'correct',
+    'text-red-500':              state === 'wrong',
+    'text-gray-800':             state === 'untouched' && !isFuture,
+    'text-gray-300':             isFuture,
+    'border-b-2 border-gray-700': isCurrent,
   }
 }
 
-// spaceClass() returns CSS classes for the space between two words.
+// spaceClass() styles the space between words.
 function spaceClass(wi) {
-  const word = words.value[wi] // the word BEFORE this space
-  // done = true if every character in this word was typed correctly.
-  const done = word.every(c => c.state === 'correct') // .every() = true only if ALL pass the test
-  // If we're waiting for Space after completing this word, show a cursor underline on the space.
-  if (awaitingSpace.value && wi === currentWordIndex.value) {
-    return 'border-b-2 border-gray-800'
-  }
-  // Otherwise: dark if word is done, light gray if not yet reached.
-  return done ? 'text-gray-800' : 'text-gray-300'
+  const word     = words.value[wi]
+  const done     = word.every(c => c.state === 'correct')
+  const isActive = wi === currentWordIndex.value
+
+  // Show cursor underline on the space when awaiting Space to advance.
+  if (awaitingSpace.value && isActive) return 'border-b-2 border-gray-700'
+  // Space after a completed word inherits the "done" color; space before future words is dim.
+  if (done)          return 'text-gray-800'
+  if (wi > currentWordIndex.value) return 'text-gray-300'
+  return 'text-gray-800'
 }
 
-// ── Progress ──────────────────────────────────────────────────────────────────────
+// ── Progress ──────────────────────────────────────────────────────────────────
 
-// pct = percentage of words completed correctly (0–100).
+// pct = percentage of sentences completed (0–100).
 const pct = computed(() => {
-  const total = words.value.length // total number of words in the story
-  if (!total) return 0             // avoid division by zero
-  // .filter() keeps only words where EVERY character is correct.
-  const done = words.value.filter(w => w.every(c => c.state === 'correct')).length
-  return Math.round((done / total) * 100) // round to nearest whole number
+  const total = sentences.value.length
+  if (!total) return 0
+  return Math.round((completedSentences.value.length / total) * 100)
 })
 
-// barColor = the color of the progress bar, changes based on score.
 const barColor = computed(() => {
-  if (pct.value >= 90) return '#10b981' // emerald green: great score
-  if (pct.value >= 60) return '#f59e0b' // amber yellow: okay score
-  return '#ef4444'                       // red: low score (just starting)
+  if (pct.value >= 90) return '#10b981' // emerald green
+  if (pct.value >= 60) return '#f59e0b' // amber
+  return '#ef4444'                       // red (just starting)
 })
+
+// ── Mobile keyboard helper ────────────────────────────────────────────────────
+
+// On mobile, tap on the overlay and focus the hidden input to open the keyboard.
+function focusMobileInput() {
+  hiddenInput.value?.focus()
+}
 </script>
