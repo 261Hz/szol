@@ -157,14 +157,34 @@
           <!-- Loading indicator while fetching. -->
           <div v-else-if="examplesLoading" class="text-xs text-gray-400">Loading…</div>
 
-          <!-- Results: up to 4 Tatoeba sentences. -->
+          <!-- Results: up to 4 Tatoeba sentences with clickable words. -->
           <div v-else-if="examplesResults.length" class="flex flex-col gap-2">
             <div
               v-for="ex in examplesResults"
               :key="ex.id"
               class="flex items-start gap-2"
             >
-              <span class="text-sm text-gray-600 flex-1 leading-snug">{{ ex.text }}</span>
+              <!-- Tokenized sentence: each word is clickable, same as story words. -->
+              <!-- Clicking a word calls tap(word, sentence) so the word panel updates -->
+              <!-- and uses this Tatoeba sentence as the context instead of the story text. -->
+              <span
+                class="text-sm text-gray-600 flex-1 leading-snug"
+                :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+              >
+                <span v-for="(tok, ti) in tokenize(ex.text)" :key="ti">
+                  <!-- Clickable word token. -->
+                  <span
+                    v-if="tok.type === 'word'"
+                    @click="tap(tok.text, ex.text)"
+                    :class="[
+                      'cursor-pointer rounded px-0.5 transition-all hover:bg-emerald-50',
+                      savedWords.has(normalize(tok.text)) ? 'bg-emerald-100 text-emerald-700' : ''
+                    ]"
+                  >{{ tok.text }}</span>
+                  <!-- Space token: not clickable. -->
+                  <span v-else>{{ tok.text }}</span>
+                </span>
+              </span>
               <!-- 🔊 button: only shown when this sentence has an audio recording. -->
               <button
                 v-if="ex.audios?.length"
@@ -262,42 +282,50 @@ const tokens = computed(() => {
   }))
 })
 
-// tap() is called when the user clicks a word.
-// It speaks the word aloud and updates the "tapped" info panel below the story.
-function tap(word) {
+// tokenize() splits any text string into an array of word and space tokens.
+// Used for both the story text and Tatoeba example sentences so both are clickable.
+// Example: "Hola, ¿cómo?" → [{type:'word', text:'Hola,'}, {type:'space', text:' '}, ...]
+function tokenize(text) {
+  // .split(/(\s+)/) splits on whitespace AND keeps the whitespace as a separate item (capture group).
+  return text.split(/(\s+)/).map(tok => ({
+    type: /^\s+$/.test(tok) ? 'space' : 'word', // classify each piece
+    text: tok,
+  }))
+}
+
+// tap() handles word clicks from both the story text and Tatoeba example sentences.
+// word           = the raw word text as it appears in the text (may include punctuation).
+// contextSentence = optional. When clicking a Tatoeba word, pass the full example sentence.
+//                   When clicking a story word, omit this and we search the story text instead.
+function tap(word, contextSentence) {
   // Remove non-letter characters (punctuation, numbers) from the word.
-  // /[^\p{L}\p{M}]/gu: matches anything that's NOT a Unicode letter or combining mark.
-  // .replace() replaces all matches with '' (empty string = deletion).
   const clean = word.replace(/[^\p{L}\p{M}]/gu, '')
-  if (!clean) return // if nothing is left after cleaning (e.g. a punctuation-only token), do nothing
+  if (!clean) return // nothing left after cleaning (e.g. pure punctuation token)
 
   // Look up the BCP47 language code (e.g. 'el-GR') for TTS.
   const bcp47 = LANGS[props.lang]?.bcp47 ?? props.lang
 
-  // Create a new speech utterance object (the "thing to say").
+  // Create and speak the utterance.
   const utt = new SpeechSynthesisUtterance(clean)
-  utt.lang  = bcp47 // tell TTS which language to use for pronunciation
-
-  // Pick the best available voice (respects user preference from Settings).
+  utt.lang  = bcp47
   const voice = pickVoice(voices.value, bcp47, props.lang)
-  if (voice) utt.voice = voice // only set voice if one was found; otherwise browser chooses
-
+  if (voice) utt.voice = voice
   speechSynthesis.cancel() // stop any currently playing speech
-  speechSynthesis.resume() // fix for Chrome bug: cancel() can leave the engine in a "paused" state
-  speechSynthesis.speak(utt) // start speaking the word
+  speechSynthesis.resume() // fix Chrome paused-state bug
+  speechSynthesis.speak(utt)
 
-  // Find which sentence in the story contains this word (for context display).
-  // /(?<=[.!?])\s+/ splits after sentence-ending punctuation followed by a space.
-  // (?<=...) is a "lookbehind" -- match only if preceded by .!? but don't consume those characters.
-  const sentences = props.story.text.split(/(?<=[.!?])\s+/)
-  // .find() returns the first item where the condition is true.
-  // ?? '' = use empty string if no sentence is found.
-  const sentence = sentences.find(s => s.includes(word)) ?? ''
+  // Determine which sentence to show as context below the word.
+  // If contextSentence was passed (Tatoeba word), use it directly.
+  // Otherwise search the story text for the sentence containing this word.
+  // ?? '' = fall back to empty string if nothing is found.
+  const sentence = contextSentence
+    ?? props.story?.text.split(/(?<=[.!?])\s+/).find(s => s.includes(word))
+    ?? ''
 
-  // Update the tapped ref so the word panel appears below the story.
+  // Update the tapped panel.
   tapped.value = { word: clean, sentence }
 
-  // Reset Tatoeba state so the new word starts fresh.
+  // Reset Tatoeba examples so the panel shows "See examples" for the new word.
   examplesLoading.value = false
   examplesResults.value = []
   examplesDone.value    = false

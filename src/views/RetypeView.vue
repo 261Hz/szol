@@ -34,13 +34,17 @@
       <!-- Story text display with per-character coloring. -->
       <!-- "select-none" = prevents mouse selection of text (so double-click doesn't select). -->
       <!-- "cursor-text" = shows a text cursor on hover (indicates you can type here). -->
-      <!-- "outline-none" = removes the browser's default blue focus box. -->
+      <!-- "outline-none" = removes the browser's default blue focus box (we draw our own). -->
+      <!-- "border rounded-lg p-4" = visible box boundary with padding. -->
+      <!-- "border-gray-200" = light gray border by default. -->
+      <!-- "focus:border-emerald-400" = border turns green when the box is focused/active. -->
+      <!-- "transition-colors" = smoothly animates the border color change. -->
       <!-- tabindex="0" = makes this div focusable via keyboard (Tab key). -->
       <!-- @keydown="onKey" = calls onKey() whenever a key is pressed while focused. -->
       <!-- @focus / @blur = update "focused" to show/hide the "click to type" hint. -->
       <!-- ref="overlayEl" = gives us a JavaScript reference to this element. -->
       <div
-        class="leading-loose text-base select-none cursor-text outline-none"
+        class="leading-loose text-base select-none cursor-text outline-none border border-gray-200 rounded-lg p-4 transition-colors focus:border-emerald-400"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right' : ''"
         tabindex="0"
