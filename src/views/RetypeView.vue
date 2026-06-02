@@ -39,12 +39,13 @@
       <!-- "border-gray-200" = light gray border by default. -->
       <!-- "focus:border-emerald-400" = border turns green when the box is focused/active. -->
       <!-- "transition-colors" = smoothly animates the border color change. -->
+      <!-- "break-words" = allows long words to wrap onto the next line if they overflow. -->
       <!-- tabindex="0" = makes this div focusable via keyboard (Tab key). -->
       <!-- @keydown="onKey" = calls onKey() whenever a key is pressed while focused. -->
       <!-- @focus / @blur = update "focused" to show/hide the "click to type" hint. -->
       <!-- ref="overlayEl" = gives us a JavaScript reference to this element. -->
       <div
-        class="leading-loose text-base select-none cursor-text outline-none border border-gray-200 rounded-lg p-4 transition-colors focus:border-emerald-400"
+        class="leading-loose text-base select-none cursor-text outline-none border border-gray-200 rounded-lg p-4 transition-colors focus:border-emerald-400 break-words"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right' : ''"
         tabindex="0"
@@ -66,8 +67,9 @@
           <!-- Space between words (not after the last word). -->
           <!-- v-if="wi < words.length - 1" = show space for all words except the last. -->
           <!-- spaceClass(wi) colors the space based on whether the word was completed. -->
-          <!-- &nbsp; = non-breaking space (HTML entity). Regular spaces collapse in HTML. -->
-          <span v-if="wi < words.length - 1" :class="spaceClass(wi)">&nbsp;</span>
+          <!-- A regular space character inside a <span> renders and wraps normally. -->
+          <!-- (Unlike &nbsp; which is a non-breaking space that prevents line wrapping.) -->
+          <span v-if="wi < words.length - 1" :class="spaceClass(wi)"> </span>
         </template>
       </div>
 
