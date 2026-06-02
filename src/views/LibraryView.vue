@@ -30,9 +30,10 @@
         ]"
       >
         <!-- Story title. RTL direction applied for Arabic/Hebrew stories. -->
+        <!-- "break-words" ensures long titles wrap rather than overflow the card. -->
         <!-- story.lang = the story's own language (may differ from the active UI language). -->
         <div
-          class="font-medium text-sm"
+          class="font-medium text-sm break-words"
           :class="{ 'text-right': isRTL(story.lang) }"
           :dir="isRTL(story.lang) ? 'rtl' : 'ltr'"
         >
@@ -45,8 +46,9 @@
           <!-- ?. = optional chaining in case LANGS doesn't have this language code. -->
           <span class="text-xs text-gray-400">{{ LANGS[story.lang]?.name }}</span>
           <span class="text-xs text-gray-400">·</span>
-          <!-- Word count: split on whitespace to count words. .length = number of items in array. -->
-          <span class="text-xs text-gray-400">{{ story.text.split(/\s+/).length }} {{ t(lang, 'words') }}</span>
+          <!-- Word/character count: CJK languages (Chinese, Japanese) have no spaces, so we count
+               individual characters instead of whitespace-split words. -->
+          <span class="text-xs text-gray-400">{{ wordCount(story) }} {{ t(lang, 'words') }}</span>
           <!-- Author: only shown if the story has one. -->
           <span v-if="story.author" class="text-xs text-gray-400">· {{ story.author }}</span>
           <!-- Source tag: "curated" stories have a sequence_order number set. -->
@@ -73,31 +75,37 @@
       <!-- Story title input field. -->
       <!-- v-model="customTitle" creates two-way binding: the input and the variable stay in sync. -->
       <!-- :placeholder="t(lang, 'titleHere')" shows translated placeholder text. -->
+      <!-- :dir = sets text direction so Arabic/Hebrew titles type right-to-left. -->
       <!-- "outline-none focus:border-emerald-400" removes default outline, adds green border on focus. -->
       <input
         v-model="customTitle"
         type="text"
         :placeholder="t(lang, 'titleHere')"
+        :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400"
       />
 
       <!-- Story text textarea (multi-line text input). -->
       <!-- rows="4" makes the textarea 4 lines tall by default. -->
       <!-- "resize-none" prevents the user from resizing the textarea. -->
+      <!-- :dir = RTL direction so Arabic/Hebrew text pastes and flows correctly. -->
       <textarea
         v-model="customText"
         rows="4"
         :placeholder="t(lang, 'pasteStory')"
+        :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 resize-none"
       />
 
       <!-- Franco/transliteration input: only shown for Egyptian Arabic (arz). -->
+      <!-- Franco is written in Latin letters (LTR) even though the language is RTL. -->
       <!-- v-if="lang === 'arz'" = only rendered if current language is Egyptian Arabic. -->
       <input
         v-if="lang === 'arz'"
         v-model="customFranco"
         type="text"
         placeholder="Franco transliteration (optional)..."
+        dir="ltr"
         class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400"
       />
 
@@ -105,18 +113,20 @@
       <!-- Only shown after the user clicks "Share with community" without filling in their name. -->
       <div v-if="showShareForm" class="flex flex-col gap-2 border-t border-gray-100 pt-3">
         <div class="text-xs text-gray-500">{{ t(lang, 'shareRequired') }}</div>
-        <!-- Author name field. -->
+        <!-- Author name field. :dir ensures RTL users type their names correctly. -->
         <input
           v-model="customAuthor"
           type="text"
           :placeholder="t(lang, 'authorHere')"
+          :dir="isRTL(lang) ? 'rtl' : 'ltr'"
           class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400"
         />
-        <!-- Source / attribution field (e.g. "Original", "Gutenberg"). -->
+        <!-- Source / attribution field. -->
         <input
           v-model="customSource"
           type="text"
           :placeholder="t(lang, 'sourceHere')"
+          :dir="isRTL(lang) ? 'rtl' : 'ltr'"
           class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400"
         />
       </div>
@@ -270,6 +280,20 @@ async function shareGlobal() {
     alert('Error submitting story: ' + e.message)
   }
   submitting.value = false // re-enable the button
+}
+
+// wordCount() returns the appropriate size metric for a story depending on its language.
+// For CJK (Chinese, Japanese): count individual letter characters, because there are no spaces
+//   between words -- splitting by whitespace would always return 1 for a paragraph of Chinese.
+// For all other languages: split by whitespace and count the resulting words.
+function wordCount(story) {
+  if (['zh', 'ja'].includes(story.lang)) {
+    // [...text] spreads the string into an array of individual characters (handles emoji/CJK correctly).
+    // .filter(c => /\p{L}/u.test(c)) keeps only letter characters (skips punctuation and spaces).
+    return [...story.text].filter(c => /\p{L}/u.test(c)).length
+  }
+  // .split(/\s+/) splits on any whitespace. .filter(Boolean) removes empty strings.
+  return story.text.split(/\s+/).filter(Boolean).length
 }
 
 // clearForm() resets all form input fields to empty strings.
