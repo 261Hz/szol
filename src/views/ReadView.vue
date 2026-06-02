@@ -119,8 +119,13 @@ const emit = defineEmits(['go', 'saveWord'])
 
 const francoOn = ref(false)
 const tapped = ref(null)
+const voices = ref([])
 
-onMounted(() => speechSynthesis.getVoices())
+onMounted(() => {
+  const load = () => { voices.value = speechSynthesis.getVoices() }
+  load()
+  speechSynthesis.addEventListener('voiceschanged', load)
+})
 
 const tokens = computed(() => {
   if (!props.story) return []
@@ -131,23 +136,28 @@ const tokens = computed(() => {
 })
 
 function bestVoice(bcp47) {
-  const voices = speechSynthesis.getVoices()
   const base = bcp47.split('-')[0].toLowerCase()
-  const matches = voices.filter(v => v.lang.toLowerCase().startsWith(base))
+  const matches = voices.value.filter(v => v.lang.toLowerCase().startsWith(base))
   if (!matches.length) return null
-  return matches.find(v => !v.name.startsWith('Google')) ?? matches[0]
+  return (
+    matches.find(v => v.name.includes('Microsoft')) ??
+    matches.find(v => v.localService) ??
+    matches[0]
+  )
 }
 
 function tap(word) {
   const clean = word.replace(/[^\p{L}\p{M}]/gu, '')
   if (!clean) return
 
+  const bcp47 = LANGS[props.lang]?.bcp47 ?? props.lang
   const utt = new SpeechSynthesisUtterance(clean)
-  utt.lang = LANGS[props.lang]?.bcp47 ?? props.lang
-  const voice = bestVoice(utt.lang)
+  utt.lang = bcp47
+  const voice = bestVoice(bcp47)
   if (voice) utt.voice = voice
-  speechSynthesis.cancel()
-  speechSynthesis.resume()
+
+  if (speechSynthesis.speaking) speechSynthesis.cancel()
+  if (speechSynthesis.paused) speechSynthesis.resume()
   speechSynthesis.speak(utt)
 
   const sentences = props.story.text.split(/(?<=[.!?])\s+/)
