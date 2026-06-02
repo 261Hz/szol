@@ -27,16 +27,28 @@ export async function fetchTatoeba(word, lang) {
   const code = TATOEBA_LANG[lang]
   if (!code) return [] // unsupported language -- return empty silently
 
-  const url = `https://tatoeba.org/api_v0/search?query=${encodeURIComponent(word)}&from=${code}&limit=4`
+  // native_lang restricts results to sentences originally written in this language
+  // (not translations). This gives more natural example sentences.
+  // /en/ prefix required -- without it Tatoeba returns a 301 redirect to /en/api_v0/...,
+  // and cross-origin redirects drop the CORS headers, causing the fetch to fail.
+  const url = `https://tatoeba.org/en/api_v0/search?query=${encodeURIComponent(word)}&from=${code}&native_lang=${code}&limit=4`
   try {
     const res = await fetch(url)
-    if (!res.ok) return []
+    if (!res.ok) {
+      // Log the HTTP error code so it's visible in the browser console (F12 → Console).
+      console.warn('Tatoeba HTTP error:', res.status, url)
+      return []
+    }
     const data = await res.json()
+    // Log the raw response so we can verify the shape during development.
+    console.log('Tatoeba response for', word, ':', data)
     // data.results is the array of sentence objects.
     // ?? [] = use empty array if results is null/undefined.
     return data.results ?? []
-  } catch {
-    // Network error, CORS issue, etc. -- fail silently and return empty.
+  } catch (err) {
+    // Log the real error (CORS block, network failure, JSON parse error, etc.)
+    // so it shows up in F12 → Console instead of disappearing silently.
+    console.warn('Tatoeba fetch failed:', err)
     return []
   }
 }

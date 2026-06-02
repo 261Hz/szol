@@ -85,15 +85,23 @@
 </template>
 
 <script setup>
+// ref = reactive variable that Vue watches for changes.
+// computed = a value that auto-recalculates when its dependencies change.
 import { ref, computed } from 'vue'
+// t() looks up translated UI strings for the active language.
 import { t }    from '../utils/i18n.js'
+// LANGS = configuration for all supported languages (names, BCP47 codes, etc.).
 import { LANGS } from '../data/stories.js'
+// fetchTatoeba = downloads example sentences from Tatoeba.org for a word.
+// playAudio    = plays a Tatoeba sentence's audio recording in the browser.
 import { fetchTatoeba, playAudio } from '../utils/tatoeba.js'
 
 const props = defineProps({
-  words: Array,  // full vocabBank array from App.vue
-  lang:  String, // active language code (e.g. 'es')
+  words: Array,  // full vocabBank array from App.vue (all languages combined)
+  lang:  String, // active language code — only words matching this are shown (e.g. 'es')
 })
+// This component sends one event to App.vue:
+// 'remove' = emitted with the word's ORIGINAL index in vocabBank when the user clicks ✕
 defineEmits(['remove'])
 
 // filtered: only words matching the active language, each paired with its original array index.

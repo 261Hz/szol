@@ -146,7 +146,8 @@
 
         <!-- Tatoeba example sentences. -->
         <div class="mt-1 pt-2 border-t border-emerald-200">
-          <!-- "See examples" button: shown before any fetch has been requested. -->
+          <!-- "See examples" button: shown when no fetch has been started yet. -->
+          <!-- !examplesDone && !examplesLoading = neither done nor in-progress = not yet attempted. -->
           <button
             v-if="!examplesDone && !examplesLoading"
             @click="loadExamples"
@@ -303,12 +304,21 @@ function tap(word) {
 }
 
 // loadExamples() fetches Tatoeba sentences for the currently tapped word.
+// "async" because fetchTatoeba() makes a network request that takes time.
 async function loadExamples() {
+  // Guard: do nothing if no word is tapped, if already loading, or if already done.
+  // || = "or": any one of these being true is enough to bail out.
   if (!tapped.value || examplesLoading.value || examplesDone.value) return
-  examplesLoading.value = true
+
+  examplesLoading.value = true  // show the "Loading…" indicator in the template
+
+  // await pauses here until fetchTatoeba() finishes and returns its result.
+  // tapped.value.word = the clean word text (e.g. 'hola').
+  // props.lang = the language code (e.g. 'es') -- tatoeba.js maps this to 'spa'.
   examplesResults.value = await fetchTatoeba(tapped.value.word, props.lang)
-  examplesLoading.value = false
-  examplesDone.value    = true
+
+  examplesLoading.value = false // hide the spinner
+  examplesDone.value    = true  // prevent future fetches; also triggers the "No examples found" fallback
 }
 
 // saveWord() is called when the user clicks the Save button in the word panel.
