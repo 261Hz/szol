@@ -44,7 +44,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import NavBar from './components/NavBar.vue'
 import ReadView from './views/ReadView.vue'
 import RetypeView from './views/RetypeView.vue'
@@ -54,7 +54,11 @@ import VocabView from './views/VocabView.vue'
 const activeTab = ref('library')
 const activeLang = ref('es')
 const currentStory = ref(null)
-const vocabBank = ref([])
+const vocabBank = ref(JSON.parse(localStorage.getItem('szol_vocab') || '[]'))
+
+watch(vocabBank, (val) => {
+  localStorage.setItem('szol_vocab', JSON.stringify(val))
+}, { deep: true })
 
 const savedWordSet = computed(() =>
   new Set(vocabBank.value.map(v => v.word.toLowerCase().replace(/[^\p{L}\p{M}]/gu, '')))
