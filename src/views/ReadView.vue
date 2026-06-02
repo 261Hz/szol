@@ -132,9 +132,9 @@ function tap(word) {
   const clean = word.replace(/[^\p{L}\p{M}]/gu, '')
   if (!clean) return
 
-  speechSynthesis.cancel()
   const utt = new SpeechSynthesisUtterance(clean)
   utt.lang = LANGS[props.lang]?.bcp47 ?? props.lang
+  speechSynthesis.cancel()
   speechSynthesis.speak(utt)
 
   const sentences = props.story.text.split(/(?<=[.!?])\s+/)
