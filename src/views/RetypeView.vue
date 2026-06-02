@@ -67,9 +67,11 @@
           <!-- Space between words (not after the last word). -->
           <!-- v-if="wi < words.length - 1" = show space for all words except the last. -->
           <!-- spaceClass(wi) colors the space based on whether the word was completed. -->
-          <!-- A regular space character inside a <span> renders and wraps normally. -->
-          <!-- (Unlike &nbsp; which is a non-breaking space that prevents line wrapping.) -->
-          <span v-if="wi < words.length - 1" :class="spaceClass(wi)"> </span>
+          <!-- {{ ' ' }} = Vue interpolation of a plain space character. -->
+          <!-- A bare space between tags gets stripped by Vue's template compiler in production. -->
+          <!-- Wrapping it in {{ }} forces Vue to treat it as a real rendered value, not whitespace. -->
+          <!-- This allows the line to wrap here naturally (unlike &nbsp; which never wraps). -->
+          <span v-if="wi < words.length - 1" :class="spaceClass(wi)">{{ ' ' }}</span>
         </template>
       </div>
 
