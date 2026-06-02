@@ -24,18 +24,23 @@ const TATOEBA_LANG = {
 // word = the word to search for (e.g. 'hola')
 // lang = the app's language code (e.g. 'es')
 export async function fetchTatoeba(word, lang) {
+  // Look up the 3-letter Tatoeba code for this language (e.g. 'es' → 'spa').
   const code = TATOEBA_LANG[lang]
   if (!code) return [] // unsupported language -- return empty silently
 
-  // native_lang restricts results to sentences originally written in this language
-  // (not translations). This gives more natural example sentences.
-  // /en/ prefix required -- without it Tatoeba returns a 301 redirect to /en/api_v0/...,
-  // and cross-origin redirects drop the CORS headers, causing the fetch to fail.
-  const url = `https://tatoeba.org/en/api_v0/search?query=${encodeURIComponent(word)}&from=${code}&native_lang=${code}&limit=4`
+  // Call our own proxy endpoint instead of Tatoeba directly.
+  // A relative URL (/api/tatoeba) works in both environments:
+  //   local dev  → Vite proxies it to tatoeba.org (see vite.config.js server.proxy)
+  //   production → Vercel routes it to api/tatoeba.js (serverless function)
+  // This avoids the CORS error: Tatoeba blocks browser requests but not server-to-server ones.
+  //
+  // native_lang=code restricts results to sentences originally written in this language
+  // (not machine translations), giving more natural example sentences.
+  const url = `/api/tatoeba?query=${encodeURIComponent(word)}&from=${code}&native_lang=${code}&limit=4`
   try {
-    const res = await fetch(url)
-    if (!res.ok) return []
-    const data = await res.json()
+    const res = await fetch(url)  // res = the HTTP response object
+    if (!res.ok) return []        // non-200 status (e.g. 500 from our proxy) -- return empty
+    const data = await res.json() // parse the response body as JSON
     // data.results is the array of sentence objects from Tatoeba.
     // ?? [] = use empty array if the key is missing.
     return data.results ?? []
