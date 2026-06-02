@@ -103,7 +103,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { LANGS } from '../data/stories.js'
 import { isRTL, hasFranco } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
@@ -120,6 +120,8 @@ const emit = defineEmits(['go', 'saveWord'])
 const francoOn = ref(false)
 const tapped = ref(null)
 
+onMounted(() => speechSynthesis.getVoices())
+
 const tokens = computed(() => {
   if (!props.story) return []
   return props.story.text.split(/(\s+)/).map(t => ({
@@ -135,6 +137,7 @@ function tap(word) {
   const utt = new SpeechSynthesisUtterance(clean)
   utt.lang = LANGS[props.lang]?.bcp47 ?? props.lang
   speechSynthesis.cancel()
+  speechSynthesis.resume()
   speechSynthesis.speak(utt)
 
   const sentences = props.story.text.split(/(?<=[.!?])\s+/)
