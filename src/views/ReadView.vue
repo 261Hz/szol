@@ -96,6 +96,12 @@
           class="text-sm text-gray-500 italic"
           :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         >{{ tapped.sentence }}</div>
+        <div v-if="!langHasVoice" class="text-xs text-amber-600 flex items-center gap-1">
+          No {{ LANGS[lang]?.name }} voice installed.
+          <a href="ms-settings:regionlanguage" class="underline hover:text-amber-800">Install in Windows Settings</a>
+          or
+          <button @click="$emit('go', 'settings')" class="underline hover:text-amber-800">pick a voice</button>.
+        </div>
       </div>
 
     </div>
@@ -103,11 +109,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { LANGS } from '../data/stories.js'
 import { isRTL, hasFranco } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
 import { normalize } from '../utils/scoring.js'
+import { useVoiceList, voicesForLang, pickVoice } from '../utils/voices.js'
 
 const props = defineProps({
   story: Object,
@@ -119,12 +126,11 @@ const emit = defineEmits(['go', 'saveWord'])
 
 const francoOn = ref(false)
 const tapped = ref(null)
-const voices = ref([])
+const voices = useVoiceList()
 
-onMounted(() => {
-  const load = () => { voices.value = speechSynthesis.getVoices() }
-  load()
-  speechSynthesis.addEventListener('voiceschanged', load)
+const langHasVoice = computed(() => {
+  const bcp47 = LANGS[props.lang]?.bcp47 ?? props.lang
+  return voicesForLang(voices.value, bcp47).length > 0
 })
 
 const tokens = computed(() => {
@@ -142,16 +148,8 @@ function tap(word) {
   const bcp47 = LANGS[props.lang]?.bcp47 ?? props.lang
   const utt = new SpeechSynthesisUtterance(clean)
   utt.lang = bcp47
-
-  // Only override voice if a Microsoft voice exists for this language —
-  // Chrome's built-in voices are poor for some languages (e.g. Greek reads
-  // letter-by-letter). If no Microsoft voice is found, let the browser pick
-  // based on utt.lang so we don't break languages that already work.
-  const base = bcp47.split('-')[0].toLowerCase()
-  const msVoice = voices.value.find(
-    v => v.name.includes('Microsoft') && v.lang.toLowerCase().startsWith(base)
-  )
-  if (msVoice) utt.voice = msVoice
+  const voice = pickVoice(voices.value, bcp47, props.lang)
+  if (voice) utt.voice = voice
 
   speechSynthesis.cancel()
   speechSynthesis.resume()

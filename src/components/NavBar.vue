@@ -50,10 +50,10 @@ const props = defineProps({
 defineEmits(['tab', 'lang'])
 
 const tabs = computed(() => [
-  { key: 'read',    label: t(props.lang, 'read') },
-  { key: 'retype',  label: t(props.lang, 'retype') },
-  { key: 'speak',   label: t(props.lang, 'speak') },
-  { key: 'vocab',   label: t(props.lang, 'vocab') },
-  { key: 'library', label: t(props.lang, 'library') },
+  { key: 'read',     label: t(props.lang, 'read') },
+  { key: 'retype',   label: t(props.lang, 'retype') },
+  { key: 'vocab',    label: t(props.lang, 'vocab') },
+  { key: 'library',  label: t(props.lang, 'library') },
+  { key: 'settings', label: '⚙' },
 ])
 </script>

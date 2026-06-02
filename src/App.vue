@@ -39,6 +39,8 @@
        @remove="vocabBank.splice($event, 1)"
       />
 
+      <SettingsView v-if="activeTab === 'settings'" />
+
     </main>
   </div>
 </template>
@@ -50,6 +52,7 @@ import ReadView from './views/ReadView.vue'
 import RetypeView from './views/RetypeView.vue'
 import LibraryView from './views/LibraryView.vue'
 import VocabView from './views/VocabView.vue'
+import SettingsView from './views/SettingsView.vue'
 
 const activeTab = ref('library')
 const activeLang = ref('es')
