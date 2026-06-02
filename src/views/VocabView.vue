@@ -19,16 +19,8 @@
         class="border border-gray-200 rounded-lg p-4 flex flex-col gap-1"
       >
         <div class="flex items-start justify-between">
-          <div>
-            <div class="text-xs text-emerald-600 font-medium">
-              {{ word.langName }}{{ word.pos ? ' · ' + word.pos : '' }}
-            </div>
-            <div
-              class="text-lg font-semibold text-gray-900"
-              :dir="word.rtl ? 'rtl' : 'ltr'"
-            >
-              {{ word.word }}
-            </div>
+          <div class="text-xs text-emerald-600 font-medium">
+            {{ LANGS[word.lang]?.name ?? word.lang }}
           </div>
           <button
             @click="$emit('remove', i)"
@@ -37,11 +29,8 @@
             ✕
           </button>
         </div>
-        <div v-if="word.def" class="text-sm text-gray-600">{{ word.def }}</div>
-        <div v-if="word.ex" class="text-xs text-gray-400 italic">"{{ word.ex }}"</div>
-        <div v-if="word.note" class="text-xs text-gray-500 mt-1 border-t border-gray-100 pt-1">
-          {{ word.note }}
-        </div>
+        <div class="text-lg font-semibold text-gray-900">{{ word.word }}</div>
+        <div v-if="word.sentence" class="text-sm text-gray-500 italic">{{ word.sentence }}</div>
       </div>
     </div>
 
@@ -50,6 +39,7 @@
 
 <script setup>
 import { t } from '../utils/i18n.js'
+import { LANGS } from '../data/stories.js'
 
 defineProps({
   words: Array,
