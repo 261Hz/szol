@@ -143,6 +143,40 @@
           <!-- Clicking "pick a voice" navigates to the Settings tab. -->
           <button @click="$emit('go', 'settings')" class="underline hover:text-amber-800">pick a voice</button>.
         </div>
+
+        <!-- Tatoeba example sentences. -->
+        <div class="mt-1 pt-2 border-t border-emerald-200">
+          <!-- "See examples" button: shown before any fetch has been requested. -->
+          <button
+            v-if="!examplesDone && !examplesLoading"
+            @click="loadExamples"
+            class="text-xs text-emerald-600 hover:text-emerald-700 underline transition-all"
+          >See examples</button>
+
+          <!-- Loading indicator while fetching. -->
+          <div v-else-if="examplesLoading" class="text-xs text-gray-400">Loading…</div>
+
+          <!-- Results: up to 4 Tatoeba sentences. -->
+          <div v-else-if="examplesResults.length" class="flex flex-col gap-2">
+            <div
+              v-for="ex in examplesResults"
+              :key="ex.id"
+              class="flex items-start gap-2"
+            >
+              <span class="text-sm text-gray-600 flex-1 leading-snug">{{ ex.text }}</span>
+              <!-- 🔊 button: only shown when this sentence has an audio recording. -->
+              <button
+                v-if="ex.audios?.length"
+                @click="playAudio(ex)"
+                class="text-base leading-none flex-shrink-0 hover:opacity-70 transition-all"
+                title="Play audio"
+              >🔊</button>
+            </div>
+          </div>
+
+          <!-- No results after a completed fetch. -->
+          <div v-else-if="examplesDone" class="text-xs text-gray-400">No examples found.</div>
+        </div>
       </div>
 
     </div>
@@ -164,6 +198,9 @@ import { normalize } from '../utils/scoring.js'
 // voicesForLang = filters voices by language.
 // pickVoice = selects the best available voice for a language.
 import { useVoiceList, voicesForLang, pickVoice } from '../utils/voices.js'
+// fetchTatoeba = fetches example sentences from Tatoeba.org.
+// playAudio    = plays the audio recording for a Tatoeba sentence.
+import { fetchTatoeba, playAudio } from '../utils/tatoeba.js'
 
 // defineProps() declares the data this component receives from App.vue.
 // story: the current story object ({ title, text, lang, ... }) or null.
@@ -186,6 +223,14 @@ const francoOn = ref(false)
 
 // tapped holds the last word the user clicked: { word: 'string', sentence: 'string' } or null.
 const tapped = ref(null)
+
+// Tatoeba example-sentence state for the currently tapped word.
+// examplesLoading = true while the fetch is in progress.
+// examplesResults = array of sentence objects returned by Tatoeba (up to 4).
+// examplesDone    = true after the first fetch attempt completes (success or empty).
+const examplesLoading = ref(false)
+const examplesResults = ref([])
+const examplesDone    = ref(false)
 
 // useVoiceList() is a composable -- it sets up voice loading and returns the reactive voices list.
 const voices = useVoiceList()
@@ -250,6 +295,20 @@ function tap(word) {
 
   // Update the tapped ref so the word panel appears below the story.
   tapped.value = { word: clean, sentence }
+
+  // Reset Tatoeba state so the new word starts fresh.
+  examplesLoading.value = false
+  examplesResults.value = []
+  examplesDone.value    = false
+}
+
+// loadExamples() fetches Tatoeba sentences for the currently tapped word.
+async function loadExamples() {
+  if (!tapped.value || examplesLoading.value || examplesDone.value) return
+  examplesLoading.value = true
+  examplesResults.value = await fetchTatoeba(tapped.value.word, props.lang)
+  examplesLoading.value = false
+  examplesDone.value    = true
 }
 
 // saveWord() is called when the user clicks the Save button in the word panel.

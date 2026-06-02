@@ -1,59 +1,83 @@
-<!-- VocabView.vue: shows the user's saved vocabulary words. -->
-<!-- Each word card shows the language, the word itself, and the sentence it came from. -->
+<!-- VocabView.vue: shows the user's saved vocabulary words for the active language. -->
 <template>
-  <!-- Outer container stacks items vertically with a gap between them. -->
   <div class="flex flex-col gap-4">
 
-    <!-- Header row: "Vocabulary" label on the left, word count on the right. -->
+    <!-- Header: "Vocabulary" label + count of words shown for this language. -->
     <div class="flex items-center justify-between">
-      <!-- t(lang, 'vocab') looks up the translated word for "Vocabulary" in the active language. -->
-      <div class="text-sm font-medium text-gray-700">
-        {{ t(lang, 'vocab') }}
-      </div>
-      <!-- words.length = how many items are in the words array. -->
-      <!-- t(lang, 'words') = translated word for "words" (e.g. "palabras" in Spanish). -->
-      <div class="text-xs text-gray-400">{{ words.length }} {{ t(lang, 'words') }}</div>
+      <div class="text-sm font-medium text-gray-700">{{ t(lang, 'vocab') }}</div>
+      <div class="text-xs text-gray-400">{{ filtered.length }} {{ t(lang, 'words') }}</div>
     </div>
 
-    <!-- Empty state: shown when no words have been saved yet. -->
-    <!-- v-if="!words.length" = show only if the array is empty (length 0 = falsy). -->
-    <div v-if="!words.length" class="text-gray-400 text-sm text-center py-12">
+    <!-- Empty state: shown when no words are saved for the current language. -->
+    <div v-if="!filtered.length" class="text-gray-400 text-sm text-center py-12">
       {{ t(lang, 'tapWord') }}
     </div>
 
-    <!-- Word list: shown when there are saved words. -->
-    <!-- v-else = the opposite of v-if above -- shown when the condition is NOT met. -->
+    <!-- Word card list. -->
     <div v-else class="flex flex-col gap-3">
-      <!-- v-for loops over the words array. "word" = each item, "i" = its index (position number, 0-based). -->
-      <!-- :key="i" gives each card a unique identifier so Vue can track re-renders efficiently. -->
+      <!-- Loop over filtered words. Each item is { word, originalIndex }. -->
+      <!-- originalIndex is the position in the full vocabBank array (needed for correct deletion). -->
       <div
-        v-for="(word, i) in words"
-        :key="i"
+        v-for="({ word, originalIndex }) in filtered"
+        :key="originalIndex"
         class="border border-gray-200 rounded-lg p-4 flex flex-col gap-1"
       >
         <!-- Top row: language tag + remove button. -->
         <div class="flex items-start justify-between">
-          <!-- Show the full language name (e.g. "Ελληνικά") using LANGS lookup. -->
-          <!-- ?? word.lang = if LANGS[word.lang] is undefined, fall back to the raw code (e.g. 'el'). -->
           <div class="text-xs text-emerald-600 font-medium">
             {{ LANGS[word.lang]?.name ?? word.lang }}
           </div>
-          <!-- Remove button: clicking it emits the 'remove' event with this word's index. -->
-          <!-- The parent (App.vue) receives the index and uses .splice() to delete it. -->
+          <!-- Emit the ORIGINAL index so App.vue splices the right word from vocabBank. -->
           <button
-            @click="$emit('remove', i)"
+            @click="$emit('remove', originalIndex)"
             class="text-xs text-gray-300 hover:text-red-400 transition-all"
-          >
-            ✕
-          </button>
+          >✕</button>
         </div>
 
-        <!-- The word itself, displayed large. -->
+        <!-- Word (large). -->
         <div class="text-lg font-semibold text-gray-900">{{ word.word }}</div>
 
-        <!-- The sentence the word came from (shown only if it exists). -->
-        <!-- v-if="word.sentence" = only render if the sentence is not empty/null. -->
+        <!-- Context sentence (if saved). -->
         <div v-if="word.sentence" class="text-sm text-gray-500 italic">{{ word.sentence }}</div>
+
+        <!-- Tatoeba examples section. -->
+        <div class="mt-1">
+          <!-- "See examples" button: only shown before the first fetch attempt. -->
+          <button
+            v-if="!exState(word)"
+            @click="loadExamples(word)"
+            class="text-xs text-emerald-600 hover:text-emerald-700 underline transition-all"
+          >See examples</button>
+
+          <!-- Loading spinner. -->
+          <div v-else-if="exState(word).loading" class="text-xs text-gray-400">
+            Loading…
+          </div>
+
+          <!-- Results: up to 4 sentences. -->
+          <div v-else-if="exState(word).results.length" class="flex flex-col gap-1.5 mt-1">
+            <div
+              v-for="ex in exState(word).results"
+              :key="ex.id"
+              class="flex items-start gap-2"
+            >
+              <span class="text-sm text-gray-600 flex-1">{{ ex.text }}</span>
+              <!-- Audio button: only shown when the sentence has a recording. -->
+              <button
+                v-if="ex.audios?.length"
+                @click="playAudio(ex)"
+                class="text-base leading-none flex-shrink-0 hover:opacity-70 transition-all"
+                title="Play audio"
+              >🔊</button>
+            </div>
+          </div>
+
+          <!-- No examples found (shown after a completed fetch with empty results). -->
+          <div v-else-if="exState(word).done" class="text-xs text-gray-400">
+            No examples found.
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -61,20 +85,53 @@
 </template>
 
 <script setup>
-// Import the translation helper function.
-import { t } from '../utils/i18n.js'
-// Import LANGS to get full language names from short codes.
+import { ref, computed } from 'vue'
+import { t }    from '../utils/i18n.js'
 import { LANGS } from '../data/stories.js'
+import { fetchTatoeba, playAudio } from '../utils/tatoeba.js'
 
-// This component expects two props from its parent (App.vue):
-// words: the full vocabBank array of saved word objects
-// lang:  the active language code (for translating UI labels)
-defineProps({
-  words: Array,  // Array = expects a list of items
-  lang:  String, // String = expects a text value
+const props = defineProps({
+  words: Array,  // full vocabBank array from App.vue
+  lang:  String, // active language code (e.g. 'es')
 })
-
-// This component can emit one event:
-// 'remove' = sent with a word's index number when the user clicks ✕
 defineEmits(['remove'])
+
+// filtered: only words matching the active language, each paired with its original array index.
+// Pairing with the original index is essential because @remove must emit the position in the
+// full vocabBank array -- if we emit a filtered index instead, the wrong word gets deleted.
+const filtered = computed(() =>
+  props.words
+    .map((word, originalIndex) => ({ word, originalIndex }))
+    .filter(({ word }) => word.lang === props.lang)
+)
+
+// examplesState stores the fetch result for each word, keyed by "word-lang" string.
+// Each entry is: { loading: bool, results: [], done: bool }
+// "done" = true after the first fetch completes (whether it found results or not).
+const examplesState = ref({})
+
+// exKey() builds a stable string key for a word entry.
+function exKey(word) {
+  return `${word.word}-${word.lang}`
+}
+
+// exState() returns the current examples state for a word, or null if not yet requested.
+function exState(word) {
+  return examplesState.value[exKey(word)] ?? null
+}
+
+// loadExamples() triggers a Tatoeba fetch for the given word.
+// Caches results so clicking won't re-fetch.
+async function loadExamples(word) {
+  const key = exKey(word)
+  if (examplesState.value[key]) return // already fetched or loading -- do nothing
+
+  // Set loading state immediately so the spinner appears.
+  examplesState.value[key] = { loading: true, results: [], done: false }
+
+  const results = await fetchTatoeba(word.word, word.lang)
+
+  // Replace with final state. Vue's reactivity system detects property assignment on ref objects.
+  examplesState.value[key] = { loading: false, results, done: true }
+}
 </script>
