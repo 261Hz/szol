@@ -29,7 +29,7 @@
           </div>
           <!-- Emit the ORIGINAL index so App.vue splices the right word from vocabBank. -->
           <button
-            @click="$emit('remove', originalIndex)"
+            @click="emit('remove', originalIndex)"
             class="text-xs text-gray-300 hover:text-red-400 transition-all"
           >✕</button>
         </div>
@@ -54,14 +54,36 @@
             Loading…
           </div>
 
-          <!-- Results: up to 4 sentences. -->
+          <!-- Results: up to 4 sentences with clickable words. -->
           <div v-else-if="exState(word).results.length" class="flex flex-col gap-1.5 mt-1">
             <div
               v-for="ex in exState(word).results"
               :key="ex.id"
               class="flex items-start gap-2"
             >
-              <span class="text-sm text-gray-600 flex-1">{{ ex.text }}</span>
+              <!-- Tokenized sentence: each word is clickable to save it to vocab. -->
+              <!-- Clicking calls saveFromExample(wordText, sentence, lang). -->
+              <!-- Already-saved words are highlighted green and not re-added. -->
+              <span
+                class="text-sm text-gray-600 flex-1"
+                :dir="isRTL(word.lang) ? 'rtl' : 'ltr'"
+              >
+                <span v-for="(tok, ti) in tokenize(ex.text)" :key="ti">
+                  <!-- Clickable word token. -->
+                  <span
+                    v-if="tok.type === 'word'"
+                    @click="saveFromExample(tok.text, ex.text, word.lang)"
+                    :class="[
+                      'rounded px-0.5 transition-all',
+                      isSaved(tok.text, word.lang)
+                        ? 'bg-emerald-100 text-emerald-700 cursor-default'
+                        : 'cursor-pointer hover:bg-emerald-50'
+                    ]"
+                  >{{ tok.text }}</span>
+                  <!-- Space token: not clickable. -->
+                  <span v-else>{{ tok.text }}</span>
+                </span>
+              </span>
               <!-- Audio button: only shown when the sentence has a recording. -->
               <button
                 v-if="ex.audios?.length"
@@ -92,6 +114,8 @@ import { ref, computed } from 'vue'
 import { t }    from '../utils/i18n.js'
 // LANGS = configuration for all supported languages (names, BCP47 codes, etc.).
 import { LANGS } from '../data/stories.js'
+// isRTL = returns true for right-to-left languages (Arabic, Hebrew).
+import { isRTL } from '../utils/rtl.js'
 // fetchTatoeba = downloads example sentences from Tatoeba.org for a word.
 // playAudio    = plays a Tatoeba sentence's audio recording in the browser.
 import { fetchTatoeba, playAudio } from '../utils/tatoeba.js'
@@ -100,9 +124,10 @@ const props = defineProps({
   words: Array,  // full vocabBank array from App.vue (all languages combined)
   lang:  String, // active language code — only words matching this are shown (e.g. 'es')
 })
-// This component sends one event to App.vue:
-// 'remove' = emitted with the word's ORIGINAL index in vocabBank when the user clicks ✕
-defineEmits(['remove'])
+// This component sends two events to App.vue:
+// 'remove'    = emitted with the word's ORIGINAL index in vocabBank when the user clicks ✕
+// 'save-word' = emitted with a new vocab entry object when the user clicks a Tatoeba word
+const emit = defineEmits(['remove', 'saveWord'])
 
 // filtered: only words matching the active language, each paired with its original array index.
 // Pairing with the original index is essential because @remove must emit the position in the
@@ -126,6 +151,43 @@ function exKey(word) {
 // exState() returns the current examples state for a word, or null if not yet requested.
 function exState(word) {
   return examplesState.value[exKey(word)] ?? null
+}
+
+// tokenize() splits a sentence into word and space tokens for clickable rendering.
+// Returns an array like [{type:'word', text:'Hola'}, {type:'space', text:' '}, ...].
+function tokenize(text) {
+  // Split on whitespace while keeping the whitespace as its own token (capture group).
+  return text.split(/(\s+)/).map(tok => ({
+    type: /^\s+$/.test(tok) ? 'space' : 'word',
+    text: tok,
+  }))
+}
+
+// isSaved() checks whether a word is already in the vocab bank for a given language.
+// Used to highlight already-saved words in Tatoeba examples.
+// wordText = raw word text (may include punctuation). lang = language code (e.g. 'es').
+function isSaved(wordText, lang) {
+  // Normalize both sides for fair comparison (strip punctuation, lowercase).
+  const key = wordText.toLowerCase().replace(/[^\p{L}\p{M}]/gu, '')
+  if (!key) return false // empty after cleaning = not a real word
+  return props.words.some(
+    // Check both the language AND the normalized word text to avoid cross-language false matches.
+    w => w.lang === lang && w.word.toLowerCase().replace(/[^\p{L}\p{M}]/gu, '') === key
+  )
+}
+
+// saveFromExample() emits a 'saveWord' event when the user clicks a word in a Tatoeba sentence.
+// App.vue receives this and calls addToVocab() -- the same function used by ReadView.
+// wordText = the clicked word text. sentence = the full Tatoeba sentence (used as context). lang = language code.
+function saveFromExample(wordText, sentence, lang) {
+  const clean = wordText.replace(/[^\p{L}\p{M}]/gu, '') // strip punctuation
+  if (!clean || isSaved(clean, lang)) return // already saved or empty -- do nothing
+  emit('saveWord', {
+    word:     clean,
+    lang:     lang,
+    sentence: sentence, // the full Tatoeba sentence becomes the context in the vocab card
+    story:    '',       // no story title -- this came from Tatoeba, not a loaded story
+  })
 }
 
 // loadExamples() triggers a Tatoeba fetch for the given word.

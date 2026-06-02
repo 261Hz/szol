@@ -74,11 +74,14 @@
       <!-- :words="vocabBank" passes the array of saved words. -->
       <!-- @remove="vocabBank.splice($event, 1)" removes one word by its index in the array. -->
       <!--   .splice(index, 1) removes 1 item at the given index. $event is the index number. -->
+      <!-- @save-word listens for words clicked inside Tatoeba examples in VocabView. -->
+      <!-- addToVocab() is the same handler used by ReadView -- deduplication is built in. -->
       <VocabView
        v-if="activeTab === 'vocab'"
        :words="vocabBank"
        :lang="activeLang"
        @remove="vocabBank.splice($event, 1)"
+       @save-word="addToVocab"
       />
 
       <!-- SettingsView shows the voice preferences screen (opened via the ⚙ gear button). -->
