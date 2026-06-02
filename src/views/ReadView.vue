@@ -135,17 +135,6 @@ const tokens = computed(() => {
   }))
 })
 
-function bestVoice(bcp47) {
-  const base = bcp47.split('-')[0].toLowerCase()
-  const matches = voices.value.filter(v => v.lang.toLowerCase().startsWith(base))
-  if (!matches.length) return null
-  return (
-    matches.find(v => v.name.includes('Microsoft')) ??
-    matches.find(v => v.localService) ??
-    matches[0]
-  )
-}
-
 function tap(word) {
   const clean = word.replace(/[^\p{L}\p{M}]/gu, '')
   if (!clean) return
@@ -153,11 +142,19 @@ function tap(word) {
   const bcp47 = LANGS[props.lang]?.bcp47 ?? props.lang
   const utt = new SpeechSynthesisUtterance(clean)
   utt.lang = bcp47
-  const voice = bestVoice(bcp47)
-  if (voice) utt.voice = voice
 
-  if (speechSynthesis.speaking) speechSynthesis.cancel()
-  if (speechSynthesis.paused) speechSynthesis.resume()
+  // Only override voice if a Microsoft voice exists for this language —
+  // Chrome's built-in voices are poor for some languages (e.g. Greek reads
+  // letter-by-letter). If no Microsoft voice is found, let the browser pick
+  // based on utt.lang so we don't break languages that already work.
+  const base = bcp47.split('-')[0].toLowerCase()
+  const msVoice = voices.value.find(
+    v => v.name.includes('Microsoft') && v.lang.toLowerCase().startsWith(base)
+  )
+  if (msVoice) utt.voice = msVoice
+
+  speechSynthesis.cancel()
+  speechSynthesis.resume()
   speechSynthesis.speak(utt)
 
   const sentences = props.story.text.split(/(?<=[.!?])\s+/)
