@@ -257,10 +257,11 @@ import { searchWikivoyage, fetchWikivoyageArticle } from '../utils/wikivoyage.js
 
 // ── Props / Emits ──────────────────────────────────────────────
 // lang    = active language code (e.g. 'fr') — used to filter stories and call APIs.
-// current = the story currently loaded in ReadView (for the green highlight on story cards).
+// current = the story currently loaded in Retype (for the green highlight on story cards).
 const props = defineProps({ lang: String, current: Object })
-// 'load' = emitted when user clicks a story card, carrying the story object to App.vue.
-defineEmits(['load'])
+// 'load' = emitted when user clicks a story card OR imports a story.
+//           App.vue responds by loading the story and navigating to Retype.
+const emit = defineEmits(['load'])
 
 // ── Supabase data ──────────────────────────────────────────────
 // loading = true while waiting for Supabase to respond (shows spinner in Curated section).
@@ -642,7 +643,8 @@ function clearForm() {
 
 // ── Shared helper ──────────────────────────────────────────────
 // pushLocalStory() is the single function all import actions call to save a story.
-// It adds to the reactive array (triggering re-render) and persists to localStorage.
+// It adds to the reactive array (triggering re-render), persists to localStorage,
+// and immediately emits 'load' so App.vue navigates to Retype with the story ready.
 // franco defaults to null because only Egyptian Arabic stories have a Latin-script version.
 // source is optional — undefined is cleaner than an empty string in the stored JSON.
 function pushLocalStory({ title, text, franco = null, source = '' }) {
@@ -661,8 +663,9 @@ function pushLocalStory({ title, text, franco = null, source = '' }) {
   localStories.value.push(story)
   // JSON.stringify converts the full array to a string for localStorage (which only stores strings).
   localStorage.setItem('szol_local_stories', JSON.stringify(localStories.value))
-  // Open the Curated section so the user can immediately see and click the newly added story.
-  open.value.curated = true
+  // Immediately load the story — App.vue will switch to the Retype tab.
+  // This means importing any content (URL, Wikipedia, Wikivoyage, etc.) takes you straight to practice.
+  emit('load', story)
 }
 
 // wordCount() returns the appropriate size metric depending on the story's language.

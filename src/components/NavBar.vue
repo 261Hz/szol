@@ -94,8 +94,9 @@ defineEmits(['tab', 'lang'])
 // tabs is a computed array of tab objects. It recalculates whenever props.lang changes
 // so tab labels update when the language switches (e.g. "Read" → "Leer" in Spanish).
 // t(props.lang, 'read') looks up the translation of 'read' for the current language.
+// Read tab is intentionally omitted — reading happens through active retyping.
+// Loading a story from Library navigates directly to Retype.
 const tabs = computed(() => [
-  { key: 'read',    label: t(props.lang, 'read') },    // Read tab
   { key: 'retype',  label: t(props.lang, 'retype') },  // Retype (typing practice) tab
   { key: 'speak',   label: t(props.lang, 'speak') },   // Speak (pronunciation) tab
   { key: 'write',   label: t(props.lang, 'write') },   // Write (handwriting) tab

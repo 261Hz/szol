@@ -25,22 +25,7 @@
     <!-- "px-4 py-6" = horizontal padding 1rem, vertical padding 1.5rem (Tailwind). -->
     <main class="max-w-3xl mx-auto px-4 py-6">
 
-      <!-- v-if shows this component ONLY when activeTab equals 'read'. -->
-      <!-- When the condition is false, the component is removed from the page entirely. -->
-      <!-- :story="currentStory" passes the loaded story object as a prop. -->
-      <!-- :saved-words="savedWordSet" passes the Set of already-saved word keys. -->
-      <!-- @go="activeTab = $event" lets ReadView navigate to another tab (e.g. 'retype'). -->
-      <!-- @save-word="addToVocab" calls addToVocab() when the user saves a word. -->
-      <ReadView
-        v-if="activeTab === 'read'"
-        :story="currentStory"
-        :lang="activeLang"
-        :saved-words="savedWordSet"
-        @go="activeTab = $event"
-        @save-word="addToVocab"
-      />
-
-      <!-- RetypeView shows the typing practice for the current story. -->
+      <!-- RetypeView: the primary reading + practice mode. -->
       <RetypeView
         v-if="activeTab === 'retype'"
         :story="currentStory"
@@ -74,8 +59,8 @@
       <!-- :words="vocabBank" passes the array of saved words. -->
       <!-- @remove="vocabBank.splice($event, 1)" removes one word by its index in the array. -->
       <!--   .splice(index, 1) removes 1 item at the given index. $event is the index number. -->
-      <!-- @save-word listens for words clicked inside Tatoeba examples in VocabView. -->
-      <!-- addToVocab() is the same handler used by ReadView -- deduplication is built in. -->
+      <!-- @save-word listens for words clicked inside ExamplesPanel in VocabView. -->
+      <!-- addToVocab() handles deduplication before pushing to the bank. -->
       <VocabView
        v-if="activeTab === 'vocab'"
        :words="vocabBank"
@@ -93,14 +78,12 @@
 
 <script setup>
 // Import reactive utilities from Vue:
-// ref      = creates a reactive variable (changes trigger re-renders)
-// computed = creates a value that auto-recalculates when its dependencies change
-// watch    = runs code whenever a reactive value changes
-import { ref, computed, watch } from 'vue'
+// ref   = creates a reactive variable (changes trigger re-renders)
+// watch = runs code whenever a reactive value changes
+import { ref, watch } from 'vue'
 
 // Import all the view and component files used in the template above.
 import NavBar      from './components/NavBar.vue'
-import ReadView    from './views/ReadView.vue'
 import RetypeView  from './views/RetypeView.vue'
 import LibraryView from './views/LibraryView.vue'
 import VocabView   from './views/VocabView.vue'
@@ -134,24 +117,13 @@ watch(vocabBank, (val) => {
   localStorage.setItem('szol_vocab', JSON.stringify(val))
 }, { deep: true })
 
-// savedWordSet is a computed Set of normalized word keys for fast "is this word already saved?" lookups.
-// computed() re-runs automatically whenever vocabBank changes.
-// new Set([...]) creates a Set -- like an array but with no duplicates and O(1) lookup speed.
-//   O(1) = "order 1" = constant time, meaning it's instant regardless of how many words are saved.
-// .map(v => ...) transforms each item in the array to something else.
-//   Here each vocab entry (v) is converted to its normalized lowercase key.
-// .toLowerCase() converts to lowercase so 'Hello' and 'hello' are treated as the same word.
-// .replace(/[^\p{L}\p{M}]/gu, '') removes non-letter characters (punctuation, numbers).
-const savedWordSet = computed(() =>
-  new Set(vocabBank.value.map(v => v.word.toLowerCase().replace(/[^\p{L}\p{M}]/gu, '')))
-)
-
-// loadStory() is called when the user picks a story from the Library.
-// It sets the current story, updates the language, and navigates to the Read tab.
+// loadStory() is called when the user picks or imports a story from the Library.
+// It sets the current story, updates the language, and navigates straight to Retype.
+// There is no separate Read tab — reading happens through active retyping.
 function loadStory(story) {
   currentStory.value = story       // save the selected story object
   activeLang.value   = story.lang  // switch the active language to match the story
-  activeTab.value    = 'read'      // navigate to the Read view
+  activeTab.value    = 'retype'    // navigate directly to the Retype practice view
 }
 
 // addToVocab() adds a word to the vocab bank, but only if it's not already saved.
