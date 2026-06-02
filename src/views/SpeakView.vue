@@ -185,23 +185,32 @@ const sentences = computed(() => {
     .filter(Boolean)      // remove any empty strings (Boolean('') = false, so they're filtered out)
 })
 
-// sentenceWords splits the current sentence into individual words for word-by-word coloring.
+// splitUnits() splits text into comparable units for the current language.
+// For CJK (Chinese, Japanese): each individual character is a unit, because there are no
+//   spaces between words -- splitting by whitespace gives just one giant "word".
+// For all other languages: split by whitespace into words.
+function splitUnits(text) {
+  if (['zh', 'ja'].includes(props.lang)) {
+    // [...text] spreads the string into characters. filter keeps only letters (not punctuation/spaces).
+    return [...text].filter(c => /\p{L}/u.test(c))
+  }
+  return text.trim().split(/\s+/).filter(Boolean)
+}
+
+// sentenceWords is the list of displayable units in the current sentence.
+// For CJK this is individual characters; for other languages it is words.
 const sentenceWords = computed(() =>
-  // ?? '' = use empty string if sentences.value[currentIdx.value] is undefined.
-  // .trim().split(/\s+/) splits into words. .filter(Boolean) removes empty strings.
-  (sentences.value[currentIdx.value] ?? '').trim().split(/\s+/).filter(Boolean)
+  splitUnits(sentences.value[currentIdx.value] ?? '')
 )
 
-// wordStatuses maps each word in the sentence to 'correct' or 'wrong' after scoring.
+// wordStatuses maps each unit in the sentence to 'correct' or 'wrong' after scoring.
 const wordStatuses = computed(() => {
   if (!scored.value || !transcript.value) return [] // only compute after speaking
-  // Split the transcript into words.
-  const typedWords = transcript.value.trim().split(/\s+/)
-  // For each original word, check if the typed word at the same position matches.
-  return sentenceWords.value.map((word, i) =>
-    // i < typedWords.length: the user said something at this position.
-    // normalize() strips punctuation/case for fair comparison.
-    i < typedWords.length && normalize(typedWords[i]) === normalize(word) ? 'correct' : 'wrong'
+  // Split the transcript the same way as the target sentence.
+  const typedUnits = splitUnits(transcript.value)
+  // Compare position by position. normalize() strips punctuation/case for fair comparison.
+  return sentenceWords.value.map((unit, i) =>
+    i < typedUnits.length && normalize(typedUnits[i]) === normalize(unit) ? 'correct' : 'wrong'
   )
 })
 

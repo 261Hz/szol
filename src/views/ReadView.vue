@@ -93,9 +93,12 @@
 
       <!-- Franco line: the Latin-alphabet transliteration of the Arabic text. -->
       <!-- Only shown when francoOn is true AND the story has franco text. -->
+      <!-- "break-words" ensures long Franco text wraps rather than overflowing. -->
+      <!-- Franco is always written LTR (Latin letters) even for an RTL language. -->
       <div
         v-if="francoOn && story.franco"
-        class="text-sm text-gray-400 border-t border-gray-100 pt-3"
+        class="text-sm text-gray-400 border-t border-gray-100 pt-3 break-words"
+        dir="ltr"
       >
         {{ story.franco }}
       </div>
@@ -317,9 +320,11 @@ function tap(word, contextSentence) {
   // Determine which sentence to show as context below the word.
   // If contextSentence was passed (Tatoeba word), use it directly.
   // Otherwise search the story text for the sentence containing this word.
+  // The regex splits after sentence-ending punctuation from any language:
+  //   .!? = Latin. ؟ = Arabic question mark. 。！？ = CJK. \s* = optional space (CJK has none).
   // ?? '' = fall back to empty string if nothing is found.
   const sentence = contextSentence
-    ?? props.story?.text.split(/(?<=[.!?])\s+/).find(s => s.includes(word))
+    ?? props.story?.text.split(/(?<=[.!?؟।。！？])\s*/).find(s => s.includes(word))
     ?? ''
 
   // Update the tapped panel.
