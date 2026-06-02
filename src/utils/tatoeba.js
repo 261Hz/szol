@@ -34,21 +34,13 @@ export async function fetchTatoeba(word, lang) {
   const url = `https://tatoeba.org/en/api_v0/search?query=${encodeURIComponent(word)}&from=${code}&native_lang=${code}&limit=4`
   try {
     const res = await fetch(url)
-    if (!res.ok) {
-      // Log the HTTP error code so it's visible in the browser console (F12 → Console).
-      console.warn('Tatoeba HTTP error:', res.status, url)
-      return []
-    }
+    if (!res.ok) return []
     const data = await res.json()
-    // Log the raw response so we can verify the shape during development.
-    console.log('Tatoeba response for', word, ':', data)
-    // data.results is the array of sentence objects.
-    // ?? [] = use empty array if results is null/undefined.
+    // data.results is the array of sentence objects from Tatoeba.
+    // ?? [] = use empty array if the key is missing.
     return data.results ?? []
-  } catch (err) {
-    // Log the real error (CORS block, network failure, JSON parse error, etc.)
-    // so it shows up in F12 → Console instead of disappearing silently.
-    console.warn('Tatoeba fetch failed:', err)
+  } catch {
+    // Network error, CORS issue, etc. -- fail silently and return empty.
     return []
   }
 }
