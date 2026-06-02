@@ -130,12 +130,22 @@ const tokens = computed(() => {
   }))
 })
 
+function bestVoice(bcp47) {
+  const voices = speechSynthesis.getVoices()
+  const base = bcp47.split('-')[0].toLowerCase()
+  const matches = voices.filter(v => v.lang.toLowerCase().startsWith(base))
+  if (!matches.length) return null
+  return matches.find(v => !v.name.startsWith('Google')) ?? matches[0]
+}
+
 function tap(word) {
   const clean = word.replace(/[^\p{L}\p{M}]/gu, '')
   if (!clean) return
 
   const utt = new SpeechSynthesisUtterance(clean)
   utt.lang = LANGS[props.lang]?.bcp47 ?? props.lang
+  const voice = bestVoice(utt.lang)
+  if (voice) utt.voice = voice
   speechSynthesis.cancel()
   speechSynthesis.resume()
   speechSynthesis.speak(utt)
