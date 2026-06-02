@@ -25,6 +25,18 @@
         :lang="activeLang"
       />
 
+      <SpeakView
+        v-if="activeTab === 'speak'"
+        :story="currentStory"
+        :lang="activeLang"
+      />
+
+      <WriteView
+        v-if="activeTab === 'write'"
+        :story="currentStory"
+        :lang="activeLang"
+      />
+
       <LibraryView
         v-if="activeTab === 'library'"
         :lang="activeLang"
@@ -52,6 +64,8 @@ import ReadView from './views/ReadView.vue'
 import RetypeView from './views/RetypeView.vue'
 import LibraryView from './views/LibraryView.vue'
 import VocabView from './views/VocabView.vue'
+import SpeakView from './views/SpeakView.vue'
+import WriteView from './views/WriteView.vue'
 import SettingsView from './views/SettingsView.vue'
 
 const activeTab = ref('library')

@@ -23,16 +23,27 @@
       </button>
     </div>
 
-    <!-- Language selector -->
-    <select
-      :value="lang"
-      @change="$emit('lang', $event.target.value)"
-      class="text-sm border border-gray-200 rounded-md px-2 py-1 bg-white"
-    >
-      <option v-for="(l, code) in LANGS" :key="code" :value="code">
-        {{ l.name }}
-      </option>
-    </select>
+    <div class="flex items-center gap-2">
+      <!-- Language selector -->
+      <select
+        :value="lang"
+        @change="$emit('lang', $event.target.value)"
+        class="text-sm border border-gray-200 rounded-md px-2 py-1 bg-white"
+      >
+        <option v-for="(l, code) in LANGS" :key="code" :value="code">
+          {{ l.name }}
+        </option>
+      </select>
+      <!-- Settings gear -->
+      <button
+        @click="$emit('tab', 'settings')"
+        :class="[
+          'text-lg px-1.5 py-0.5 rounded-md transition-all',
+          active === 'settings' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-700'
+        ]"
+        title="Settings"
+      >⚙</button>
+    </div>
 
   </nav>
 </template>
@@ -50,10 +61,11 @@ const props = defineProps({
 defineEmits(['tab', 'lang'])
 
 const tabs = computed(() => [
-  { key: 'read',     label: t(props.lang, 'read') },
-  { key: 'retype',   label: t(props.lang, 'retype') },
-  { key: 'vocab',    label: t(props.lang, 'vocab') },
-  { key: 'library',  label: t(props.lang, 'library') },
-  { key: 'settings', label: '⚙' },
+  { key: 'read',    label: t(props.lang, 'read') },
+  { key: 'retype',  label: t(props.lang, 'retype') },
+  { key: 'speak',   label: t(props.lang, 'speak') },
+  { key: 'write',   label: t(props.lang, 'write') },
+  { key: 'vocab',   label: t(props.lang, 'vocab') },
+  { key: 'library', label: t(props.lang, 'library') },
 ])
 </script>
