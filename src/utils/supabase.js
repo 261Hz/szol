@@ -7,23 +7,6 @@ console.log('Supabase URL:', supabaseUrl)
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
-// Word cache
-export async function lookupCached(word, lang) {
-  const { data } = await supabase
-    .from('word_cache')
-    .select('*')
-    .eq('word', word)
-    .eq('lang', lang)
-    .single()
-  return data || null
-}
-
-export async function cacheWord(entry) {
-  await supabase
-    .from('word_cache')
-    .upsert(entry, { onConflict: 'word,lang' })
-}
-
 // Community stories
 export async function fetchCommunityStories() {
   const { data } = await supabase

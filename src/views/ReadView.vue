@@ -55,7 +55,7 @@
         <span v-for="(token, i) in tokens" :key="i">
           <span
             v-if="token.type === 'word'"
-            @click="lookup(token.text)"
+            @click="tap(token.text)"
             :class="[
               'cursor-pointer rounded px-0.5 transition-all hover:bg-emerald-50',
               savedWords.has(normalize(token.text)) ? 'bg-emerald-100 text-emerald-700' : ''
@@ -73,29 +73,29 @@
         {{ story.franco }}
       </div>
 
-      <!-- Lookup panel -->
+      <!-- Word panel -->
       <div
-        v-if="lookupResult"
+        v-if="tapped"
         class="border border-emerald-300 rounded-lg p-4 bg-emerald-50 flex flex-col gap-2"
       >
         <div class="flex items-start justify-between">
-          <div>
-            <div class="text-xs text-emerald-600 font-medium">{{ lookupResult.pos }}</div>
-            <div
-              class="text-xl font-semibold"
-              :dir="isRTL(lang) ? 'rtl' : 'ltr'"
-            >{{ lookupResult.word }}</div>
-          </div>
+          <div
+            class="text-xl font-semibold"
+            :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+          >{{ tapped.word }}</div>
           <button
             @click="saveWord"
-            :disabled="savedWords.has(normalize(lookupResult.word))"
+            :disabled="savedWords.has(normalize(tapped.word))"
             class="text-xs px-3 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
           >
-            {{ savedWords.has(normalize(lookupResult.word)) ? t(lang, 'saved') : t(lang, 'save') }}
+            {{ savedWords.has(normalize(tapped.word)) ? t(lang, 'saved') : t(lang, 'save') }}
           </button>
         </div>
-        <div class="text-sm text-gray-600">{{ lookupResult.def }}</div>
-        <div v-if="lookupResult.ex" class="text-xs text-gray-400 italic">"{{ lookupResult.ex }}"</div>
+        <div
+          v-if="tapped.sentence"
+          class="text-sm text-gray-500 italic"
+          :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+        >{{ tapped.sentence }}</div>
       </div>
 
     </div>
@@ -108,8 +108,6 @@ import { LANGS } from '../data/stories.js'
 import { isRTL, hasFranco } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
 import { normalize } from '../utils/scoring.js'
-import { lookupCached, cacheWord } from '../utils/supabase.js'
-import { lookupWord } from '../utils/dictionary.js'
 
 const props = defineProps({
   story: Object,
@@ -120,7 +118,7 @@ const props = defineProps({
 const emit = defineEmits(['go', 'saveWord'])
 
 const francoOn = ref(false)
-const lookupResult = ref(null)
+const tapped = ref(null)
 
 const tokens = computed(() => {
   if (!props.story) return []
@@ -130,7 +128,7 @@ const tokens = computed(() => {
   }))
 })
 
-async function lookup(word) {
+function tap(word) {
   const clean = word.replace(/[^\p{L}\p{M}]/gu, '')
   if (!clean) return
 
@@ -138,55 +136,18 @@ async function lookup(word) {
   utt.lang = LANGS[props.lang]?.bcp47 ?? props.lang
   speechSynthesis.speak(utt)
 
-  lookupResult.value = { word: clean, pos: '', def: t(props.lang, 'lookingUp'), ex: '' }
-
-  const cached = await lookupCached(clean, props.lang)
-  if (cached) {
-    lookupResult.value = {
-      word: clean,
-      pos: cached.pos || '',
-      def: cached.definition || t(props.lang, 'noDefinition'),
-      ex: cached.example || '',
-    }
-    return
-  }
-
-  const result = await lookupWord(clean, props.lang)
-  if (result) {
-    lookupResult.value = {
-      word: clean,
-      pos: result.pos,
-      def: result.definition || t(props.lang, 'noDefinition'),
-      ex: result.example,
-    }
-    await cacheWord({
-      word: clean,
-      lang: props.lang,
-      pos: result.pos,
-      definition: result.definition,
-      example: result.example,
-      source: result.source,
-    })
-  } else {
-    lookupResult.value = {
-      word: clean,
-      pos: '',
-      def: t(props.lang, 'notFound'),
-      ex: '',
-    }
-  }
+  const sentences = props.story.text.split(/(?<=[.!?])\s+/)
+  const sentence = sentences.find(s => s.includes(word)) ?? ''
+  tapped.value = { word: clean, sentence }
 }
 
 function saveWord() {
-  if (!lookupResult.value) return
+  if (!tapped.value) return
   emit('saveWord', {
-    word: lookupResult.value.word,
+    word: tapped.value.word,
     lang: props.lang,
-    langName: LANGS[props.lang]?.name,
-    rtl: isRTL(props.lang),
-    pos: lookupResult.value.pos,
-    def: lookupResult.value.def,
-    ex: lookupResult.value.ex,
+    sentence: tapped.value.sentence,
+    story: props.story?.title ?? '',
   })
 }
 </script>
