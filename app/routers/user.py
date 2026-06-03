@@ -9,6 +9,7 @@
 from fastapi import Response, status, HTTPException, Depends, APIRouter
 from typing import List
 from uuid import UUID
+from sqlalchemy.exc import IntegrityError
 from .. import models, schemas, utils, oauth2
 from ..database import get_db
 from sqlalchemy.orm import Session
@@ -21,17 +22,27 @@ router = APIRouter(
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.UserResponse)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    # Hash the plaintext password before storing — never persist raw passwords.
-    # utils.hash_password() uses bcrypt so the hash is salted and one-way.
-    user.password = utils.hash_password(user.password)
+    # Reject duplicate email early with a clean 409 so the frontend can show a
+    # readable message.  Without this check an IntegrityError from Postgres would
+    # propagate as an unhandled 500 whose response lacks CORS headers, causing the
+    # browser to report a CORS error instead of the real problem.
+    if db.query(models.User).filter(models.User.email == user.email).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists.",
+        )
 
-    # **user.dict() unpacks the Pydantic model fields as keyword arguments to the ORM constructor.
-    # .dict() is the Pydantic v1 name; model_dump() is the v2 equivalent — both work here.
+    user.password = utils.hash_password(user.password)
     new_user = models.User(**user.model_dump())
     db.add(new_user)
-    db.commit()
-    # refresh() re-reads the row from the database so server-generated fields
-    # (id, created_at) are populated before FastAPI serialises the response.
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists.",
+        )
     db.refresh(new_user)
     return new_user
 
