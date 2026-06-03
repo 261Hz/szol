@@ -35,6 +35,28 @@ class TokenData(BaseModel):
     id: Optional[UUID] = None
 
 
+# ── User progress ────────────────────────────────────────────────────────────
+
+class UserProgressCreate(BaseModel):
+    story_id:       str
+    story_title:    Optional[str] = None
+    lang:           str
+    tab:            str   # 'retype' | 'speak'
+    sentence_index: int   = 0
+
+class UserProgressResponse(BaseModel):
+    id:             UUID
+    user_id:        UUID
+    story_id:       str
+    story_title:    Optional[str] = None
+    lang:           str
+    tab:            str
+    sentence_index: int
+    updated_at:     datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ── User vocab (saved word bank) ─────────────────────────────────────────────
 
 class UserVocabCreate(BaseModel):

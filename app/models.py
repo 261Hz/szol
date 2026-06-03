@@ -27,6 +27,18 @@ class UserWord(Base):
     last_seen  = Column(TIMESTAMP(timezone=True), server_default=text("now()"))
     stories    = Column(ARRAY(String))
 
+class UserProgress(Base):
+    __tablename__ = "user_progress"
+
+    id             = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
+    user_id        = Column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    story_id       = Column(String, nullable=False)   # UUID or 'l<timestamp>' for local stories
+    story_title    = Column(String)
+    lang           = Column(String, nullable=False)
+    tab            = Column(String, nullable=False)   # 'retype' | 'speak'
+    sentence_index = Column(Integer, nullable=False, server_default=text("0"))
+    updated_at     = Column(TIMESTAMP(timezone=True), server_default=text("now()"))
+
 class UserVocab(Base):
     __tablename__ = "user_vocab"
 
