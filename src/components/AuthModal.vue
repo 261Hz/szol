@@ -1,10 +1,8 @@
 <template>
-  <!-- Backdrop: clicking outside the card closes the modal. -->
   <div
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
     @click.self="$emit('close')"
   >
-    <!-- Modal card -->
     <div class="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 flex flex-col gap-4">
 
       <!-- Header -->
@@ -20,12 +18,10 @@
         <button
           v-for="tab in ['Login', 'Register']"
           :key="tab"
-          @click="activeTab = tab; error = ''"
+          @click="switchTab(tab)"
           :class="[
             'px-3 py-1 text-sm rounded-md transition-all',
-            activeTab === tab
-              ? 'bg-emerald-500 text-white'
-              : 'text-gray-500 hover:text-gray-800'
+            activeTab === tab ? 'bg-emerald-500 text-white' : 'text-gray-500 hover:text-gray-800'
           ]"
         >{{ tab }}</button>
       </div>
@@ -40,15 +36,25 @@
           autocomplete="email"
           class="border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 transition-all"
         />
-        <input
-          v-model="password"
-          type="password"
-          placeholder="Password"
-          required
-          autocomplete="current-password"
-          class="border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 transition-all"
-        />
-        <div v-if="error" class="text-xs text-red-500">{{ error }}</div>
+        <!-- Password with show/hide toggle -->
+        <div class="relative">
+          <input
+            v-model="password"
+            :type="showPassword ? 'text' : 'password'"
+            placeholder="Password"
+            required
+            autocomplete="current-password"
+            class="w-full border border-gray-200 rounded-md px-3 py-2 pr-10 text-sm outline-none focus:border-emerald-400 transition-all"
+          />
+          <button
+            type="button"
+            @click="showPassword = !showPassword"
+            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+            tabindex="-1"
+          >{{ showPassword ? 'Hide' : 'Show' }}</button>
+        </div>
+
+        <div v-if="error" class="text-xs text-red-500 leading-snug">{{ error }}</div>
         <button
           type="submit"
           :disabled="loading"
@@ -63,6 +69,8 @@
           type="text"
           placeholder="Username"
           required
+          minlength="2"
+          maxlength="40"
           autocomplete="username"
           class="border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 transition-all"
         />
@@ -74,14 +82,49 @@
           autocomplete="email"
           class="border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 transition-all"
         />
-        <input
-          v-model="password"
-          type="password"
-          placeholder="Password"
-          required
-          autocomplete="new-password"
-          class="border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 transition-all"
-        />
+        <!-- Password with show/hide and strength hint -->
+        <div class="relative">
+          <input
+            v-model="password"
+            :type="showPassword ? 'text' : 'password'"
+            placeholder="Password (min 8 characters)"
+            required
+            autocomplete="new-password"
+            class="w-full border border-gray-200 rounded-md px-3 py-2 pr-10 text-sm outline-none focus:border-emerald-400 transition-all"
+          />
+          <button
+            type="button"
+            @click="showPassword = !showPassword"
+            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+            tabindex="-1"
+          >{{ showPassword ? 'Hide' : 'Show' }}</button>
+        </div>
+        <!-- Password strength bar -->
+        <div v-if="password" class="flex gap-1 h-1">
+          <div
+            v-for="i in 4"
+            :key="i"
+            class="flex-1 rounded-full transition-all"
+            :class="i <= passwordStrength ? strengthColor : 'bg-gray-100'"
+          />
+        </div>
+        <!-- Confirm password -->
+        <div class="relative">
+          <input
+            v-model="confirmPassword"
+            :type="showPassword ? 'text' : 'password'"
+            placeholder="Confirm password"
+            required
+            autocomplete="new-password"
+            class="w-full border border-gray-200 rounded-md px-3 py-2 pr-10 text-sm outline-none transition-all"
+            :class="confirmPassword && confirmPassword !== password ? 'border-red-300 focus:border-red-400' : 'border-gray-200 focus:border-emerald-400'"
+          />
+          <span
+            v-if="confirmPassword"
+            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs"
+            :class="confirmPassword === password ? 'text-emerald-500' : 'text-red-400'"
+          >{{ confirmPassword === password ? '✓' : '✗' }}</span>
+        </div>
         <select
           v-model="proficiency"
           class="border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 text-gray-500 transition-all"
@@ -89,10 +132,11 @@
           <option value="">Proficiency level (optional)</option>
           <option v-for="lvl in ['A1','A2','B1','B2','C1','C2']" :key="lvl" :value="lvl">{{ lvl }}</option>
         </select>
-        <div v-if="error" class="text-xs text-red-500">{{ error }}</div>
+
+        <div v-if="error" class="text-xs text-red-500 leading-snug">{{ error }}</div>
         <button
           type="submit"
-          :disabled="loading"
+          :disabled="loading || !canSubmitRegister"
           class="px-4 py-2 rounded-md bg-emerald-500 text-white text-sm hover:bg-emerald-600 disabled:opacity-40 transition-all"
         >{{ loading ? 'Creating account…' : 'Create Account' }}</button>
       </form>
@@ -102,19 +146,65 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { login, register, getMe } from '../utils/api.js'
 
 const emit = defineEmits(['close', 'logged-in'])
 
-const activeTab  = ref('Login')
-const email      = ref('')
-const password   = ref('')
-const username   = ref('')
-const proficiency = ref('')
-const error      = ref('')
-const loading    = ref(false)
+const activeTab       = ref('Login')
+const email           = ref('')
+const password        = ref('')
+const confirmPassword = ref('')
+const username        = ref('')
+const proficiency     = ref('')
+const showPassword    = ref(false)
+const error           = ref('')
+const loading         = ref(false)
 
+function switchTab(tab) {
+  activeTab.value = tab
+  error.value = ''
+  password.value = ''
+  confirmPassword.value = ''
+  showPassword.value = false
+}
+
+// ── Password strength (0-4) ───────────────────────────────────────────────────
+const passwordStrength = computed(() => {
+  const p = password.value
+  if (!p) return 0
+  let score = 0
+  if (p.length >= 8)  score++
+  if (p.length >= 12) score++
+  if (/[A-Z]/.test(p) && /[a-z]/.test(p)) score++
+  if (/[0-9]/.test(p) || /[^A-Za-z0-9]/.test(p)) score++
+  return Math.max(score, p.length >= 8 ? 1 : 0)
+})
+
+const strengthColor = computed(() => {
+  if (passwordStrength.value <= 1) return 'bg-red-400'
+  if (passwordStrength.value === 2) return 'bg-orange-400'
+  if (passwordStrength.value === 3) return 'bg-yellow-400'
+  return 'bg-emerald-400'
+})
+
+const canSubmitRegister = computed(() =>
+  password.value.length >= 8 && password.value === confirmPassword.value
+)
+
+// ── Error formatting ──────────────────────────────────────────────────────────
+// FastAPI validation errors come back as an array of objects.
+// This collapses them into a readable sentence.
+function formatError(detail) {
+  if (!detail) return 'Something went wrong.'
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    return detail.map(e => e.msg || e.message || JSON.stringify(e)).join(' · ')
+  }
+  return String(detail)
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────────
 async function doLogin() {
   error.value   = ''
   loading.value = true
@@ -123,23 +213,31 @@ async function doLogin() {
     const user = await getMe()
     emit('logged-in', user)
   } catch (e) {
-    error.value = e.message
+    error.value = formatError(e.detail ?? e.message)
   } finally {
     loading.value = false
   }
 }
 
+// ── Register ──────────────────────────────────────────────────────────────────
 async function doRegister() {
+  if (password.value.length < 8) {
+    error.value = 'Password must be at least 8 characters.'
+    return
+  }
+  if (password.value !== confirmPassword.value) {
+    error.value = 'Passwords do not match.'
+    return
+  }
   error.value   = ''
   loading.value = true
   try {
     await register(username.value, email.value, password.value, proficiency.value || null, null)
-    // auto-login after registration
     await login(email.value, password.value)
     const user = await getMe()
     emit('logged-in', user)
   } catch (e) {
-    error.value = e.message
+    error.value = formatError(e.detail ?? e.message)
   } finally {
     loading.value = false
   }
