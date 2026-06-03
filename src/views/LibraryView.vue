@@ -68,7 +68,14 @@
             <img v-if="todayArticle.thumbnail" :src="todayArticle.thumbnail" class="w-20 h-20 object-cover rounded-md flex-shrink-0" />
             <div class="flex flex-col gap-1 flex-1 min-w-0">
               <div class="font-semibold text-sm text-gray-800">{{ todayArticle.title }}</div>
-              <div class="text-xs text-gray-500 line-clamp-4">{{ todayArticle.extract }}</div>
+              <div class="text-xs text-gray-500 line-clamp-4">
+            <ClickableText
+              :text="todayArticle.extract"
+              :lang="lang"
+              :savedWords="savedWordsSet"
+              @tap="({ word, sentence }) => saveFromLibrary(word, sentence)"
+            />
+          </div>
             </div>
           </div>
           <button @click="importWikipediaArticle(todayArticle)" class="self-start text-xs px-3 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-all">Import as Story</button>
@@ -87,7 +94,13 @@
         <div v-if="otdLoading" class="text-xs text-gray-400 py-4 text-center">Loading…</div>
         <div v-else-if="onThisDay.length" class="flex flex-col gap-2">
           <div v-for="(ev, i) in onThisDay" :key="i" class="text-xs text-gray-600 leading-snug">
-            <span class="font-medium text-gray-400">{{ ev.year }}</span> — {{ ev.text }}
+            <span class="font-medium text-gray-400">{{ ev.year }}</span> —
+            <ClickableText
+              :text="ev.text"
+              :lang="lang"
+              :savedWords="savedWordsSet"
+              @tap="({ word, sentence }) => saveFromLibrary(word, sentence)"
+            />
           </div>
           <button @click="importOnThisDay" class="self-start mt-2 text-xs px-3 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-all">Import All as Story</button>
         </div>
@@ -115,7 +128,14 @@
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <div class="text-sm font-medium text-gray-700">{{ r.title }}</div>
-                <div class="text-xs text-gray-400 mt-0.5 break-words">{{ r.snippet }}</div>
+                <div class="text-xs text-gray-400 mt-0.5 break-words">
+                  <ClickableText
+                    :text="r.snippet.replace(/<[^>]+>/g, '')"
+                    :lang="lang"
+                    :savedWords="savedWordsSet"
+                    @tap="({ word, sentence }) => saveFromLibrary(word, sentence)"
+                  />
+                </div>
               </div>
               <button @click="importWikivoyage(r)" :disabled="travelImporting === r.pageid" class="flex-shrink-0 text-xs px-2.5 py-1 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all">{{ travelImporting === r.pageid ? '…' : 'Import' }}</button>
             </div>
@@ -139,7 +159,14 @@
         <div v-if="importError" class="text-xs text-red-400 mb-2">{{ importError }}</div>
         <div v-if="importPreview" class="border border-gray-200 rounded-md p-3 flex flex-col gap-2">
           <div class="text-sm font-semibold text-gray-700">{{ importPreview.title }}</div>
-          <div class="text-xs text-gray-500 break-words">{{ importPreview.text.slice(0, 400) }}…</div>
+          <div class="text-xs text-gray-500 break-words">
+            <ClickableText
+              :text="importPreview.text.slice(0, 400) + '…'"
+              :lang="lang"
+              :savedWords="savedWordsSet"
+              @tap="({ word, sentence }) => saveFromLibrary(word, sentence)"
+            />
+          </div>
           <div class="flex gap-2">
             <button @click="confirmImport" class="text-xs px-3 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-all">Save as Story</button>
             <button @click="importPreview = null; importError = ''" class="text-xs px-3 py-1.5 rounded-md border border-gray-200 hover:border-red-300 text-gray-400 hover:text-red-400 transition-all">Discard</button>
@@ -248,6 +275,7 @@ import { LANGS } from '../data/stories.js'
 import { isRTL } from '../utils/rtl.js'
 // t() = translate a UI string key for the active language.
 import { t }     from '../utils/i18n.js'
+import ClickableText from '../components/ClickableText.vue'
 // Supabase functions: fetch/submit stories from the remote database.
 import { fetchCommunityStories, submitStory, fetchCuratedStories } from '../utils/supabase.js'
 // Wikipedia helpers for the Today and On This Day sections.
@@ -258,10 +286,34 @@ import { searchWikivoyage, fetchWikivoyageArticle } from '../utils/wikivoyage.js
 // ── Props / Emits ──────────────────────────────────────────────
 // lang    = active language code (e.g. 'fr') — used to filter stories and call APIs.
 // current = the story currently loaded in Retype (for the green highlight on story cards).
-const props = defineProps({ lang: String, current: Object })
-// 'load' = emitted when user clicks a story card OR imports a story.
-//           App.vue responds by loading the story and navigating to Retype.
-const emit = defineEmits(['load'])
+// words   = full vocabBank array so fetched-content words can be highlighted green if already saved.
+const props = defineProps({ lang: String, current: Object, words: { type: Array, default: () => [] } })
+// 'load'     = emitted when user clicks a story card OR imports a story.
+// 'saveWord' = emitted when user clicks a word in fetched content to add it to vocab.
+const emit = defineEmits(['load', 'saveWord'])
+
+// savedWordsSet = normalized Set of words already saved for the active language.
+// Passed to ClickableText so already-saved words highlight green.
+const savedWordsSet = computed(() =>
+  new Set(
+    props.words
+      .filter(w => w.lang === props.lang)
+      .map(w => w.word.toLowerCase().replace(/[^\p{L}\p{M}]/gu, ''))
+  )
+)
+
+// saveFromLibrary() is called when the user clicks a word in any fetched content section.
+// Strips punctuation, deduplicates, then emits 'saveWord' to App.vue.
+function saveFromLibrary(wordText, sentence) {
+  const clean = wordText.replace(/[^\p{L}\p{M}]/gu, '')
+  if (!clean) return
+  const key = clean.toLowerCase().replace(/[^\p{L}\p{M}]/gu, '')
+  const alreadySaved = props.words.some(
+    w => w.lang === props.lang && w.word.toLowerCase().replace(/[^\p{L}\p{M}]/gu, '') === key
+  )
+  if (alreadySaved) return
+  emit('saveWord', { word: clean, lang: props.lang, sentence, story: '' })
+}
 
 // ── Supabase data ──────────────────────────────────────────────
 // loading = true while waiting for Supabase to respond (shows spinner in Curated section).
