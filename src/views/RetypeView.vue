@@ -48,7 +48,14 @@
           :key="i"
           class="text-sm text-gray-300 leading-snug break-words"
           :dir="isRTL(lang) ? 'rtl' : 'ltr'"
-        >{{ s }}</div>
+        >
+          <ClickableText
+            :text="s"
+            :lang="lang"
+            :savedWords="savedWords"
+            @tap="({ word: w, sentence }) => tapWord(w, sentence)"
+          />
+        </div>
       </div>
 
       <!-- ── Active sentence ─────────────────────────────────────────────── -->
@@ -71,12 +78,16 @@
         <span v-if="done" class="text-emerald-500 font-medium">✓ {{ t(lang, 'done') ?? 'Complete!' }}</span>
 
         <!-- Active sentence: render each word and space with color-coded state. -->
+        <!-- Each word is wrapped in a clickable span: click speaks + saves to vocab. -->
         <template v-else>
           <template v-for="(word, wi) in words" :key="wi">
-            <!-- Characters of this word. charClass() picks the right color. -->
-            <span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span>
-            <!-- Space after the word (not after the last word). -->
-            <!-- spaceClass() shows an underline cursor when waiting for Space. -->
+            <span
+              class="cursor-pointer rounded"
+              :class="savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-emerald-400 decoration-dotted underline-offset-2' : ''"
+              @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
+            >
+              <span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span>
+            </span>
             <span v-if="wi < words.length - 1" :class="spaceClass(wi)">{{ ' ' }}</span>
           </template>
         </template>
@@ -120,11 +131,18 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
+import { normalize } from '../utils/scoring.js'
+import { LANGS } from '../data/stories.js'
+import { useVoiceList, voicesForLang, pickVoice } from '../utils/voices.js'
+import ClickableText from '../components/ClickableText.vue'
 
 const props = defineProps({
-  story: Object,
-  lang:  String,
+  story:      Object,
+  lang:       String,
+  savedWords: { type: Object, default: () => new Set() }, // Set of normalized already-saved words
 })
+
+const emit = defineEmits(['saveWord'])
 
 // ── Mode (native / franco / pinyin) ──────────────────────────────────────────
 
@@ -183,6 +201,30 @@ function buildWords(text) {
     .map(w => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
     .filter(w => w.length > 0)
     .map(word => word.split('').map(char => ({ char, state: 'untouched' })))
+}
+
+// ── Voice list ────────────────────────────────────────────────────────────────
+const voices = useVoiceList()
+
+// ── Word tap ──────────────────────────────────────────────────────────────────
+
+// tapWord() is called when the user clicks a word anywhere in the retype view.
+// wordText may be a raw token (with punctuation). sentence is the surrounding context.
+// Speaks the word, then emits saveWord so App.vue can deduplicate and save.
+function tapWord(wordText, sentence) {
+  const clean = wordText.replace(/[^\p{L}\p{M}]/gu, '')
+  if (!clean) return
+
+  const bcp47 = LANGS[props.lang]?.bcp47 ?? props.lang
+  const utt   = new SpeechSynthesisUtterance(clean)
+  utt.lang    = bcp47
+  const voice = pickVoice(voices.value, bcp47, props.lang)
+  if (voice) utt.voice = voice
+  speechSynthesis.cancel()
+  speechSynthesis.resume()
+  speechSynthesis.speak(utt)
+
+  emit('saveWord', { word: clean, lang: props.lang, sentence: sentence ?? '', story: props.story?.title ?? '' })
 }
 
 // ── Reactive state ────────────────────────────────────────────────────────────
