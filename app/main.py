@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from . import models
 from .database import engine
-from .routers import user, auth, stories, words
+from .routers import user, auth, stories, words, vocab
 from .config import settings
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,3 +31,4 @@ app.include_router(user.router)    # /users/*
 app.include_router(auth.router)    # /login
 app.include_router(stories.router) # /stories/*
 app.include_router(words.router)   # /words/*
+app.include_router(vocab.router)   # /vocab/*

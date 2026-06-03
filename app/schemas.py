@@ -35,6 +35,28 @@ class TokenData(BaseModel):
     id: Optional[UUID] = None
 
 
+# ── User vocab (saved word bank) ─────────────────────────────────────────────
+
+class UserVocabCreate(BaseModel):
+    word:       str
+    lang:       str
+    pos:        Optional[str] = None
+    definition: Optional[str] = None
+    example:    Optional[str] = None
+
+class UserVocabResponse(BaseModel):
+    id:         UUID
+    user_id:    UUID
+    word:       str
+    lang:       str
+    pos:        Optional[str] = None
+    definition: Optional[str] = None
+    example:    Optional[str] = None
+    saved_at:   datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ── User words (frequency tracking) ──────────────────────────────────────────
 
 class UserWordCreate(BaseModel):

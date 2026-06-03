@@ -27,6 +27,18 @@ class UserWord(Base):
     last_seen  = Column(TIMESTAMP(timezone=True), server_default=text("now()"))
     stories    = Column(ARRAY(String))
 
+class UserVocab(Base):
+    __tablename__ = "user_vocab"
+
+    id         = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
+    user_id    = Column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    word       = Column(String, nullable=False)
+    lang       = Column(String, nullable=False)
+    pos        = Column(String)
+    definition = Column(String)
+    example    = Column(String)
+    saved_at   = Column(TIMESTAMP(timezone=True), server_default=text("now()"))
+
 class CuratedStory(Base):
     __tablename__ = "curated_stories"
 

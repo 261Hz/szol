@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from .. import models, schemas
+from .. import models, schemas, oauth2
 from ..database import get_db
 
 # prefix="/stories" means every route below is relative to /stories.
@@ -39,14 +39,17 @@ def get_curated_stories(lang: str, db: Session = Depends(get_db)):
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.CommunityStoryResponse)
-def create_community_story(story: schemas.CommunityStoryCreate, db: Session = Depends(get_db)):
-    # story.model_dump() converts the Pydantic model to a plain dict so we can unpack it
-    # as keyword arguments into the SQLAlchemy model constructor (**kwargs).
-    # db.add()    stages the new row.
-    # db.commit() writes it to the database.
-    # db.refresh() re-reads the row so server-set fields (id, created_at, reviewed) are populated
-    #              before we return the response — otherwise those fields would be None.
-    new_story = models.CommunityStory(**story.model_dump())
+def create_community_story(
+    story: schemas.CommunityStoryCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(oauth2.get_current_user),
+):
+    """Submit a community story. Requires authentication.
+    If the caller omits author, the logged-in user's username is used."""
+    data = story.model_dump()
+    if not data.get("author"):
+        data["author"] = current_user.username
+    new_story = models.CommunityStory(**data)
     db.add(new_story)
     db.commit()
     db.refresh(new_story)
