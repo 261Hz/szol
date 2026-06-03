@@ -26,11 +26,25 @@
           <button @click="emit('remove', originalIndex)" class="text-xs text-gray-300 hover:text-red-400 transition-all">✕</button>
         </div>
 
-        <!-- Word (large) -->
-        <div class="text-lg font-semibold text-gray-900">{{ word.word }}</div>
+        <!-- Word (large) — clickable to save related words from context -->
+        <div class="text-lg font-semibold text-gray-900">
+          <ClickableText
+            :text="word.word"
+            :lang="word.lang"
+            :savedWords="savedWordsSet"
+            @tap="({ word: w, sentence }) => saveFromExample(w, sentence, word.lang)"
+          />
+        </div>
 
-        <!-- Context sentence -->
-        <div v-if="word.sentence" class="text-sm text-gray-500 italic">{{ word.sentence }}</div>
+        <!-- Context sentence — every word clickable to add to vocab -->
+        <div v-if="word.sentence" class="text-sm text-gray-500 italic">
+          <ClickableText
+            :text="word.sentence"
+            :lang="word.lang"
+            :savedWords="savedWordsSet"
+            @tap="({ word: w, sentence }) => saveFromExample(w, sentence, word.lang)"
+          />
+        </div>
 
         <!-- Examples panel: Tatoeba / Wikipedia / Wikiquote tabs. -->
         <!-- :word="word.word"    = the vocab word is the search term for all three sources. -->
@@ -59,7 +73,8 @@
 import { ref, computed } from 'vue'
 import { t }    from '../utils/i18n.js'
 import { LANGS } from '../data/stories.js'
-import ExamplesPanel from '../components/ExamplesPanel.vue'
+import ExamplesPanel  from '../components/ExamplesPanel.vue'
+import ClickableText  from '../components/ClickableText.vue'
 
 const props = defineProps({
   words: Array,  // full vocabBank array (all languages)

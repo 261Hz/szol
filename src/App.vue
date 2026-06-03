@@ -52,7 +52,9 @@
         v-if="activeTab === 'library'"
         :lang="activeLang"
         :current="currentStory"
+        :words="vocabBank"
         @load="loadStory"
+        @save-word="addToVocab"
       />
 
       <!-- VocabView shows the user's saved vocabulary words. -->
