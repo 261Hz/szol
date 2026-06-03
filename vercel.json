@@ -1,4 +1,3 @@
-// Vercel config file that defines a cron job to keep the Render backend warm.
 {
   "crons": [{
     "path": "/api/ping",
