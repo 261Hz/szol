@@ -134,12 +134,14 @@ import { t }     from '../utils/i18n.js'
 import { normalize } from '../utils/scoring.js'
 import { LANGS } from '../data/stories.js'
 import { useVoiceList, voicesForLang, pickVoice } from '../utils/voices.js'
+import { trackWord } from '../utils/api.js'
 import ClickableText from '../components/ClickableText.vue'
 
 const props = defineProps({
-  story:      Object,
-  lang:       String,
-  savedWords: { type: Object, default: () => new Set() }, // Set of normalized already-saved words
+  story:       Object,
+  lang:        String,
+  savedWords:  { type: Object, default: () => new Set() },
+  currentUser: Object, // null if logged out
 })
 
 const emit = defineEmits(['saveWord'])
@@ -223,6 +225,10 @@ function tapWord(wordText, sentence) {
   speechSynthesis.cancel()
   speechSynthesis.resume()
   speechSynthesis.speak(utt)
+
+  if (props.currentUser) {
+    trackWord(clean, props.lang, props.story?.title ?? '')
+  }
 
   emit('saveWord', { word: clean, lang: props.lang, sentence: sentence ?? '', story: props.story?.title ?? '' })
 }

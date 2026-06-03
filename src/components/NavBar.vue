@@ -65,6 +65,23 @@
         ]"
         title="Settings"
       >⚙</button>
+
+      <!-- User icon: opens AuthModal when logged out, shows username + logout when logged in. -->
+      <div v-if="!currentUser">
+        <button
+          @click="$emit('auth')"
+          class="text-lg px-1.5 py-0.5 rounded-md text-gray-400 hover:text-gray-700 transition-all"
+          title="Login / Register"
+        >👤</button>
+      </div>
+      <div v-else class="flex items-center gap-1.5">
+        <span class="text-xs text-gray-600 max-w-20 truncate">{{ currentUser.username }}</span>
+        <button
+          @click="$emit('logout')"
+          class="text-xs text-gray-300 hover:text-red-400 transition-all"
+          title="Logout"
+        >✕</button>
+      </div>
     </div>
 
   </nav>
@@ -82,14 +99,12 @@ import { t }     from '../utils/i18n.js'
 // active: which tab is currently selected (e.g. 'read', 'library').
 // lang: the current language code (e.g. 'es', 'el').
 const props = defineProps({
-  active: String, // String = expects a text value
-  lang:   String,
+  active:      String,
+  lang:        String,
+  currentUser: Object, // null when logged out, user object when logged in
 })
 
-// defineEmits() declares which events this component can send up to its parent.
-// 'tab' = sent when user clicks a tab or the gear icon (carries the tab key)
-// 'lang' = sent when user picks a different language (carries the language code)
-defineEmits(['tab', 'lang'])
+defineEmits(['tab', 'lang', 'auth', 'logout'])
 
 // tabs is a computed array of tab objects. It recalculates whenever props.lang changes
 // so tab labels update when the language switches (e.g. "Read" → "Leer" in Spanish).

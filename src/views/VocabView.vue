@@ -46,6 +46,22 @@
           />
         </div>
 
+        <!-- Word frequency row (shown only when logged in and data is available) -->
+        <div
+          v-if="currentUser && userWordMap[word.word.toLowerCase()]"
+          class="text-xs text-emerald-600 flex gap-2"
+        >
+          <span>Seen {{ userWordMap[word.word.toLowerCase()].seen_count }}×</span>
+          <span class="text-gray-300">·</span>
+          <span>First {{ new Date(userWordMap[word.word.toLowerCase()].first_seen).toLocaleDateString() }}</span>
+        </div>
+
+        <!-- Subtle login prompt when logged out -->
+        <div v-else-if="!currentUser" class="text-xs text-gray-400">
+          <button @click="emit('openAuth')" class="underline hover:text-emerald-500 transition-all">Login</button>
+          to track how often you see each word
+        </div>
+
         <!-- Examples panel: Tatoeba / Wikipedia / Wikiquote tabs. -->
         <!-- :word="word.word"    = the vocab word is the search term for all three sources. -->
         <!-- :lang="word.lang"    = use the word's own language, not the active UI language    -->
@@ -70,18 +86,36 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { t }    from '../utils/i18n.js'
 import { LANGS } from '../data/stories.js'
 import ExamplesPanel  from '../components/ExamplesPanel.vue'
 import ClickableText  from '../components/ClickableText.vue'
+import { getUserWords } from '../utils/api.js'
 
 const props = defineProps({
-  words: Array,  // full vocabBank array (all languages)
-  lang:  String, // active language code — only words matching this are shown
+  words:       Array,  // full vocabBank array (all languages)
+  lang:        String, // active language code — only words matching this are shown
+  currentUser: Object, // null if logged out
 })
 
-const emit = defineEmits(['remove', 'saveWord'])
+const emit = defineEmits(['remove', 'saveWord', 'openAuth'])
+
+// userWordMap = { normalizedWord: { seen_count, first_seen, last_seen } }
+// Fetched from the backend when the user is logged in and lang changes.
+const userWordMap = ref({})
+
+watch(
+  [() => props.currentUser, () => props.lang],
+  async ([user, lang]) => {
+    if (!user) { userWordMap.value = {}; return }
+    const list = await getUserWords(lang)
+    userWordMap.value = Object.fromEntries(
+      list.map(w => [w.word.toLowerCase(), w])
+    )
+  },
+  { immediate: true }
+)
 
 // filtered = words matching the active language, each paired with its index in the full vocabBank.
 // Pairing with the original index is essential: when the user removes a word, we must emit
