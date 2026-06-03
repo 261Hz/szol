@@ -1,5 +1,5 @@
 from .database import Base
-from sqlalchemy import TIMESTAMP, Column, Integer, String, Boolean, Uuid
+from sqlalchemy import ARRAY, TIMESTAMP, Column, Integer, String, Boolean, Uuid
 from sqlalchemy.sql.expression import text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.schema import ForeignKey
@@ -7,46 +7,60 @@ from sqlalchemy.sql.schema import ForeignKey
 
 class User(Base):
     __tablename__ = "users"
-    id = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
-    username = Column(String, nullable=False)
-    email = Column(String, nullable=False, unique=True, index=True)
-    password = Column(String, nullable=False)
-    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
+    id           = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
+    username     = Column(String, nullable=False)
+    email        = Column(String, nullable=False, unique=True, index=True)
+    password     = Column(String, nullable=False)
+    created_at   = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
+    proficiency  = Column(String)   # CEFR level: A1 A2 B1 B2 C1 C2
+    native_lang  = Column(String)   # e.g. 'en', 'es'
+
+class UserWord(Base):
+    __tablename__ = "user_words"
+
+    id         = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
+    user_id    = Column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    word       = Column(String, nullable=False)
+    lang       = Column(String, nullable=False)
+    seen_count = Column(Integer, server_default=text("1"))
+    first_seen = Column(TIMESTAMP(timezone=True), server_default=text("now()"))
+    last_seen  = Column(TIMESTAMP(timezone=True), server_default=text("now()"))
+    stories    = Column(ARRAY(String))
 
 class CuratedStory(Base):
     __tablename__ = "curated_stories"
 
-    id = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
-    title = Column(String, nullable=False)
-    content = Column(String, nullable=False)
-    franco = Column(String)
-    lang = Column(String, nullable=False)
-    author = Column(String)
-    source = Column(String)
+    id             = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
+    title          = Column(String, nullable=False)
+    content        = Column(String, nullable=False)
+    franco         = Column(String)
+    lang           = Column(String, nullable=False)
+    author         = Column(String)
+    source         = Column(String)
     sequence_order = Column(Integer)
-    created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'))
+    created_at     = Column(TIMESTAMP(timezone=True), server_default=text('now()'))
 
 class WordCache(Base):
     __tablename__ = "word_cache"
 
-    id = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
-    word = Column(String, nullable=False, index=True)
-    lang = Column(String, nullable=False, index=True)
-    pos = Column(String)
+    id         = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
+    word       = Column(String, nullable=False, index=True)
+    lang       = Column(String, nullable=False, index=True)
+    pos        = Column(String)
     definition = Column(String)
-    example = Column(String)
-    source = Column(String, server_default='wiktionary')
+    example    = Column(String)
+    source     = Column(String, server_default='wiktionary')
     created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'))
 
 class CommunityStory(Base):
     __tablename__ = "community_stories"
 
-    id = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
-    title = Column(String, nullable=False)
-    content = Column(String, nullable=False)
-    franco = Column(String)
-    lang = Column(String, nullable=False)
-    author = Column(String)
-    source = Column(String)
-    reviewed = Column(Boolean, server_default=text('false'))
+    id         = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
+    title      = Column(String, nullable=False)
+    content    = Column(String, nullable=False)
+    franco     = Column(String)
+    lang       = Column(String, nullable=False)
+    author     = Column(String)
+    source     = Column(String)
+    reviewed   = Column(Boolean, server_default=text('false'))
     created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'))

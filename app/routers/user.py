@@ -27,7 +27,7 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
     # **user.dict() unpacks the Pydantic model fields as keyword arguments to the ORM constructor.
     # .dict() is the Pydantic v1 name; model_dump() is the v2 equivalent — both work here.
-    new_user = models.User(**user.dict())
+    new_user = models.User(**user.model_dump())
     db.add(new_user)
     db.commit()
     # refresh() re-reads the row from the database so server-generated fields
