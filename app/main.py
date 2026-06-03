@@ -12,15 +12,14 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# Allow requests from any origin so the Vue frontend (served separately)
-# can call this API without being blocked by the browser's CORS policy.
-# Tighten origins to a specific domain before deploying to production.
-origins = ["*"]
-
+# Allow requests from any origin.
+# allow_credentials must be False when allow_origins=["*"] — Starlette 1.x raises
+# ValueError otherwise. We use Bearer tokens (not cookies) so credentials=True
+# is never needed here.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
