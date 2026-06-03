@@ -30,6 +30,8 @@
         v-if="activeTab === 'retype'"
         :story="currentStory"
         :lang="activeLang"
+        :saved-words="savedWordsForLang"
+        @save-word="addToVocab"
       />
 
       <!-- SpeakView shows the pronunciation / speech recognition practice. -->
@@ -82,7 +84,7 @@
 // Import reactive utilities from Vue:
 // ref   = creates a reactive variable (changes trigger re-renders)
 // watch = runs code whenever a reactive value changes
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 
 // Import all the view and component files used in the template above.
 import NavBar      from './components/NavBar.vue'
@@ -127,6 +129,16 @@ function loadStory(story) {
   activeLang.value   = story.lang  // switch the active language to match the story
   activeTab.value    = 'retype'    // navigate directly to the Retype practice view
 }
+
+// savedWordsForLang = Set of normalized word strings for the active language.
+// Passed to RetypeView (and potentially other views) to highlight already-saved words.
+const savedWordsForLang = computed(() =>
+  new Set(
+    vocabBank.value
+      .filter(w => w.lang === activeLang.value)
+      .map(w => w.word.toLowerCase().replace(/[^\p{L}\p{M}]/gu, ''))
+  )
+)
 
 // addToVocab() adds a word to the vocab bank, but only if it's not already saved.
 // "entry" is an object like { word: 'hola', lang: 'es', sentence: '...', story: '...' }.
