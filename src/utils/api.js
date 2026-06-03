@@ -196,3 +196,25 @@ export async function getProgress(storyId, tab) {
   if (!res.ok) return null
   return await res.json()
 }
+
+// ── AI tutor chat ─────────────────────────────────────────────────────────────
+
+export async function sendChat({ message, storyContent, lang, history, vocab, proficiency }) {
+  const res = await apiFetch(`${API_URL}/chat`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      message,
+      story_content: storyContent ?? '',
+      lang:          lang          ?? 'en',
+      history:       history       ?? [],
+      vocab:         vocab         ?? [],
+      proficiency:   proficiency   ?? null,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Chat failed.')
+  }
+  return await res.json() // { reply: string }
+}

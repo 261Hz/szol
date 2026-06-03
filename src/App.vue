@@ -57,6 +57,15 @@
         @open-auth="showAuth = true"
       />
 
+      <ChatView
+        v-if="activeTab === 'chat'"
+        :story="currentStory"
+        :lang="activeLang"
+        :current-user="currentUser"
+        :vocab-bank="vocabBank"
+        @open-auth="showAuth = true"
+      />
+
       <SettingsView v-if="activeTab === 'settings'" />
 
     </main>
@@ -81,6 +90,7 @@ import VocabView   from './views/VocabView.vue'
 import SpeakView   from './views/SpeakView.vue'
 import WriteView   from './views/WriteView.vue'
 import SettingsView from './views/SettingsView.vue'
+import ChatView    from './views/ChatView.vue'
 
 import { LANGS } from './data/stories.js'
 import { getMe, logout, onUnauthorized, getAccountVocab, saveVocabWord, removeVocabWord } from './utils/api.js'
