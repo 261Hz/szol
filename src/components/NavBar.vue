@@ -112,10 +112,11 @@ defineEmits(['tab', 'lang', 'auth', 'logout'])
 // Read tab is intentionally omitted — reading happens through active retyping.
 // Loading a story from Library navigates directly to Retype.
 const tabs = computed(() => [
-  { key: 'retype',  label: t(props.lang, 'retype') },  // Retype (typing practice) tab
-  { key: 'speak',   label: t(props.lang, 'speak') },   // Speak (pronunciation) tab
-  { key: 'write',   label: t(props.lang, 'write') },   // Write (handwriting) tab
-  { key: 'vocab',   label: t(props.lang, 'vocab') },   // Vocabulary tab
-  { key: 'library', label: t(props.lang, 'library') }, // Library (story browser) tab
+  { key: 'retype',  label: t(props.lang, 'retype') },
+  { key: 'speak',   label: t(props.lang, 'speak') },
+  { key: 'write',   label: t(props.lang, 'write') },
+  { key: 'chat',    label: '💬 Tutor' },
+  { key: 'vocab',   label: t(props.lang, 'vocab') },
+  { key: 'library', label: t(props.lang, 'library') },
 ])
 </script>
