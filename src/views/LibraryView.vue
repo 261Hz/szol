@@ -12,22 +12,43 @@
       <div v-if="open.curated" class="px-4 pb-4 pt-1">
         <div v-if="loading" class="text-gray-400 text-sm text-center py-6">{{ t(lang, 'loading') }}</div>
         <div v-else-if="!curatedAndLocal.length" class="text-xs text-gray-400 py-4 text-center">No stories yet for this language.</div>
-        <div v-else class="flex flex-col gap-2">
+        <div v-else class="flex flex-col gap-1.5">
           <div
             v-for="story in curatedAndLocal"
             :key="story.id"
-            @click="$emit('load', story)"
-            :class="['p-3 rounded-lg border cursor-pointer transition-all',
-              current?.id === story.id ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 hover:border-emerald-300']"
+            :class="['rounded-lg border transition-all overflow-hidden',
+              current?.id === story.id ? 'border-emerald-400' : 'border-gray-200']"
           >
-            <div class="font-medium text-sm break-words" :class="{ 'text-right': isRTL(story.lang) }" :dir="isRTL(story.lang) ? 'rtl' : 'ltr'">{{ story.title }}</div>
-            <div class="flex gap-2 mt-1 flex-wrap">
-              <span class="text-xs text-gray-400">{{ LANGS[story.lang]?.name }}</span>
-              <span class="text-xs text-gray-400">· {{ wordCount(story) }} {{ t(lang, 'words') }}</span>
-              <span v-if="story.author" class="text-xs text-gray-400">· {{ story.author }}</span>
-              <span v-if="story.sequence_order" class="text-xs text-emerald-500">{{ t(lang, 'curated') }}</span>
-              <span v-if="story.local" class="text-xs text-gray-400">{{ t(lang, 'local') }}</span>
-              <span v-if="story.franco" class="text-xs text-orange-400">franco</span>
+            <!-- Compact header row — click to expand/collapse -->
+            <button
+              @click="expandedStory = expandedStory === story.id ? null : story.id"
+              class="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-gray-50 transition-all"
+            >
+              <span
+                class="font-medium text-sm break-words leading-snug"
+                :dir="isRTL(story.lang) ? 'rtl' : 'ltr'"
+              >{{ story.title }}</span>
+              <span class="text-gray-300 text-xs ml-2 flex-shrink-0">{{ expandedStory === story.id ? '▲' : '▼' }}</span>
+            </button>
+
+            <!-- Expanded: metadata + Read button -->
+            <div
+              v-if="expandedStory === story.id"
+              class="px-3 pb-3 pt-1 border-t border-gray-100 flex flex-col gap-2"
+              :class="current?.id === story.id ? 'bg-emerald-50' : 'bg-gray-50'"
+            >
+              <div class="flex gap-2 flex-wrap">
+                <span class="text-xs text-gray-400">{{ LANGS[story.lang]?.name }}</span>
+                <span class="text-xs text-gray-400">· {{ wordCount(story) }} {{ t(lang, 'words') }}</span>
+                <span v-if="story.author" class="text-xs text-gray-400">· {{ story.author }}</span>
+                <span v-if="story.sequence_order" class="text-xs text-emerald-500">{{ t(lang, 'curated') }}</span>
+                <span v-if="story.local" class="text-xs text-gray-400">{{ t(lang, 'local') }}</span>
+                <span v-if="story.franco" class="text-xs text-orange-400">franco</span>
+              </div>
+              <button
+                @click="$emit('load', story)"
+                class="self-start text-xs px-3 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-all"
+              >Read →</button>
             </div>
           </div>
         </div>
@@ -557,7 +578,7 @@ const visibleTopics = computed(() => {
   const result = {}
   // Object.entries() converts the object to an array of [key, value] pairs for iteration.
   for (const [topic, sources] of Object.entries(SUGGESTED_SOURCES)) {
-    const matching = sources.filter(s => s.lang === props.lang || s.lang === 'en')
+    const matching = sources.filter(s => s.lang === props.lang)
     // Only include a topic section if it has at least one matching source.
     if (matching.length) result[topic] = matching
   }
@@ -653,6 +674,7 @@ async function downloadSubtitle(sub) {
 
 // ── Add story form ─────────────────────────────────────────────
 // These refs bind to the form inputs inside the Curated section via v-model.
+const expandedStory = ref(null)   // id of the currently expanded curated story card
 const showAdd       = ref(false)  // controls whether the form is visible
 const customTitle   = ref('')
 const customText    = ref('')

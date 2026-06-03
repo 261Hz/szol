@@ -169,3 +169,30 @@ export function removeVocabWord(word, lang) {
     headers: authHeaders(),
   }).catch(() => {})
 }
+
+// ── Story progress ────────────────────────────────────────────────────────────
+
+export function saveProgress(storyId, storyTitle, lang, tab, sentenceIndex) {
+  if (!getToken()) return
+  fetch(`${API_URL}/progress/user`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      story_id:       storyId,
+      story_title:    storyTitle,
+      lang,
+      tab,
+      sentence_index: sentenceIndex,
+    }),
+  }).catch(() => {})
+}
+
+export async function getProgress(storyId, tab) {
+  const res = await apiFetch(
+    `${API_URL}/progress/user?story_id=${encodeURIComponent(storyId)}&tab=${tab}`,
+    { headers: authHeaders() }
+  ).catch(() => null)
+  if (!res || res.status === 404) return null
+  if (!res.ok) return null
+  return await res.json()
+}

@@ -27,6 +27,7 @@
         v-if="activeTab === 'speak'"
         :story="currentStory"
         :lang="activeLang"
+        :current-user="currentUser"
       />
 
       <WriteView
