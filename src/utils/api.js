@@ -135,3 +135,37 @@ export async function getUserWords(lang) {
   if (!res || !res.ok) return []
   return await res.json()
 }
+
+// ── User vocab bank ───────────────────────────────────────────────────────────
+
+export async function getAccountVocab() {
+  const res = await apiFetch(`${API_URL}/vocab/user`, {
+    headers: authHeaders(),
+  }).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json()
+}
+
+export function saveVocabWord(entry) {
+  if (!getToken()) return
+  // fire-and-forget
+  fetch(`${API_URL}/vocab/user`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      word:       entry.word,
+      lang:       entry.lang,
+      pos:        entry.pos        || null,
+      definition: entry.def        || null,
+      example:    entry.ex         || null,
+    }),
+  }).catch(() => {})
+}
+
+export function removeVocabWord(word, lang) {
+  if (!getToken()) return
+  fetch(`${API_URL}/vocab/user?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  }).catch(() => {})
+}

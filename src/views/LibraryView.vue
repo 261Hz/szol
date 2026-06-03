@@ -48,7 +48,17 @@
             </div>
             <div class="flex items-center justify-end gap-2">
               <button @click="addLocal" class="text-sm px-4 py-1.5 rounded-md border border-gray-200 hover:border-emerald-400 transition-all">{{ t(lang, 'saveLocal') }}</button>
-              <button @click="shareGlobal" :disabled="submitting" class="text-sm px-4 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all">{{ submitting ? t(lang, 'sharing') : t(lang, 'shareGlobal') }}</button>
+              <!-- Share Global requires login -->
+              <button
+                v-if="currentUser"
+                @click="shareGlobal"
+                :disabled="submitting"
+                class="text-sm px-4 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
+              >{{ submitting ? t(lang, 'sharing') : t(lang, 'shareGlobal') }}</button>
+              <span v-else class="text-xs text-gray-400">
+                <button @click="$emit('openAuth')" class="underline hover:text-emerald-500 transition-all">Login</button>
+                to share with the community
+              </span>
             </div>
           </div>
         </div>
@@ -287,10 +297,13 @@ import { searchWikivoyage, fetchWikivoyageArticle } from '../utils/wikivoyage.js
 // lang    = active language code (e.g. 'fr') — used to filter stories and call APIs.
 // current = the story currently loaded in Retype (for the green highlight on story cards).
 // words   = full vocabBank array so fetched-content words can be highlighted green if already saved.
-const props = defineProps({ lang: String, current: Object, words: { type: Array, default: () => [] } })
-// 'load'     = emitted when user clicks a story card OR imports a story.
-// 'saveWord' = emitted when user clicks a word in fetched content to add it to vocab.
-const emit = defineEmits(['load', 'saveWord'])
+const props = defineProps({
+  lang:        String,
+  current:     Object,
+  words:       { type: Array, default: () => [] },
+  currentUser: Object,  // null when logged out
+})
+const emit = defineEmits(['load', 'saveWord', 'openAuth'])
 
 // savedWordsSet = normalized Set of words already saved for the active language.
 // Passed to ClickableText so already-saved words highlight green.
@@ -667,20 +680,18 @@ async function shareGlobal() {
     alert('Please add a title and text first.')
     return
   }
-  // If the author name is missing, reveal the share form and return.
-  // The user must fill it in and click Share again.
-  if (!customAuthor.value.trim()) { showShareForm.value = true; return }
-
-  submitting.value = true // disable the button and show "Sharing…"
+  submitting.value = true
   try {
+    // author is auto-filled server-side from the logged-in user's username.
+    // source is optional — show the extra fields only if the user wants to add attribution.
     const story = await submitStory({
       title:    customTitle.value.trim(),
       content:  customText.value.trim(),
       franco:   customFranco.value.trim() || null,
       lang:     props.lang,
-      author:   customAuthor.value.trim() || 'Anonymous',
-      source:   customSource.value.trim() || 'Original',
-      reviewed: false, // new community stories start as unreviewed
+      author:   customAuthor.value.trim() || null,   // backend fills from JWT if blank
+      source:   customSource.value.trim() || null,
+      reviewed: false,
     })
     // .unshift() adds to the start of the array so the new story appears at the top.
     // { ...story, community: true } spreads all story fields and adds the 'community' flag.

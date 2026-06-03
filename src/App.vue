@@ -40,8 +40,10 @@
         :lang="activeLang"
         :current="currentStory"
         :words="vocabBank"
+        :current-user="currentUser"
         @load="loadStory"
         @save-word="addToVocab"
+        @open-auth="showAuth = true"
       />
 
       <VocabView
@@ -49,7 +51,7 @@
         :words="vocabBank"
         :lang="activeLang"
         :current-user="currentUser"
-        @remove="vocabBank.splice($event, 1)"
+        @remove="removeFromVocab"
         @save-word="addToVocab"
         @open-auth="showAuth = true"
       />
@@ -58,7 +60,6 @@
 
     </main>
 
-    <!-- Auth modal: shown when showAuth is true -->
     <AuthModal
       v-if="showAuth"
       @close="showAuth = false"
@@ -80,7 +81,8 @@ import SpeakView   from './views/SpeakView.vue'
 import WriteView   from './views/WriteView.vue'
 import SettingsView from './views/SettingsView.vue'
 
-import { getMe, logout, onUnauthorized } from './utils/api.js'
+import { LANGS } from './data/stories.js'
+import { getMe, logout, onUnauthorized, getAccountVocab, saveVocabWord, removeVocabWord } from './utils/api.js'
 
 const activeTab    = ref('library')
 const activeLang   = ref('es')
@@ -89,29 +91,55 @@ const currentUser  = ref(null)
 const showAuth     = ref(false)
 
 const vocabBank = ref(JSON.parse(localStorage.getItem('szol_vocab') || '[]'))
+watch(vocabBank, val => localStorage.setItem('szol_vocab', JSON.stringify(val)), { deep: true })
 
-watch(vocabBank, (val) => {
-  localStorage.setItem('szol_vocab', JSON.stringify(val))
-}, { deep: true })
-
-// When any API call gets a 401, clear the user and re-open the login modal.
 onUnauthorized(() => {
   currentUser.value = null
   showAuth.value    = true
 })
 
-// Restore session on page load if a token is saved
 onMounted(async () => {
   const user = await getMe()
   if (user) {
     currentUser.value = user
+    await syncVocabOnLogin()
   } else {
-    localStorage.removeItem('szol_token') // stale or invalid token
+    localStorage.removeItem('szol_token')
   }
 })
 
-// savedWordsForLang = Set of normalized saved words for the active language.
-// Passed to RetypeView (and other views) to highlight already-known words.
+// Convert a server UserVocabResponse → local vocabBank entry format
+function serverEntryToLocal(v) {
+  const lang = LANGS[v.lang]
+  return {
+    word:     v.word,
+    lang:     v.lang,
+    langName: lang?.name ?? v.lang,
+    rtl:      lang?.rtl  ?? false,
+    pos:      v.pos        || '',
+    def:      v.definition || '',
+    ex:       v.example    || '',
+  }
+}
+
+// On login: fetch server vocab, push up any local-only entries, then use server as source of truth
+async function syncVocabOnLogin() {
+  const serverEntries = await getAccountVocab()
+  const serverKeys    = new Set(serverEntries.map(v => `${v.word.toLowerCase()}::${v.lang}`))
+
+  // Push local words that aren't on the server yet (first-time login with existing local vocab)
+  for (const local of vocabBank.value) {
+    const key = `${local.word.toLowerCase()}::${local.lang}`
+    if (!serverKeys.has(key)) saveVocabWord(local)
+  }
+
+  // Merge: server entries first, then any local entries the server doesn't have yet
+  const localOnly = vocabBank.value.filter(
+    v => !serverKeys.has(`${v.word.toLowerCase()}::${v.lang}`)
+  )
+  vocabBank.value = [...serverEntries.map(serverEntryToLocal), ...localOnly]
+}
+
 const savedWordsForLang = computed(() =>
   new Set(
     vocabBank.value
@@ -128,18 +156,26 @@ function loadStory(story) {
 
 function addToVocab(entry) {
   const key = entry.word.toLowerCase().replace(/[^\p{L}\p{M}]/gu, '')
-  if (!vocabBank.value.some(v => v.word.toLowerCase().replace(/[^\p{L}\p{M}]/gu, '') === key)) {
-    vocabBank.value.push(entry)
-  }
+  if (vocabBank.value.some(v => v.word.toLowerCase().replace(/[^\p{L}\p{M}]/gu, '') === key)) return
+  vocabBank.value.push(entry)
+  if (currentUser.value) saveVocabWord(entry)
 }
 
-function handleLogin(user) {
+function removeFromVocab(index) {
+  const entry = vocabBank.value[index]
+  vocabBank.value.splice(index, 1)
+  if (currentUser.value && entry) removeVocabWord(entry.word, entry.lang)
+}
+
+async function handleLogin(user) {
   currentUser.value = user
   showAuth.value    = false
+  await syncVocabOnLogin()
 }
 
 function handleLogout() {
   logout()
   currentUser.value = null
+  // Keep local vocab in localStorage; server copy is preserved for next login
 }
 </script>
