@@ -109,11 +109,13 @@ import { isRTL, hasFranco } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
 import { normalize } from '../utils/scoring.js'
 import { lookupCached, cacheWord } from '../utils/supabase.js'
+import { trackWord } from '../utils/api.js'
 
 const props = defineProps({
-  story: Object,
-  lang: String,
-  savedWords: Object,
+  story:       Object,
+  lang:        String,
+  savedWords:  Object,
+  currentUser: Object,
 })
 
 const emit = defineEmits(['go', 'saveWord'])
@@ -132,6 +134,7 @@ const tokens = computed(() => {
 async function lookup(word) {
   const clean = word.replace(/[^\p{L}\p{M}]/gu, '')
   if (!clean) return
+  if (props.currentUser) trackWord(clean, props.lang, props.story?.title ?? '')
   lookupResult.value = { word: clean, pos: '', def: t(props.lang, 'lookingUp'), ex: '' }
 
   // Check cache first

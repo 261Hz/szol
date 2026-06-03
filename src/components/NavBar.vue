@@ -23,16 +23,30 @@
       </button>
     </div>
 
-    <!-- Language selector -->
-    <select
-      :value="lang"
-      @change="$emit('lang', $event.target.value)"
-      class="text-sm border border-gray-200 rounded-md px-2 py-1 bg-white"
-    >
-      <option v-for="(l, code) in LANGS" :key="code" :value="code">
-        {{ l.name }}
-      </option>
-    </select>
+    <!-- Language selector + user icon -->
+    <div class="flex items-center gap-2">
+      <select
+        :value="lang"
+        @change="$emit('lang', $event.target.value)"
+        class="text-sm border border-gray-200 rounded-md px-2 py-1 bg-white"
+      >
+        <option v-for="(l, code) in LANGS" :key="code" :value="code">
+          {{ l.name }}
+        </option>
+      </select>
+
+      <!-- Logged out: person icon opens auth modal -->
+      <button v-if="!currentUser" @click="$emit('auth')"
+        class="text-lg px-1.5 py-0.5 rounded-md text-gray-400 hover:text-gray-700 transition-all"
+        title="Login / Register">👤</button>
+
+      <!-- Logged in: username + logout -->
+      <div v-else class="flex items-center gap-1.5">
+        <span class="text-xs text-gray-600 max-w-24 truncate">{{ currentUser.username }}</span>
+        <button @click="$emit('logout')"
+          class="text-xs text-gray-300 hover:text-red-400 transition-all" title="Logout">✕</button>
+      </div>
+    </div>
 
   </nav>
 </template>
@@ -43,11 +57,12 @@ import { LANGS } from '../data/stories.js'
 import { t } from '../utils/i18n.js'
 
 const props = defineProps({
-  active: String,
-  lang: String,
+  active:      String,
+  lang:        String,
+  currentUser: Object,
 })
 
-defineEmits(['tab', 'lang'])
+defineEmits(['tab', 'lang', 'auth', 'logout'])
 
 const tabs = computed(() => [
   { key: 'read',    label: t(props.lang, 'read') },
