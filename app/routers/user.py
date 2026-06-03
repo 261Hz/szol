@@ -23,10 +23,16 @@ def create_user(user : schemas.UserCreate , db: Session = Depends(get_db)):
 
 
 
+@router.get("/me", response_model=schemas.UserResponse)
+def get_current_user_me(current_user: models.User = Depends(oauth2.get_current_user)):
+    """Return the profile of the currently authenticated user."""
+    return current_user
+
+
 @router.get("/{user_id}", response_model=schemas.UserResponse)
-def get_user(user_id: UUID, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
+def get_user(user_id: UUID, db: Session = Depends(get_db), current_user: models.User = Depends(oauth2.get_current_user)):
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
-        raise HTTPException(status_code= status.HTTP_404_NOT_FOUND , detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     return user
