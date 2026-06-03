@@ -144,7 +144,7 @@ const francoLabel = computed(() => props.lang === 'zh' ? 'Pinyin' : 'Franco')
 // activeText = the text being practiced: native script or its romanised version.
 const activeText = computed(() => {
   if (mode.value === 'franco' && props.story?.franco) return props.story.franco
-  return props.story?.text ?? ''
+  return props.story?.content ?? ''
 })
 
 // ── Sentence splitting ────────────────────────────────────────────────────────

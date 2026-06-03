@@ -149,7 +149,7 @@ const langHasVoice = computed(() => {
 
 const tokens = computed(() => {
   if (!props.story) return []
-  return props.story.text.split(/(\s+)/).map(t => ({
+  return props.story.content.split(/(\s+)/).map(t => ({
     type: /^\s+$/.test(t) ? 'space' : 'word',
     text: t,
   }))
@@ -169,7 +169,7 @@ function tap(word, contextSentence) {
   speechSynthesis.speak(utt)
 
   const sentence = contextSentence
-    ?? props.story?.text.split(/(?<=[.!?؟।。！？])\s*/).find(s => s.includes(word))
+    ?? props.story?.content.split(/(?<=[.!?؟।。！？])\s*/).find(s => s.includes(word))
     ?? ''
 
   tapped.value = { word: clean, sentence }

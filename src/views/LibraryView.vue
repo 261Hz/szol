@@ -350,7 +350,7 @@ async function loadToday() {
 // importWikipediaArticle() saves the Featured Article as a local story for reading.
 function importWikipediaArticle(article) {
   if (!article?.extract) return // safety check in case article loaded but has no text
-  pushLocalStory({ title: article.title, text: article.extract, source: 'Wikipedia' })
+  pushLocalStory({ title: article.title, content: article.extract, source: 'Wikipedia' })
 }
 
 // ── On This Day ────────────────────────────────────────────────
@@ -373,7 +373,7 @@ function importOnThisDay() {
   const date = `${now.toLocaleString('default', { month: 'long' })} ${now.getDate()}`
   // .map() transforms each event into "YEAR — text". .join('\n\n') puts a blank line between them.
   const text = onThisDay.value.map(ev => `${ev.year} — ${ev.text}`).join('\n\n')
-  pushLocalStory({ title: `On This Day: ${date}`, text, source: 'Wikipedia / On This Day' })
+  pushLocalStory({ title: `On This Day: ${date}`, content: text, source: 'Wikipedia / On This Day' })
 }
 
 // ── Travel (Wikivoyage) ────────────────────────────────────────
@@ -397,7 +397,7 @@ async function importWikivoyage(result) {
   travelImporting.value = result.pageid
   const article = await fetchWikivoyageArticle(result.title, props.lang)
   if (article?.text) {
-    pushLocalStory({ title: article.title, text: article.text, source: 'Wikivoyage' })
+    pushLocalStory({ title: article.title, content: article.text, source: 'Wikivoyage' })
   }
   travelImporting.value = null
 }
@@ -433,7 +433,7 @@ async function fetchArticle() {
 // confirmImport() saves the previewed article as a story and clears the form.
 function confirmImport() {
   if (!importPreview.value) return
-  pushLocalStory({ title: importPreview.value.title, text: importPreview.value.text, source: importUrl.value })
+  pushLocalStory({ title: importPreview.value.title, content: importPreview.value.text, source: importUrl.value })
   importUrl.value     = ''
   importPreview.value = null
 }
@@ -515,7 +515,7 @@ async function importSuggestedSource(src) {
     const langCode = src.url.match(/^https:\/\/(\w+)\./)?.[1] ?? 'en'
     const article  = await fetchWikivoyageArticle('Main Page', langCode)
     if (article?.text) {
-      pushLocalStory({ title: src.name, text: article.text, source: src.url })
+      pushLocalStory({ title: src.name, content: article.text, source: src.url })
     }
   } else {
     // All other sources: call the api/extract.js Vercel proxy to extract article text.
@@ -524,7 +524,7 @@ async function importSuggestedSource(src) {
       const data = await res.json()
       if (data.text) {
         // Use the extracted title if available, fall back to the source name.
-        pushLocalStory({ title: data.title || src.name, text: data.text, source: src.url })
+        pushLocalStory({ title: data.title || src.name, content: data.text, source: src.url })
       }
     } catch { /* silently ignore — network errors don't crash the UI */ }
   }
@@ -580,7 +580,7 @@ async function downloadSubtitle(sub) {
     const res  = await fetch(`/api/opensubtitles?action=download&file_id=${fileId}`)
     const data = await res.json()
     if (data.text) {
-      pushLocalStory({ title: subTitle(sub), text: data.text, source: 'OpenSubtitles' })
+      pushLocalStory({ title: subTitle(sub), content: data.text, source: 'OpenSubtitles' })
     }
   } catch { /* silently ignore */ }
   subsDownloading.value = null
@@ -601,9 +601,9 @@ const submitting    = ref(false) // disables the Share button during the Supabas
 function addLocal() {
   if (!customTitle.value.trim() || !customText.value.trim()) return
   pushLocalStory({
-    title:  customTitle.value.trim(),
-    text:   customText.value.trim(),
-    franco: customFranco.value.trim() || null, // null instead of '' keeps JSON tidy
+    title:   customTitle.value.trim(),
+    content: customText.value.trim(),
+    franco:  customFranco.value.trim() || null, // null instead of '' keeps JSON tidy
   })
   clearForm()
 }
@@ -623,7 +623,7 @@ async function shareGlobal() {
   try {
     const story = await submitStory({
       title:    customTitle.value.trim(),
-      text:     customText.value.trim(),
+      content:  customText.value.trim(),
       franco:   customFranco.value.trim() || null,
       lang:     props.lang,
       author:   customAuthor.value.trim() || 'Anonymous',
@@ -657,14 +657,14 @@ function clearForm() {
 // and immediately emits 'load' so App.vue navigates to Retype with the story ready.
 // franco defaults to null because only Egyptian Arabic stories have a Latin-script version.
 // source is optional — undefined is cleaner than an empty string in the stored JSON.
-function pushLocalStory({ title, text, franco = null, source = '' }) {
-  if (!title || !text) return // safety guard — never save empty stories
+function pushLocalStory({ title, content, franco = null, source = '' }) {
+  if (!title || !content) return // safety guard — never save empty stories
   const story = {
     // 'l' prefix distinguishes local IDs from Supabase UUID strings.
     // Date.now() = milliseconds since epoch, effectively unique for rapid sequential saves.
     id:     'l' + Date.now(),
     title,
-    text,
+    content,
     franco,
     lang:   props.lang,
     local:  true,
@@ -686,9 +686,9 @@ function wordCount(story) {
   if (['zh', 'ja'].includes(story.lang)) {
     // [...story.text] spreads the string into an array of Unicode code points (handles emoji/CJK correctly).
     // /\p{L}/u = Unicode property escape: matches any letter character in any script.
-    return [...story.text].filter(c => /\p{L}/u.test(c)).length
+    return [...story.content].filter(c => /\p{L}/u.test(c)).length
   }
   // .split(/\s+/) splits on any whitespace. .filter(Boolean) removes empty strings from leading/trailing spaces.
-  return story.text.split(/\s+/).filter(Boolean).length
+  return story.content.split(/\s+/).filter(Boolean).length
 }
 </script>
