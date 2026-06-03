@@ -1,62 +1,65 @@
-// Supabase is a service that provides a database and storage in the cloud.
-// This file sets up the connection to Supabase and provides functions to read/write data.
-
-// Import the function that creates a Supabase client (a "client" is the object you use to talk to the database).
 import { createClient } from '@supabase/supabase-js'
 
-// import.meta.env lets Vite (the build tool) inject environment variables at build time.
-// Variables starting with VITE_ are available in the frontend code.
-// These values live in your .env.local file and are NOT committed to git for security.
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL      // the web address of your Supabase project
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY // the public API key (safe to expose in frontend)
-
-// Debug log: prints the URL to the browser console so you can verify it loaded correctly.
-// You can open the console in Chrome: F12 → Console tab.
-console.log('Supabase URL:', supabaseUrl)
-
-// Create the Supabase client -- this is the object used to make all database requests.
-// If either value is undefined (missing from .env.local), this will throw an error and the page will be blank.
+// ── Supabase client (still used for word cache) ───────────────────────────────
+// Supabase credentials come from environment variables set in Vercel dashboard
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
-// fetchCommunityStories() downloads all stories that users have shared with the community.
-// "async" means this function does work that takes time (like a network request).
-// You use "await" inside async functions to pause until the slow thing finishes.
-export async function fetchCommunityStories() {
-  // .from('community_stories') selects which database table to query.
-  // .select('*') means "get all columns" (* = wildcard = everything).
-  // .order('created_at', { ascending: false }) sorts newest stories first.
-  const { data } = await supabase
-    .from('community_stories')
-    .select('*')
-    .order('created_at', { ascending: false })
-  // Return the data array, or an empty array [] if data is null (no results or error).
+// ── Backend API URL ───────────────────────────────────────────────────────────
+// All story requests now go through our FastAPI backend on Render
+// instead of calling Supabase directly from the browser
+const API_URL = 'https://szol.onrender.com'
+
+// ── Stories (via FastAPI backend) ─────────────────────────────────────────────
+
+// GET /stories?lang=es
+// fetch() makes an HTTP GET request to our backend
+// the backend queries Supabase and returns the results
+export async function fetchCuratedStories(lang) {
+  const r = await fetch(`${API_URL}/stories?lang=${lang}`)
+  const data = await r.json()   // parse the JSON response
+  return data || []             // return empty array if nothing comes back
+}
+
+// GET /stories/community?lang=es
+// same pattern as above but hits the community stories endpoint
+export async function fetchCommunityStories(lang) {
+  const r = await fetch(`${API_URL}/stories/community?lang=${lang}`)
+  const data = await r.json()
   return data || []
 }
 
-// submitStory() sends a new story to the community_stories table in the database.
-// "story" is an object containing the title, text, language, author, etc.
+// POST /stories
+// POST requests send data to the server — here we're submitting a new story
+// we pass the story object as JSON in the request body
+// Content-Type header tells the server we're sending JSON
 export async function submitStory(story) {
-  // .insert(story) adds a new row to the table with the story data.
-  // .select() tells Supabase to return the newly inserted row (so we get the assigned ID back).
-  // .single() expects exactly one result.
-  const { data, error } = await supabase
-    .from('community_stories')
-    .insert(story)
-    .select()
-    .single()
-  // If Supabase returned an error (e.g. validation failed), throw it so the caller can handle it.
-  // "throw" stops the function and sends the error up to whoever called this function.
-  if (error) throw error
-  // Return the newly created story object (including its database-assigned ID).
-  return data
+  const r = await fetch(`${API_URL}/stories`, {
+    method: 'POST',                              // this is a POST not a GET
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(story)                  // convert JS object to JSON string
+  })
+  if (!r.ok) throw new Error('Failed to submit story')
+  return await r.json()                          // return the created story
 }
 
-// fetchCuratedStories() downloads the hand-picked, reviewed stories from the curated_stories table.
-export async function fetchCuratedStories() {
-  // .order('sequence_order', { ascending: true }) sorts by the manually set order number (1, 2, 3...).
+// ── Word cache (still via Supabase directly) ──────────────────────────────────
+// We haven't moved word cache to the backend yet
+// so these still call Supabase directly using the JS client
+
+export async function lookupCached(word, lang) {
   const { data } = await supabase
-    .from('curated_stories')
+    .from('word_cache')
     .select('*')
-    .order('sequence_order', { ascending: true })
-  return data || []
+    .eq('word', word)    // filter where word = the tapped word
+    .eq('lang', lang)    // and lang = current language
+    .single()            // expect one result
+  return data || null
+}
+
+export async function cacheWord(entry) {
+  await supabase
+    .from('word_cache')
+    .upsert(entry, { onConflict: 'word,lang' })  // insert or update if already exists
 }

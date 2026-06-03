@@ -241,7 +241,7 @@
 
 <script setup>
 // ref = reactive variable. computed = auto-recalculates. onMounted = runs after the component appears.
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 // LANGS = configuration for all 13 supported languages (name, BCP47, RTL flag, etc.)
 import { LANGS } from '../data/stories.js'
 // isRTL = true for Arabic and Hebrew (affects text direction in story cards).
@@ -281,9 +281,19 @@ onMounted(async () => {
   // Fetch curated and community stories in parallel (Promise.all waits for both).
   // Array destructuring: [curated, community] = each result goes to its own variable.
   const [curated, community] = await Promise.all([
-    fetchCuratedStories(),
-    fetchCommunityStories(),
+  fetchCuratedStories(props.lang),
+  fetchCommunityStories(props.lang),
+])
+watch(() => props.lang, async (newLang) => {
+  loading.value = true
+  const [curated, community] = await Promise.all([
+    fetchCuratedStories(newLang),
+    fetchCommunityStories(newLang),
   ])
+  curatedStories.value = curated
+  communityStories.value = community
+  loading.value = false
+})
   curatedStories.value   = curated
   communityStories.value = community
   loading.value          = false // hide the spinner
