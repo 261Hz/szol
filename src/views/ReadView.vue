@@ -126,13 +126,14 @@ import { isRTL, hasFranco } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
 import { normalize } from '../utils/scoring.js'
 import { useVoiceList, voicesForLang, pickVoice } from '../utils/voices.js'
-// ExamplesPanel = tabbed Tatoeba / Wikipedia / Wikiquote examples for a tapped word.
+import { trackWord } from '../utils/api.js'
 import ExamplesPanel from '../components/ExamplesPanel.vue'
 
 const props = defineProps({
-  story:      Object,
-  lang:       String,
-  savedWords: Object, // Set of normalized words for the active language
+  story:       Object,
+  lang:        String,
+  savedWords:  Object, // Set of normalized words for the active language
+  currentUser: Object, // null if logged out
 })
 
 const emit = defineEmits(['go', 'saveWord'])
@@ -167,6 +168,10 @@ function tap(word, contextSentence) {
   speechSynthesis.cancel()
   speechSynthesis.resume()
   speechSynthesis.speak(utt)
+
+  if (props.currentUser) {
+    trackWord(clean, props.lang, props.story?.title ?? '')
+  }
 
   const sentence = contextSentence
     ?? props.story?.content.split(/(?<=[.!?؟।。！？])\s*/).find(s => s.includes(word))
