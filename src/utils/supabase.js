@@ -35,13 +35,19 @@ export async function fetchCommunityStories(lang) {
 // we pass the story object as JSON in the request body
 // Content-Type header tells the server we're sending JSON
 export async function submitStory(story) {
+  const token = localStorage.getItem('szol_token')
+  const headers = { 'Content-Type': 'application/json' }
+  if (token) headers['Authorization'] = `Bearer ${token}`
   const r = await fetch(`${API_URL}/stories`, {
-    method: 'POST',                              // this is a POST not a GET
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(story)                  // convert JS object to JSON string
+    method: 'POST',
+    headers,
+    body: JSON.stringify(story),
   })
-  if (!r.ok) throw new Error('Failed to submit story')
-  return await r.json()                          // return the created story
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to submit story')
+  }
+  return await r.json()
 }
 
 // ── Word cache (still via Supabase directly) ──────────────────────────────────
