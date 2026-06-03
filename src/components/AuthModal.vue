@@ -125,12 +125,22 @@
             :class="confirmPassword === password ? 'text-emerald-500' : 'text-red-400'"
           >{{ confirmPassword === password ? '✓' : '✗' }}</span>
         </div>
+        <!-- Language you're learning — determines which proficiency scale to show -->
+        <select
+          v-model="targetLang"
+          class="border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 text-gray-500 transition-all"
+        >
+          <option value="">Language you're learning (optional)</option>
+          <option v-for="(l, code) in LANGS" :key="code" :value="code">{{ l.name }}</option>
+        </select>
+
+        <!-- Proficiency — options adapt to the selected language's standard scale -->
         <select
           v-model="proficiency"
           class="border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 text-gray-500 transition-all"
         >
-          <option value="">Proficiency level (optional)</option>
-          <option v-for="lvl in ['A1','A2','B1','B2','C1','C2']" :key="lvl" :value="lvl">{{ lvl }}</option>
+          <option value="">{{ proficiencyPrompt }}</option>
+          <option v-for="lvl in proficiencyOptions" :key="lvl.value" :value="lvl.value">{{ lvl.label }}</option>
         </select>
 
         <div v-if="error" class="text-xs text-red-500 leading-snug">{{ error }}</div>
@@ -146,8 +156,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { login, register, getMe } from '../utils/api.js'
+import { LANGS } from '../data/stories.js'
 
 const emit = defineEmits(['close', 'logged-in'])
 
@@ -156,10 +167,52 @@ const email           = ref('')
 const password        = ref('')
 const confirmPassword = ref('')
 const username        = ref('')
+const targetLang      = ref('')   // which language they're learning
 const proficiency     = ref('')
 const showPassword    = ref(false)
 const error           = ref('')
 const loading         = ref(false)
+
+// Reset proficiency when language changes so stale values don't linger
+watch(targetLang, () => { proficiency.value = '' })
+
+// Proficiency scales by language learning system
+const CEFR = [
+  { value: 'A1', label: 'A1 — Beginner' },
+  { value: 'A2', label: 'A2 — Elementary' },
+  { value: 'B1', label: 'B1 — Intermediate' },
+  { value: 'B2', label: 'B2 — Upper intermediate' },
+  { value: 'C1', label: 'C1 — Advanced' },
+  { value: 'C2', label: 'C2 — Mastery' },
+]
+const JLPT = [
+  { value: 'N5', label: 'N5 — Beginner' },
+  { value: 'N4', label: 'N4 — Elementary' },
+  { value: 'N3', label: 'N3 — Intermediate' },
+  { value: 'N2', label: 'N2 — Upper intermediate' },
+  { value: 'N1', label: 'N1 — Advanced' },
+]
+const HSK = [
+  { value: 'HSK1', label: 'HSK 1 — Beginner' },
+  { value: 'HSK2', label: 'HSK 2 — Elementary' },
+  { value: 'HSK3', label: 'HSK 3 — Intermediate' },
+  { value: 'HSK4', label: 'HSK 4 — Upper intermediate' },
+  { value: 'HSK5', label: 'HSK 5 — Advanced' },
+  { value: 'HSK6', label: 'HSK 6 — Mastery' },
+]
+
+const proficiencyOptions = computed(() => {
+  if (targetLang.value === 'ja') return JLPT
+  if (targetLang.value === 'zh') return HSK
+  return CEFR
+})
+
+const proficiencyPrompt = computed(() => {
+  if (!targetLang.value) return 'Proficiency level (optional)'
+  if (targetLang.value === 'ja') return 'JLPT level (optional)'
+  if (targetLang.value === 'zh') return 'HSK level (optional)'
+  return `CEFR level in ${LANGS[targetLang.value]?.name ?? ''} (optional)`
+})
 
 function switchTab(tab) {
   activeTab.value = tab
@@ -232,7 +285,7 @@ async function doRegister() {
   error.value   = ''
   loading.value = true
   try {
-    await register(username.value, email.value, password.value, proficiency.value || null, null)
+    await register(username.value, email.value, password.value, proficiency.value || null, targetLang.value || null)
     await login(email.value, password.value)
     const user = await getMe()
     emit('logged-in', user)

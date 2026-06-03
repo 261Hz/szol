@@ -134,7 +134,7 @@ import { t }     from '../utils/i18n.js'
 import { normalize } from '../utils/scoring.js'
 import { LANGS } from '../data/stories.js'
 import { useVoiceList, voicesForLang, pickVoice } from '../utils/voices.js'
-import { trackWord } from '../utils/api.js'
+import { trackWord, saveProgress, getProgress } from '../utils/api.js'
 import ClickableText from '../components/ClickableText.vue'
 
 const props = defineProps({
@@ -249,14 +249,23 @@ const overlayEl          = ref(null)
 const historyEl          = ref(null)
 const hiddenInput        = ref(null)
 
-// Rebuild the exercise whenever the story or mode changes.
-// { immediate: true } = also runs on first mount, not only when values change later.
-watch([() => props.story, mode, activeText], () => {
+// Rebuild the exercise whenever the story or mode changes, then restore saved progress.
+watch([() => props.story, mode, activeText], async () => {
   sentences.value          = splitSentences(activeText.value)
   sentenceIdx.value        = 0
   completedSentences.value = []
   done.value               = false
   loadSentence(0)
+
+  if (props.currentUser && props.story?.id) {
+    const saved = await getProgress(props.story.id, 'retype')
+    if (saved && saved.sentence_index > 0) {
+      const idx = Math.min(saved.sentence_index, sentences.value.length - 1)
+      completedSentences.value = sentences.value.slice(0, idx)
+      sentenceIdx.value        = idx
+      loadSentence(idx)
+    }
+  }
 }, { immediate: true })
 
 // loadSentence() prepares the word/char structure for a given sentence index.
@@ -268,13 +277,17 @@ function loadSentence(idx) {
 }
 
 // advanceSentence() is called when the user correctly finishes the last word of a sentence.
-// It pushes the completed text to history and moves to the next sentence.
+// It pushes the completed text to history, moves to the next sentence, and saves progress.
 async function advanceSentence() {
   completedSentences.value.push(sentences.value[sentenceIdx.value])
   sentenceIdx.value++
 
+  if (props.currentUser && props.story?.id) {
+    saveProgress(props.story.id, props.story.title ?? '', props.lang, 'retype', sentenceIdx.value)
+  }
+
   if (sentenceIdx.value >= sentences.value.length) {
-    done.value = true // all sentences done — exercise complete
+    done.value = true
     return
   }
 

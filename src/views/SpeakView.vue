@@ -138,18 +138,19 @@
 </template>
 
 <script setup>
-// ref = reactive variable. computed = auto-updating derived value. onUnmounted = cleanup on removal.
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { LANGS } from '../data/stories.js'
 import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
-// normalize = clean words for fair comparison. scoreWords = compare original vs spoken.
 import { normalize, scoreWords } from '../utils/scoring.js'
-// useVoiceList = load available TTS voices. pickVoice = choose the best voice for a language.
 import { useVoiceList, pickVoice } from '../utils/voices.js'
+import { saveProgress, getProgress } from '../utils/api.js'
 
-// This component receives the current story and language from App.vue.
-const props = defineProps({ story: Object, lang: String })
+const props = defineProps({
+  story:       Object,
+  lang:        String,
+  currentUser: Object,
+})
 
 // Load available TTS voices reactively (updates when browser finishes loading them).
 const voices = useVoiceList()
@@ -169,14 +170,26 @@ const result = ref(null)
 const scored = ref(false)
 // recording is true while the microphone is actively listening.
 const recording = ref(false)
-// recognition stores the SpeechRecognition instance so we can stop it if needed.
 let recognition = null
+
+// Restore saved progress when the story or user changes.
+watch([() => props.story, () => props.currentUser], async ([story, user]) => {
+  currentIdx.value = 0
+  reset()
+  if (user && story?.id) {
+    const saved = await getProgress(story.id, 'speak')
+    if (saved && saved.sentence_index > 0) {
+      currentIdx.value = Math.min(saved.sentence_index, sentences.value.length - 1)
+      reset()
+    }
+  }
+})
 
 // sentences splits the story text into individual sentences.
 // computed() re-runs whenever props.story changes.
 const sentences = computed(() => {
   if (!props.story) return [] // no story = empty list
-  return props.story.text
+  return props.story.content
     // Split after sentence-ending punctuation: . ! ? ؟ (Arabic) । (Hindi) 。！？ (CJK).
     // (?<=[.!?؟।。！？]) = lookbehind: only split AFTER these characters.
     // \s+ = one or more whitespace characters.
@@ -271,10 +284,13 @@ function reset() {
   speechSynthesis.cancel() // stop any speech that's still playing
 }
 
-// next() advances to the next sentence and resets all state.
+// next() advances to the next sentence, saves progress, and resets state.
 function next() {
   if (currentIdx.value < sentences.value.length - 1) {
-    currentIdx.value++ // increment the index (move to next sentence)
+    currentIdx.value++
+    if (props.currentUser && props.story?.id) {
+      saveProgress(props.story.id, props.story.title ?? '', props.lang, 'speak', currentIdx.value)
+    }
     reset()
   }
 }

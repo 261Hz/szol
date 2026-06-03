@@ -33,29 +33,30 @@ export async function fetchFeaturedArticle(lang) {
   const d   = String(now.getDate()).padStart(2, '0')
 
   try {
-    // The Wikimedia Feed API returns a JSON bundle with the day's featured content.
-    // "tfa" = "Today's Featured Article" — the specific key we want inside the response.
-    // Api-User-Agent is required by Wikimedia policy to identify the app making the request.
+    // Use the language-specific Wikipedia REST v1 endpoint — public, CORS-enabled, no API key.
+    // The api.wikimedia.org centralised endpoint now requires auth tokens; the per-wiki
+    // REST endpoint does not.
     const res = await fetch(
-      `https://api.wikimedia.org/feed/v1/wikipedia/${wl(lang)}/featured/${y}/${m}/${d}`,
-      { headers: { 'Api-User-Agent': 'szol-app/1.0 (language-learning)' } }
+      `https://${wl(lang)}.wikipedia.org/api/rest_v1/feed/featured/${y}/${m}/${d}`
     )
     if (!res.ok) return null // 404 = language doesn't have a featured article today
 
     const data = await res.json()
-    const tfa  = data.tfa      // "tfa" is nested inside the response object
-    if (!tfa) return null      // some languages have the bundle but no featured article
+    const tfa  = data.tfa
+    if (!tfa) return null
+
+    // Some language Wikipedias return the extract as HTML; strip tags so the text is
+    // plain when stored as a story and displayed in the reading interface.
+    const rawExtract = tfa.extract ?? tfa.description ?? ''
+    const extract    = rawExtract.replace(/<[^>]+>/g, '').trim()
 
     return {
       title:     tfa.title,
-      // extract is the article's opening paragraph. Some languages use "description" instead.
-      extract:   tfa.extract ?? tfa.description ?? '',
-      // thumbnail?.source = optional chaining: safely returns undefined if no thumbnail exists.
+      extract,
       thumbnail: tfa.thumbnail?.source ?? null,
       url:       tfa.content_urls?.desktop?.page ?? null,
     }
   } catch {
-    // Any network or parse error returns null — the UI shows a "not available" message.
     return null
   }
 }
