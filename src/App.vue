@@ -80,7 +80,7 @@ import SpeakView   from './views/SpeakView.vue'
 import WriteView   from './views/WriteView.vue'
 import SettingsView from './views/SettingsView.vue'
 
-import { getMe, logout } from './utils/api.js'
+import { getMe, logout, onUnauthorized } from './utils/api.js'
 
 const activeTab    = ref('library')
 const activeLang   = ref('es')
@@ -93,6 +93,12 @@ const vocabBank = ref(JSON.parse(localStorage.getItem('szol_vocab') || '[]'))
 watch(vocabBank, (val) => {
   localStorage.setItem('szol_vocab', JSON.stringify(val))
 }, { deep: true })
+
+// When any API call gets a 401, clear the user and re-open the login modal.
+onUnauthorized(() => {
+  currentUser.value = null
+  showAuth.value    = true
+})
 
 // Restore session on page load if a token is saved
 onMounted(async () => {

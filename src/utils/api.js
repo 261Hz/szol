@@ -6,15 +6,51 @@
 
 const API_URL = 'https://szol.onrender.com'
 
+// Callbacks registered by the app so api.js can signal session expiry
+// without importing Vue reactivity directly.
+const _onUnauthorized = []
+export function onUnauthorized(cb) { _onUnauthorized.push(cb) }
+
+function notifyUnauthorized() {
+  localStorage.removeItem('szol_token')
+  _onUnauthorized.forEach(cb => cb())
+}
+
 function getToken() {
   return localStorage.getItem('szol_token')
 }
 
 function authHeaders(extra = {}) {
   const token = getToken()
-  return token
-    ? { Authorization: `Bearer ${token}`, ...extra }
-    : { ...extra }
+  return token ? { Authorization: `Bearer ${token}`, ...extra } : { ...extra }
+}
+
+// FastAPI validation errors are returned as an array of {msg, loc, type} objects.
+// This collapses them into a readable string so the UI can display them directly.
+function extractDetail(body) {
+  const d = body?.detail
+  if (!d) return null
+  if (typeof d === 'string') return d
+  if (Array.isArray(d)) return d.map(e => e.msg || JSON.stringify(e)).join(' · ')
+  return String(d)
+}
+
+// Wraps fetch so every response is checked for 401 (token expired / invalid).
+// On 401, clears the stored token and notifies the app so it can show the login modal.
+// On network failure, throws a user-readable "Server unreachable" message instead of
+// the opaque browser "Failed to fetch" string.
+async function apiFetch(url, opts = {}) {
+  let res
+  try {
+    res = await fetch(url, opts)
+  } catch {
+    throw Object.assign(new Error('Cannot reach the server. It may be starting up — please try again in a moment.'), { network: true })
+  }
+  if (res.status === 401) {
+    notifyUnauthorized()
+    throw new Error('Session expired. Please log in again.')
+  }
+  return res
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -23,14 +59,16 @@ export async function login(email, password) {
   const body = new URLSearchParams()
   body.set('username', email) // OAuth2PasswordRequestForm uses 'username' for the identifier
   body.set('password', password)
-  const res = await fetch(`${API_URL}/login`, {
+  const res = await apiFetch(`${API_URL}/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.detail || 'Login failed')
+    const json = await res.json().catch(() => ({}))
+    const err  = new Error(extractDetail(json) || 'Invalid email or password.')
+    err.detail = json.detail
+    throw err
   }
   const { access_token } = await res.json()
   localStorage.setItem('szol_token', access_token)
@@ -38,20 +76,22 @@ export async function login(email, password) {
 }
 
 export async function register(username, email, password, proficiency, native_lang) {
-  const res = await fetch(`${API_URL}/users/`, {
+  const res = await apiFetch(`${API_URL}/users/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       username,
       email,
       password,
-      ...(proficiency  ? { proficiency }  : {}),
-      ...(native_lang  ? { native_lang }  : {}),
+      ...(proficiency ? { proficiency } : {}),
+      ...(native_lang ? { native_lang } : {}),
     }),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.detail || 'Registration failed')
+    const json = await res.json().catch(() => ({}))
+    const err  = new Error(extractDetail(json) || 'Registration failed.')
+    err.detail = json.detail
+    throw err
   }
   return await res.json()
 }
@@ -59,8 +99,16 @@ export async function register(username, email, password, proficiency, native_la
 export async function getMe() {
   const token = getToken()
   if (!token) return null
-  const res = await fetch(`${API_URL}/users/me`, { headers: authHeaders() })
-  if (!res.ok) return null
+  let res
+  try {
+    res = await fetch(`${API_URL}/users/me`, { headers: authHeaders() })
+  } catch {
+    return null // silently fail on startup if server is unreachable
+  }
+  if (!res.ok) {
+    if (res.status === 401) notifyUnauthorized()
+    return null
+  }
   return await res.json()
 }
 
@@ -71,20 +119,19 @@ export function logout() {
 // ── Word frequency tracking ───────────────────────────────────────────────────
 
 export async function trackWord(word, lang, story_title = '') {
-  const token = getToken()
-  if (!token) return // silently skip if not logged in
-  // fire-and-forget: don't await so it never blocks the UI
+  if (!getToken()) return
+  // fire-and-forget — never blocks the UI, errors are silently swallowed
   fetch(`${API_URL}/words/user`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ word, lang, story_title }),
-  }).catch(() => {}) // swallow network errors
+  }).catch(() => {})
 }
 
 export async function getUserWords(lang) {
-  const res = await fetch(`${API_URL}/words/user?lang=${lang}`, {
+  const res = await apiFetch(`${API_URL}/words/user?lang=${lang}`, {
     headers: authHeaders(),
-  })
-  if (!res.ok) return []
+  }).catch(() => null)
+  if (!res || !res.ok) return []
   return await res.json()
 }
