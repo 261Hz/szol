@@ -210,7 +210,7 @@ const unitIdx     = ref(0)
 // sentences splits the story text into an array of sentences.
 const sentences = computed(() => {
   if (!props.story) return []
-  return props.story.text
+  return props.story.content
     .split(/(?<=[.!?؟।。！？])\s+/) // split after sentence-ending punctuation
     .map(s => s.trim())              // strip whitespace from each sentence
     .filter(Boolean)                 // remove empty strings
@@ -226,7 +226,7 @@ const wordsInSentence = computed(() =>
 // /\p{L}/u matches any Unicode letter. .filter keeps only letter characters (skips spaces, punctuation).
 const cjkChars = computed(() => {
   if (!props.story || !isCJK.value) return []
-  return [...props.story.text].filter(c => /\p{L}/u.test(c))
+  return [...props.story.content].filter(c => /\p{L}/u.test(c))
 })
 
 // currentUnit is the thing currently being practiced: a character (CJK) or a word (other).
