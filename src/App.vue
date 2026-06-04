@@ -12,7 +12,7 @@
       @logout="handleLogout"
     />
 
-    <main class="max-w-3xl mx-auto px-4 py-6">
+    <main class="max-w-3xl mx-auto px-3 py-4 sm:px-4 sm:py-6">
 
       <RetypeView
         v-if="activeTab === 'retype'"
