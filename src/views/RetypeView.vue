@@ -37,6 +37,7 @@
           >{{ char }}</span>
         </div>
         <textarea
+          ref="scriptTextarea"
           v-model="scriptInput"
           @input="onScriptType"
           rows="3"
@@ -52,11 +53,12 @@
           {{ t(lang, 'retype') }}
         </div>
         <textarea
+          ref="wordTextarea"
           v-model="wordInput"
           @input="onWordType"
           rows="5"
           :placeholder="t(lang, 'typeHere')"
-          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-emerald-400 resize-none font-mono"
+          class="w-full border border-gray-200 rounded-lg px-3 py-2 text-base outline-none focus:border-emerald-400 resize-none font-mono sm:text-sm"
         />
       </div>
 
@@ -96,7 +98,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { isRTL, isScript } from '../utils/rtl.js'
 import { scoreWords, scoreChars } from '../utils/scoring.js'
 import { t } from '../utils/i18n.js'
@@ -108,6 +110,8 @@ const props = defineProps({
 
 const wordInput = ref('')
 const scriptInput = ref('')
+const wordTextarea = ref(null)
+const scriptTextarea = ref(null)
 const pct = ref(0)
 const feedback = ref(null)
 const charPos = ref(0)
@@ -120,12 +124,16 @@ const barColor = computed(() => {
   return '#ef4444'
 })
 
-watch(() => props.story, () => {
+watch(() => props.story, async () => {
   wordInput.value = ''
   scriptInput.value = ''
   pct.value = 0
   feedback.value = null
   charPos.value = 0
+  await nextTick()
+  // Auto-focus the appropriate textarea on mobile/desktop
+  const textarea = isScript(props.lang) ? scriptTextarea.value : wordTextarea.value
+  textarea?.focus()
 })
 
 function onWordType() {

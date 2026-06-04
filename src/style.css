@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+/* Ensure textareas and inputs work on mobile */
+textarea,
+input {
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: manipulation;
+}
+
+/* Ensure word spans can be tapped on mobile */
+span[class*="cursor-pointer"] {
+  -webkit-user-select: none;
+  user-select: none;
+}

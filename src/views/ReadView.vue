@@ -56,8 +56,9 @@
           <span
             v-if="token.type === 'word'"
             @click="lookup(token.text)"
+            @touchend="lookup(token.text)"
             :class="[
-              'cursor-pointer rounded px-0.5 transition-all hover:bg-emerald-50',
+              'select-none cursor-pointer rounded px-0.5 transition-all hover:bg-emerald-50 active:bg-emerald-50',
               savedWords.has(normalize(token.text)) ? 'bg-emerald-100 text-emerald-700' : ''
             ]"
           >{{ token.text }}</span>
