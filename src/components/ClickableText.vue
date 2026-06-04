@@ -7,8 +7,8 @@
         @touchend="(e) => onTouchEnd(e, tok.text)"
         @click="$emit('tap', { word: tok.text, sentence: text })"
         :class="[
-          'cursor-pointer rounded px-0.5 transition-all hover:bg-emerald-50 active:bg-emerald-50',
-          savedWords && savedWords.has(normalize(tok.text)) ? 'bg-emerald-100 text-emerald-700' : '',
+          'cursor-pointer rounded px-0.5 transition-all hover:bg-green-950 active:bg-green-950',
+          savedWords && savedWords.has(normalize(tok.text)) ? 'bg-green-900 text-green-300' : '',
         ]"
       >{{ tok.text }}</span>
       <span v-else>{{ tok.text }}</span>

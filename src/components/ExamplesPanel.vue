@@ -16,8 +16,8 @@
 <!--     VocabView responds by saving the word to the vocab bank.                        -->
 <template>
   <!-- Outer wrapper sits below the word/sentence in the parent component's card. -->
-  <!-- "border-t border-emerald-200" = a thin green dividing line above the panel. -->
-  <div class="mt-1 pt-2 border-t border-emerald-200">
+  <!-- "border-t border-green-800" = a thin green dividing line above the panel. -->
+  <div class="mt-1 pt-2 border-t border-green-800">
 
     <!-- Source tab bar: Tatoeba | Wikipedia | Wikiquote -->
     <!-- v-for loops over the tabs array and renders one pill button per tab. -->
@@ -29,8 +29,8 @@
         :class="[
           'text-xs px-2 py-0.5 rounded-full transition-all',
           activeTab === tab.id
-            ? 'bg-emerald-500 text-white'       // active tab: filled green pill
-            : 'text-gray-400 hover:text-emerald-600' // inactive: gray text, green on hover
+            ? 'bg-green-700 text-white'       // active tab: filled green pill
+            : 'text-gray-500 hover:text-green-400' // inactive: gray text, green on hover
         ]"
       >{{ tab.label }}</button>
     </div>
@@ -45,11 +45,11 @@
       <button
         v-if="!tatoeba.done && !tatoeba.loading"
         @click="loadTatoeba"
-        class="text-xs text-emerald-700 hover:text-emerald-800 underline transition-all"
+        class="text-xs text-green-300 hover:text-green-200 underline transition-all"
       >See examples</button>
 
       <!-- 2. Fetch in progress: show a spinner text. -->
-      <div v-else-if="tatoeba.loading" class="text-xs text-gray-400">Loading…</div>
+      <div v-else-if="tatoeba.loading" class="text-xs text-gray-500">Loading…</div>
 
       <!-- 3. Results available: render each sentence with clickable words and optional audio. -->
       <div v-else-if="tatoeba.results.length" class="flex flex-col gap-2">
@@ -57,7 +57,7 @@
           <!-- Tokenized sentence: each word is a clickable span. -->
           <!-- :dir sets text direction for RTL languages (Arabic, Hebrew). -->
           <span
-            class="text-sm text-gray-600 flex-1 leading-snug"
+            class="text-sm text-gray-300 flex-1 leading-snug"
             :dir="isRTL(lang) ? 'rtl' : 'ltr'"
           >
             <!-- tokenize() splits the sentence into word tokens and space tokens. -->
@@ -68,8 +68,8 @@
                 v-if="tok.type === 'word'"
                 @click="$emit('tap', { word: tok.text, sentence: ex.text })"
                 :class="[
-                  'cursor-pointer rounded px-0.5 transition-all hover:bg-emerald-50',
-                  savedWords && savedWords.has(normalize(tok.text)) ? 'bg-emerald-100 text-emerald-700' : '',
+                  'cursor-pointer rounded px-0.5 transition-all hover:bg-green-950',
+                  savedWords && savedWords.has(normalize(tok.text)) ? 'bg-green-900 text-green-300' : '',
                 ]"
               >{{ tok.text }}</span>
               <!-- Space token: rendered as plain text, not clickable. -->
@@ -89,7 +89,7 @@
       </div>
 
       <!-- 4. Fetch completed but no results found. -->
-      <div v-else-if="tatoeba.done" class="text-xs text-gray-400">No examples found.</div>
+      <div v-else-if="tatoeba.done" class="text-xs text-gray-500">No examples found.</div>
     </div>
 
     <!-- ── WIKIPEDIA TAB ── -->
@@ -99,17 +99,17 @@
       <button
         v-if="!wiki.done && !wiki.loading"
         @click="loadWiki"
-        class="text-xs text-emerald-700 hover:text-emerald-800 underline transition-all"
+        class="text-xs text-green-300 hover:text-green-200 underline transition-all"
       >Search Wikipedia</button>
-      <div v-else-if="wiki.loading" class="text-xs text-gray-400">Loading…</div>
+      <div v-else-if="wiki.loading" class="text-xs text-gray-500">Loading…</div>
       <div v-else-if="wiki.results.length" class="flex flex-col gap-3">
         <div v-for="r in wiki.results" :key="r.title" class="flex flex-col gap-0.5">
           <!-- Article title shown in small gray text above the extract. -->
-          <div class="text-xs font-medium text-gray-500">{{ r.title }}</div>
+          <div class="text-xs font-medium text-gray-400">{{ r.title }}</div>
           <!-- Full extract, tokenized and clickable just like Tatoeba sentences. -->
           <!-- Clicking any word emits 'tap' with the full article extract as context. -->
           <span
-            class="text-sm text-gray-600 leading-snug"
+            class="text-sm text-gray-300 leading-snug"
             :dir="isRTL(lang) ? 'rtl' : 'ltr'"
           >
             <span v-for="(tok, i) in tokenize(r.extract)" :key="i">
@@ -117,8 +117,8 @@
                 v-if="tok.type === 'word'"
                 @click="$emit('tap', { word: tok.text, sentence: r.extract })"
                 :class="[
-                  'cursor-pointer rounded px-0.5 transition-all hover:bg-emerald-50',
-                  savedWords && savedWords.has(normalize(tok.text)) ? 'bg-emerald-100 text-emerald-700' : '',
+                  'cursor-pointer rounded px-0.5 transition-all hover:bg-green-950',
+                  savedWords && savedWords.has(normalize(tok.text)) ? 'bg-green-900 text-green-300' : '',
                 ]"
               >{{ tok.text }}</span>
               <span v-else>{{ tok.text }}</span>
@@ -126,7 +126,7 @@
           </span>
         </div>
       </div>
-      <div v-else-if="wiki.done" class="text-xs text-gray-400">No Wikipedia results.</div>
+      <div v-else-if="wiki.done" class="text-xs text-gray-500">No Wikipedia results.</div>
     </div>
 
     <!-- ── WIKIQUOTE TAB ── -->
@@ -135,15 +135,15 @@
       <button
         v-if="!wq.done && !wq.loading"
         @click="loadWikiquote"
-        class="text-xs text-emerald-700 hover:text-emerald-800 underline transition-all"
+        class="text-xs text-green-300 hover:text-green-200 underline transition-all"
       >Search Wikiquote</button>
-      <div v-else-if="wq.loading" class="text-xs text-gray-400">Loading…</div>
+      <div v-else-if="wq.loading" class="text-xs text-gray-500">Loading…</div>
       <div v-else-if="wq.results.length" class="flex flex-col gap-3">
         <div v-for="r in wq.results" :key="r.title" class="flex flex-col gap-0.5">
-          <div class="text-xs font-medium text-gray-500">{{ r.title }}</div>
+          <div class="text-xs font-medium text-gray-400">{{ r.title }}</div>
           <!-- "italic" = visual cue that this text is a quotation, not a factual extract. -->
           <span
-            class="text-sm text-gray-600 italic leading-snug"
+            class="text-sm text-gray-300 italic leading-snug"
             :dir="isRTL(lang) ? 'rtl' : 'ltr'"
           >
             <span v-for="(tok, i) in tokenize(r.extract)" :key="i">
@@ -151,8 +151,8 @@
                 v-if="tok.type === 'word'"
                 @click="$emit('tap', { word: tok.text, sentence: r.extract })"
                 :class="[
-                  'cursor-pointer rounded px-0.5 transition-all hover:bg-emerald-50',
-                  savedWords && savedWords.has(normalize(tok.text)) ? 'bg-emerald-100 text-emerald-700' : '',
+                  'cursor-pointer rounded px-0.5 transition-all hover:bg-green-950',
+                  savedWords && savedWords.has(normalize(tok.text)) ? 'bg-green-900 text-green-300' : '',
                 ]"
               >{{ tok.text }}</span>
               <span v-else>{{ tok.text }}</span>
@@ -160,7 +160,7 @@
           </span>
         </div>
       </div>
-      <div v-else-if="wq.done" class="text-xs text-gray-400">No Wikiquote results.</div>
+      <div v-else-if="wq.done" class="text-xs text-gray-500">No Wikiquote results.</div>
     </div>
 
   </div>
