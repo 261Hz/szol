@@ -116,7 +116,7 @@
         <!-- .prevent on touch events calls event.preventDefault() to stop page scrolling while drawing. -->
         <canvas
           ref="canvas"
-          class="rounded-xl border-2 border-gray-700 bg-white touch-none cursor-crosshair"
+          class="rounded-xl border border-gray-700 bg-gray-900 touch-none cursor-crosshair"
           @mousedown="startDraw" @mousemove="moveDraw" @mouseup="stopDraw" @mouseleave="stopDraw"
           @touchstart="startDraw" @touchmove.prevent="moveDraw" @touchend="stopDraw" @touchcancel="stopDraw"
         />
@@ -381,8 +381,8 @@ function setupCanvas() {
   canvas.value.style.height = size + 'px'
   ctx = canvas.value.getContext('2d')
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0) // absolute scale — safe to call repeatedly
-  ctx.strokeStyle = '#1a1a1a'
-  ctx.fillStyle   = '#1a1a1a'
+  ctx.strokeStyle = '#e2e8f0'
+  ctx.fillStyle   = '#e2e8f0'
   ctx.lineWidth   = 4
   ctx.lineCap     = 'round'
   ctx.lineJoin    = 'round'
