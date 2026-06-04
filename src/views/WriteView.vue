@@ -116,10 +116,9 @@
         <!-- .prevent on touch events calls event.preventDefault() to stop page scrolling while drawing. -->
         <canvas
           ref="canvas"
-          width="300" height="300"
           class="rounded-xl border-2 border-gray-200 bg-white touch-none cursor-crosshair"
           @mousedown="startDraw" @mousemove="moveDraw" @mouseup="stopDraw" @mouseleave="stopDraw"
-          @touchstart.prevent="startDraw" @touchmove.prevent="moveDraw" @touchend="stopDraw"
+          @touchstart.prevent="startDraw" @touchmove.prevent="moveDraw" @touchend="stopDraw" @touchcancel="stopDraw"
         />
 
         <!-- Buttons below the canvas. -->
@@ -371,29 +370,32 @@ let ctx     = null
 let drawing = false
 
 // setupCanvas() initializes the canvas drawing context and clears the canvas.
+// Scales the canvas backing store by devicePixelRatio so strokes are crisp on high-DPR screens.
 function setupCanvas() {
-  if (!canvas.value) return // canvas may not exist if we're on CJK mode
-  ctx = canvas.value.getContext('2d') // '2d' = standard 2D drawing context
-  ctx.strokeStyle = '#1a1a1a' // drawing color (almost black)
-  ctx.lineWidth   = 4         // stroke thickness in pixels
-  ctx.lineCap     = 'round'   // makes line endings circular (smoother looking)
-  ctx.lineJoin    = 'round'   // makes corners where lines meet circular (smoother)
-  clearCanvas()               // start with a blank canvas
+  if (!canvas.value) return
+  const dpr  = window.devicePixelRatio || 1
+  const size = 300
+  canvas.value.width        = size * dpr
+  canvas.value.height       = size * dpr
+  canvas.value.style.width  = size + 'px'
+  canvas.value.style.height = size + 'px'
+  ctx = canvas.value.getContext('2d')
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0) // absolute scale — safe to call repeatedly
+  ctx.strokeStyle = '#1a1a1a'
+  ctx.lineWidth   = 4
+  ctx.lineCap     = 'round'
+  ctx.lineJoin    = 'round'
+  clearCanvas()
 }
 
-// getPos() converts a mouse or touch event's screen coordinates to canvas coordinates.
-// This is needed because the canvas may be scaled by CSS (display size ≠ pixel size).
+// getPos() returns CSS-pixel coordinates within the canvas.
+// After ctx.setTransform(dpr,...), drawing at CSS coords maps to the correct device pixels.
 function getPos(e) {
-  // getBoundingClientRect() returns the element's position and size on screen.
   const rect = canvas.value.getBoundingClientRect()
-  // e.touches = array of touch points (from touch events). e.touches[0] = first finger.
-  // If it's a mouse event, e.touches is undefined so we use e directly.
   const src  = e.touches ? e.touches[0] : e
   return {
-    // Convert from screen coordinates to canvas pixel coordinates.
-    // The ratio (canvas.width / rect.width) accounts for CSS scaling.
-    x: (src.clientX - rect.left) * (canvas.value.width  / rect.width),
-    y: (src.clientY - rect.top)  * (canvas.value.height / rect.height),
+    x: src.clientX - rect.left,
+    y: src.clientY - rect.top,
   }
 }
 
@@ -406,21 +408,24 @@ function startDraw(e) {
 }
 
 // moveDraw() extends the stroke as the user drags.
+// After stroking, beginPath+moveTo starts a fresh sub-path so each segment is drawn once
+// (avoids replaying the entire accumulated path on every move event).
 function moveDraw(e) {
-  if (!drawing) return // only draw if the button is held down
+  if (!drawing) return
   const p = getPos(e)
-  ctx.lineTo(p.x, p.y) // draw a line to the new position
-  ctx.stroke()          // actually render the line to the canvas
+  ctx.lineTo(p.x, p.y)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.moveTo(p.x, p.y)
 }
 
 // stopDraw() ends the stroke when the user releases or leaves the canvas.
 function stopDraw() { drawing = false }
 
 // clearCanvas() wipes everything drawn on the canvas.
+// Uses 300×300 CSS coordinates — ctx.setTransform scales to device pixels automatically.
 function clearCanvas() {
-  // clearRect(x, y, width, height) = clear a rectangle area. Using full canvas dimensions.
-  // ?. = safe access in case canvas or ctx is null.
-  ctx?.clearRect(0, 0, canvas.value?.width ?? 300, canvas.value?.height ?? 300)
+  ctx?.clearRect(0, 0, 300, 300)
 }
 
 // report() records the user's self-assessment of their writing.

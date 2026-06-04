@@ -94,8 +94,9 @@
       </div>
 
       <!-- Hidden input triggers the on-screen keyboard on mobile devices. -->
+      <!-- fixed+top-0+left-0 prevents the browser from scroll-jumping to reveal it on focus. -->
       <input
-        class="opacity-0 h-0 absolute"
+        class="fixed top-0 left-0 w-0 h-0 opacity-0 pointer-events-none border-none outline-none"
         ref="hiddenInput"
         type="text"
         inputmode="text"
