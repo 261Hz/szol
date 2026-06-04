@@ -29,6 +29,8 @@
       <!-- ── Login form ── -->
       <form v-if="activeTab === 'Login'" @submit.prevent="doLogin" class="flex flex-col gap-3">
         <input
+          id="login-email"
+          name="email"
           v-model="email"
           type="email"
           placeholder="Email"
@@ -39,6 +41,8 @@
         <!-- Password with show/hide toggle -->
         <div class="relative">
           <input
+            id="login-password"
+            name="password"
             v-model="password"
             :type="showPassword ? 'text' : 'password'"
             placeholder="Password"
@@ -65,6 +69,8 @@
       <!-- ── Register form ── -->
       <form v-else @submit.prevent="doRegister" class="flex flex-col gap-3">
         <input
+          id="reg-username"
+          name="username"
           v-model="username"
           type="text"
           placeholder="Username"
@@ -75,6 +81,8 @@
           class="border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 transition-all"
         />
         <input
+          id="reg-email"
+          name="email"
           v-model="email"
           type="email"
           placeholder="Email"
@@ -85,6 +93,8 @@
         <!-- Password with show/hide and strength hint -->
         <div class="relative">
           <input
+            id="reg-password"
+            name="password"
             v-model="password"
             :type="showPassword ? 'text' : 'password'"
             placeholder="Password (min 8 characters)"
@@ -111,6 +121,8 @@
         <!-- Confirm password -->
         <div class="relative">
           <input
+            id="reg-confirm"
+            name="confirm-password"
             v-model="confirmPassword"
             :type="showPassword ? 'text' : 'password'"
             placeholder="Confirm password"
@@ -127,6 +139,8 @@
         </div>
         <!-- Language you're learning — determines which proficiency scale to show -->
         <select
+          id="reg-target-lang"
+          name="target-lang"
           v-model="targetLang"
           class="border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 text-gray-500 transition-all"
         >
@@ -136,6 +150,8 @@
 
         <!-- Proficiency — options adapt to the selected language's standard scale -->
         <select
+          id="reg-proficiency"
+          name="proficiency"
           v-model="proficiency"
           class="border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 text-gray-500 transition-all"
         >
