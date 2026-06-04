@@ -11,6 +11,7 @@
       <div class="flex items-center gap-2">
         <select
           :value="lang"
+          aria-label="Language"
           @change="$emit('lang', $event.target.value)"
           class="text-sm border border-gray-200 rounded-md px-2 py-1 bg-white max-w-28"
         >
@@ -31,7 +32,7 @@
         <div v-else class="flex items-center gap-1.5">
           <span class="text-xs text-gray-600 max-w-20 truncate hidden sm:inline">{{ currentUser.username }}</span>
           <button @click="$emit('logout')"
-            class="text-xs text-gray-300 hover:text-red-400 transition-all" title="Logout">✕</button>
+            class="text-xs text-gray-500 hover:text-red-400 transition-all" title="Logout" aria-label="Logout">✕</button>
         </div>
       </div>
     </div>
