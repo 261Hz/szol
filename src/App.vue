@@ -45,6 +45,14 @@
         @open-auth="showAuth = true"
       />
 
+      <SpeakView
+        v-if="activeTab === 'speak'"
+        :story="currentStory"
+        :lang="activeLang"
+        :vocab-bank="vocabBank"
+        :current-user="currentUser"
+      />
+
     </main>
 
     <AuthModal
@@ -64,6 +72,7 @@ import ReadView    from './views/ReadView.vue'
 import RetypeView  from './views/RetypeView.vue'
 import LibraryView from './views/LibraryView.vue'
 import VocabView   from './views/VocabView.vue'
+import SpeakView   from './views/SpeakView.vue'
 import { getMe, logout, onUnauthorized } from './utils/api.js'
 
 const activeTab    = ref('library')

@@ -1,112 +1,63 @@
-# chat.py — AI language tutor chat endpoint powered by Gemini 1.5 Flash.
-#
-# Routes
-# ------
-#   POST /chat  (auth required) — send a message and receive a tutor reply
-
-from typing import List, Optional
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter
 from pydantic import BaseModel
+from typing import List, Optional
+import os
+from groq import Groq
 
-from .. import models, oauth2
-from ..config import settings
+router = APIRouter(tags=["Chat"])
 
-router = APIRouter(
-    prefix="/chat",
-    tags=["Chat"],
-)
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+_LANG_NAMES = {
+    "en": "English", "es": "Spanish", "fr": "French", "de": "German",
+    "it": "Italian", "ru": "Russian", "he": "Hebrew", "ar": "Arabic",
+    "arz": "Egyptian Arabic", "ja": "Japanese", "zh": "Mandarin Chinese",
+    "hu": "Hungarian", "el": "Greek",
+}
 
 
-class ChatMessage(BaseModel):
-    role: str    # "user" | "model"
-    text: str
+class Message(BaseModel):
+    role: str     # "user" | "assistant"
+    content: str
 
 
 class ChatRequest(BaseModel):
     message:       str
-    story_content: str  = ""
-    lang:          str  = "en"
-    history:       List[ChatMessage] = []
-    vocab:         List[str]         = []
-    proficiency:   Optional[str]     = None
+    story_content: Optional[str] = ""
+    lang:          str           = "en"
+    history:       List[Message] = []
+    vocab:         List[str]     = []
+    proficiency:   Optional[str] = "B1"
 
 
-class ChatResponse(BaseModel):
-    reply: str
-
-
-def _lang_name(code: str) -> str:
-    names = {
-        "en": "English", "es": "Spanish", "fr": "French", "de": "German",
-        "it": "Italian", "ru": "Russian", "he": "Hebrew", "ar": "Arabic",
-        "arz": "Egyptian Arabic", "ja": "Japanese", "zh": "Mandarin Chinese",
-        "hu": "Hungarian", "el": "Greek",
-    }
-    return names.get(code, code)
-
-
-@router.post("", response_model=ChatResponse)
-def chat(
-    payload: ChatRequest,
-    current_user: models.User = Depends(oauth2.get_current_user),
-):
-    api_key = settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY
-    if not api_key:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Chat is not configured on this server (missing GEMINI_API_KEY).",
-        )
-
-    try:
-        import google.generativeai as genai
-    except ImportError:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="google-generativeai package is not installed.",
-        )
-
-    genai.configure(api_key=api_key)
-
-    lang_name   = _lang_name(payload.lang)
-    proficiency = payload.proficiency or "intermediate"
-    story_snip  = payload.story_content[:2000].strip() if payload.story_content else ""
-    vocab_str   = ", ".join(payload.vocab[:50]) if payload.vocab else "none yet"
+@router.post("/chat")
+def chat(req: ChatRequest):
+    lang_name   = _LANG_NAMES.get(req.lang, req.lang)
+    story_snip  = (req.story_content or "")[:1500].strip()
+    vocab_str   = ", ".join(req.vocab[:20]) if req.vocab else "none yet"
+    proficiency = req.proficiency or "B1"
 
     system_prompt = (
         f"You are a friendly language tutor helping a {proficiency} learner of {lang_name}. "
-        f"The learner just read this story:\n\n{story_snip}\n\n"
+        f"The learner just read this story excerpt:\n\n{story_snip}\n\n"
         f"Their saved vocabulary includes: {vocab_str}.\n\n"
-        f"Respond only in {lang_name}. Keep responses short and conversational (2–4 sentences). "
-        f"If the learner writes in {lang_name}, gently correct any grammar mistakes by showing "
-        f"the corrected form in parentheses. Encourage the learner warmly."
+        f"Rules:\n"
+        f"- Respond ONLY in {lang_name}. Never switch to English. Ever.\n"
+        f"- Keep responses short and conversational (2-4 sentences max)\n"
+        f"- Gently correct grammar mistakes inline\n"
+        f"- Ask follow-up questions about the story to encourage production\n"
+        f"- Encourage the learner warmly"
     )
 
-    model = genai.GenerativeModel(
-        model_name="gemini-2.0-flash",
-        system_instruction=system_prompt,
+    messages = [{"role": "system", "content": system_prompt}]
+    for h in req.history:
+        messages.append({"role": h.role, "content": h.content})
+    messages.append({"role": "user", "content": req.message})
+
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=messages,
+        max_tokens=300,
+        temperature=0.7,
     )
-
-    # Convert stored history to Gemini's Content format
-    history = [
-        {"role": msg.role, "parts": [msg.text]}
-        for msg in payload.history
-    ]
-
-    chat_session = model.start_chat(history=history)
-
-    try:
-        response = chat_session.send_message(payload.message)
-        return ChatResponse(reply=response.text)
-    except Exception as e:
-        msg = str(e)
-        # 429 quota / rate-limit: return a short, actionable message
-        if "429" in msg or "quota" in msg.lower() or "rate" in msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Rate limit reached. Please wait a moment and try again.",
-            )
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="The AI tutor is temporarily unavailable. Please try again shortly.",
-        )
+    return {"reply": response.choices[0].message.content}
