@@ -4,11 +4,11 @@
       <span
         v-if="tok.type === 'word'"
         @click="$emit('tap', { word: tok.text, sentence: text })"
-        @touchend="$emit('tap', { word: tok.text, sentence: text })"
         :class="[
           'cursor-pointer rounded px-0.5 transition-all hover:bg-emerald-50 active:bg-emerald-50',
           savedWords && savedWords.has(normalize(tok.text)) ? 'bg-emerald-100 text-emerald-700' : '',
         ]"
+        style="touch-action: manipulation"
       >{{ tok.text }}</span>
       <span v-else>{{ tok.text }}</span>
     </span>

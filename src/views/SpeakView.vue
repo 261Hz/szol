@@ -49,7 +49,7 @@
       <!-- Target sentence display. -->
       <!-- Each word is individually colored after scoring: green = correct, red = wrong. -->
       <div
-        class="text-xl leading-relaxed p-4 rounded-xl bg-gray-50 border border-gray-200"
+        class="text-xl leading-relaxed p-4 rounded-xl bg-gray-50 border border-gray-200 break-words"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right' : ''"
       >
