@@ -99,7 +99,14 @@ def chat(
         response = chat_session.send_message(payload.message)
         return ChatResponse(reply=response.text)
     except Exception as e:
+        msg = str(e)
+        # 429 quota / rate-limit: return a short, actionable message
+        if "429" in msg or "quota" in msg.lower() or "rate" in msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Rate limit reached. Please wait a moment and try again.",
+            )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Gemini API error: {str(e)}",
+            detail="The AI tutor is temporarily unavailable. Please try again shortly.",
         )
