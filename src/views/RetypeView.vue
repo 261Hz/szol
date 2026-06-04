@@ -101,11 +101,6 @@
         v-model="inputBuffer"
       />
 
-      <!-- "Click to type" hint shown when the typing area is not focused. -->
-      <div v-if="!focused && !done" class="text-xs text-gray-400 text-center">
-        {{ t(lang, 'clickToType') ?? 'Click text to start typing' }}
-      </div>
-
       <!-- ── Progress row ────────────────────────────────────────────────── -->
       <div class="flex items-center gap-3">
         <!-- Sentence counter. -->
@@ -256,6 +251,8 @@ watch([() => props.story, mode, activeText], async () => {
   completedSentences.value = []
   done.value               = false
   loadSentence(0)
+  await nextTick()
+  overlayEl.value?.focus()
 
   if (props.currentUser && props.story?.id) {
     const saved = await getProgress(props.story.id, 'retype')

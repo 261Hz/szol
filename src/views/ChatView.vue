@@ -68,8 +68,7 @@
           :dir="isRTL(lang) ? 'rtl' : 'ltr'"
           rows="1"
           class="flex-1 border border-gray-200 rounded-2xl px-4 py-2.5 text-sm outline-none focus:border-emerald-400 resize-none transition-all leading-snug max-h-28 overflow-y-auto"
-          style="field-sizing: content"
-          @keydown.enter.exact.prevent="send"
+          @keydown.enter.exact.prevent="onEnter"
           @input="autoResize"
         />
         <button
@@ -81,7 +80,7 @@
           <span v-else>Send</span>
         </button>
       </div>
-      <div class="text-[11px] text-gray-300 mt-1.5 text-right hidden sm:block">⏎ Enter to send</div>
+      <div class="text-[11px] text-gray-400 mt-1.5 text-right hidden sm:block">⏎ Enter to send</div>
     </div>
 
   </div>
@@ -115,8 +114,15 @@ const vocabWords = computed(() =>
   props.vocabBank.filter(v => v.lang === props.lang).map(v => v.word).slice(0, 50)
 )
 
-// Auto-resize textarea as the user types (field-sizing:content is the CSS way;
-// this JS fallback handles browsers that don't support it yet).
+// On desktop: Enter sends. On mobile (touch device): Enter inserts a newline
+// so the physical/virtual keyboard can be used naturally.
+const isMobile = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0
+
+function onEnter() {
+  if (isMobile) return   // let mobile keyboard handle Enter normally
+  send()
+}
+
 function autoResize(e) {
   const el = e.target
   el.style.height = 'auto'
