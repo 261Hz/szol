@@ -62,6 +62,12 @@
         />
       </div>
 
+      <!-- Previous progress badge -->
+      <div v-if="prevPct !== null && pct === 0" class="text-xs text-gray-400">
+        Previously: <span class="font-medium" :class="prevPct === 100 ? 'text-emerald-500' : 'text-gray-600'">{{ prevPct }}%</span>
+        <span v-if="prevPct === 100"> ✓</span>
+      </div>
+
       <!-- Progress bar -->
       <div class="flex items-center gap-3">
         <div class="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
@@ -102,19 +108,22 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { isRTL, isScript } from '../utils/rtl.js'
 import { scoreWords, scoreChars } from '../utils/scoring.js'
 import { t } from '../utils/i18n.js'
+import { saveProgress, getProgress } from '../utils/api.js'
 
 const props = defineProps({
-  story: Object,
-  lang: String,
+  story:       Object,
+  lang:        String,
+  currentUser: Object,
 })
 
-const wordInput = ref('')
-const scriptInput = ref('')
+const wordInput    = ref('')
+const scriptInput  = ref('')
 const wordTextarea = ref(null)
 const scriptTextarea = ref(null)
-const pct = ref(0)
-const feedback = ref(null)
-const charPos = ref(0)
+const pct          = ref(0)
+const feedback     = ref(null)
+const charPos      = ref(0)
+const prevPct      = ref(null) // previous progress loaded from backend
 
 const storyChars = computed(() => props.story ? [...props.story.text] : [])
 
@@ -124,14 +133,23 @@ const barColor = computed(() => {
   return '#ef4444'
 })
 
-watch(() => props.story, async () => {
-  wordInput.value = ''
+watch(() => props.story, async (story) => {
+  wordInput.value   = ''
   scriptInput.value = ''
-  pct.value = 0
-  feedback.value = null
-  charPos.value = 0
+  pct.value         = 0
+  feedback.value    = null
+  charPos.value     = 0
+  prevPct.value     = null
+
+  // Load previous progress from backend if logged in
+  if (props.currentUser && story?.id) {
+    const saved = await getProgress(story.id, 'retype')
+    if (saved && saved.sentence_index > 0) {
+      prevPct.value = saved.sentence_index
+    }
+  }
+
   await nextTick()
-  // Auto-focus the appropriate textarea on mobile/desktop
   const textarea = isScript(props.lang) ? scriptTextarea.value : wordTextarea.value
   textarea?.focus()
 })
@@ -150,12 +168,14 @@ function onScriptType() {
   charPos.value = result.pos
   if (result.pos === result.total) {
     feedback.value = { type: 'ok', msg: '✓ Perfect!' }
+    _saveProgress(100)
   }
 }
 
 function check() {
   if (!props.story || !wordInput.value.trim()) return
   const result = scoreWords(props.story.text, wordInput.value)
+  _saveProgress(result.pct)
   if (result.pct === 100) {
     feedback.value = { type: 'ok', msg: '✓ Perfect — every word matched.' }
     return
@@ -167,5 +187,10 @@ function check() {
     type: 'err',
     msg: `${result.pct}% accurate (${result.correct}/${result.total} words). ${top}${result.errors.length > 3 ? ` …and ${result.errors.length - 3} more.` : '.'}`
   }
+}
+
+function _saveProgress(pctValue) {
+  if (!props.currentUser || !props.story?.id) return
+  saveProgress(props.story.id, props.story.title ?? '', props.lang, 'retype', pctValue)
 }
 </script>

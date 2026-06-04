@@ -27,6 +27,7 @@
         v-if="activeTab === 'retype'"
         :story="currentStory"
         :lang="activeLang"
+        :current-user="currentUser"
       />
 
       <LibraryView
@@ -50,7 +51,9 @@
         :story="currentStory"
         :lang="activeLang"
         :vocab-bank="vocabBank"
+        :saved-words="savedWordSet"
         :current-user="currentUser"
+        @save-word="addToVocab"
       />
 
     </main>
@@ -83,6 +86,15 @@ const showAuth     = ref(false)
 const vocabBank    = ref(JSON.parse(localStorage.getItem('szol_vocab') || '[]'))
 
 watch(vocabBank, val => localStorage.setItem('szol_vocab', JSON.stringify(val)), { deep: true })
+
+// When the user switches languages via the dropdown, clear any story that belongs
+// to the previous language and return to Library so no stale content shows.
+watch(activeLang, (newLang) => {
+  if (currentStory.value && currentStory.value.lang !== newLang) {
+    currentStory.value = null
+    activeTab.value    = 'library'
+  }
+})
 
 // Auto re-open login modal when any API call gets a 401
 onUnauthorized(() => {

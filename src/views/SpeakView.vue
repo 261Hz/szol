@@ -39,13 +39,26 @@
           class="flex"
           :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
         >
+          <!-- User bubble: plain text (they typed it) -->
           <div
-            class="max-w-[80%] px-3 py-2 rounded-2xl text-sm leading-relaxed"
-            :class="msg.role === 'user'
-              ? 'bg-emerald-500 text-white rounded-br-sm'
-              : 'bg-gray-100 text-gray-800 rounded-bl-sm'"
+            v-if="msg.role === 'user'"
+            class="max-w-[80%] px-3 py-2 rounded-2xl rounded-br-sm text-sm leading-relaxed bg-emerald-500 text-white"
             :dir="isRTL(lang) ? 'rtl' : 'ltr'"
           >{{ msg.content }}</div>
+
+          <!-- Tutor bubble: clickable words to save to vocab -->
+          <div
+            v-else
+            class="max-w-[80%] px-3 py-2 rounded-2xl rounded-bl-sm text-sm leading-relaxed bg-gray-100 text-gray-800"
+            :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+          >
+            <ClickableText
+              :text="msg.content"
+              :lang="lang"
+              :savedWords="savedWordSet"
+              @tap="({ word, sentence }) => saveWord(word, sentence)"
+            />
+          </div>
         </div>
 
         <!-- Typing indicator -->
@@ -85,17 +98,23 @@
 </template>
 
 <script setup>
-import { ref, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { isRTL } from '../utils/rtl.js'
 import { LANGS } from '../data/stories.js'
 import { sendChat } from '../utils/api.js'
+import ClickableText from '../components/ClickableText.vue'
 
 const props = defineProps({
   story:       Object,
   lang:        String,
   vocabBank:   { type: Array, default: () => [] },
+  savedWords:  { type: Object, default: () => new Set() },
   currentUser: Object,
 })
+
+const emit = defineEmits(['save-word'])
+
+const savedWordSet = computed(() => props.savedWords)
 
 const messages = ref([])  // [{ role: "user"|"assistant", content: "..." }]
 const draft    = ref('')
@@ -144,6 +163,18 @@ async function send() {
     await scrollToBottom()
     inputEl.value?.focus()
   }
+}
+
+function saveWord(word, sentence) {
+  const clean = word.replace(/[^\p{L}\p{M}]/gu, '')
+  if (!clean) return
+  emit('save-word', {
+    word:     clean,
+    lang:     props.lang,
+    langName: LANGS[props.lang]?.name ?? props.lang,
+    sentence: sentence ?? '',
+    story:    props.story?.title ?? '',
+  })
 }
 
 function clearConversation() {

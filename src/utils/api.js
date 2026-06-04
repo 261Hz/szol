@@ -135,6 +135,29 @@ export async function getUserWords(lang) {
   return await res.json()
 }
 
+// ── Story progress ────────────────────────────────────────────────────────────
+
+// Fire-and-forget: saves sentence_index (used as 0–100 pct for textarea views)
+export function saveProgress(storyId, storyTitle, lang, tab, sentenceIndex) {
+  if (!getToken()) return
+  fetch(`${API_URL}/progress/user`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ story_id: storyId, story_title: storyTitle, lang, tab, sentence_index: sentenceIndex }),
+  }).catch(() => {})
+}
+
+export async function getProgress(storyId, tab) {
+  if (!getToken()) return null
+  const res = await apiFetch(
+    `${API_URL}/progress/user?story_id=${encodeURIComponent(storyId)}&tab=${tab}`,
+    { headers: authHeaders() }
+  ).catch(() => null)
+  if (!res || res.status === 404) return null
+  if (!res.ok) return null
+  return await res.json()
+}
+
 // ── AI tutor chat ─────────────────────────────────────────────────────────────
 
 export async function sendChat({ message, storyContent, lang, history, vocab, proficiency }) {
