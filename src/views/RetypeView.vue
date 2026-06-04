@@ -82,9 +82,10 @@
         <template v-else>
           <template v-for="(word, wi) in words" :key="wi">
             <span
-              class="inline-block whitespace-nowrap cursor-pointer rounded transition-colors hover:bg-green-950 active:bg-green-950"
+              class="inline-block whitespace-nowrap cursor-pointer rounded transition-colors hover:bg-green-950 active:bg-green-950 select-none"
               :class="savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-green-500 decoration-dotted underline-offset-2' : ''"
-              @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
+              @pointerdown.stop="retypePointerStart($event)"
+              @pointerup.stop="retypePointerEnd($event, word.map(c => c.char).join(''), sentences[sentenceIdx])"
             >
               <span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span>
             </span>
@@ -459,5 +460,20 @@ const barColor = computed(() => {
 // On mobile, tap on the overlay and focus the hidden input to open the keyboard.
 function focusMobileInput() {
   hiddenInput.value?.focus()
+}
+
+// ── Pointer-event word tap (works in all WebViews) ────────────────────────────
+
+let _retypeStartX = 0, _retypeStartY = 0
+
+function retypePointerStart(e) {
+  _retypeStartX = e.clientX
+  _retypeStartY = e.clientY
+}
+
+function retypePointerEnd(e, wordText, sentence) {
+  if (Math.abs(e.clientX - _retypeStartX) < 10 && Math.abs(e.clientY - _retypeStartY) < 10) {
+    tapWord(wordText, sentence)
+  }
 }
 </script>

@@ -3,11 +3,10 @@
     <span v-for="(tok, i) in tokens" :key="i">
       <span
         v-if="tok.type === 'word'"
-        @touchstart.passive="onTouchStart"
-        @touchend="(e) => onTouchEnd(e, tok.text)"
-        @click="$emit('tap', { word: tok.text, sentence: text })"
+        @pointerdown="onPointerDown"
+        @pointerup="(e) => onPointerUp(e, tok.text)"
         :class="[
-          'cursor-pointer rounded px-0.5 transition-all hover:bg-green-950 active:bg-green-950',
+          'cursor-pointer rounded px-0.5 transition-all hover:bg-green-950 active:bg-green-950 select-none',
           savedWords && savedWords.has(normalize(tok.text)) ? 'bg-green-900 text-green-300' : '',
         ]"
       >{{ tok.text }}</span>
@@ -36,20 +35,17 @@ const tokens = computed(() =>
   }))
 )
 
-let touchStartX = 0
-let touchStartY = 0
+let startX = 0
+let startY = 0
 
-function onTouchStart(e) {
-  touchStartX = e.touches[0].clientX
-  touchStartY = e.touches[0].clientY
+function onPointerDown(e) {
+  startX = e.clientX
+  startY = e.clientY
 }
 
-function onTouchEnd(e, word) {
-  const dx = Math.abs(e.changedTouches[0].clientX - touchStartX)
-  const dy = Math.abs(e.changedTouches[0].clientY - touchStartY)
-  if (dx < 10 && dy < 10) {
-    // It's a tap, not a scroll — fire immediately and suppress the synthetic click.
-    e.preventDefault()
+function onPointerUp(e, word) {
+  // Only emit on a genuine tap (< 10px movement). Scrolls move more.
+  if (Math.abs(e.clientX - startX) < 10 && Math.abs(e.clientY - startY) < 10) {
     emit('tap', { word, sentence: props.text })
   }
 }
