@@ -103,7 +103,7 @@
         autocorrect="off"
         autocomplete="off"
         @keydown="onKey"
-        @input="inputBuffer = ''"
+        @input="onMobileInput"
       />
 
       <!-- ── Progress row ────────────────────────────────────────────────── -->
@@ -230,7 +230,7 @@ function tapWord(wordText, sentence) {
     trackWord(clean, props.lang, props.story?.title ?? '')
   }
 
-  emit('saveWord', { word: clean, lang: props.lang, sentence: sentence ?? '', story: props.story?.title ?? '' })
+  emit('saveWord', { word: clean, lang: props.lang, langName: LANGS[props.lang]?.name ?? props.lang, sentence: sentence ?? '', story: props.story?.title ?? '' })
 }
 
 // ── Reactive state ────────────────────────────────────────────────────────────
@@ -374,6 +374,34 @@ function onKey(e) {
       awaitingSpace.value = true
     }
   }
+}
+
+// ── Mobile input handler ──────────────────────────────────────────────────────
+// On mobile, the hidden input receives input events with accumulated text.
+// We need to process each character and call onKey for each one.
+function onMobileInput(e) {
+  const input = e.target
+  const text = input.value
+  
+  // Process each character in the input
+  for (const char of text) {
+    if (char === ' ' || char === '\n') {
+      // Space or Enter
+      const syntheticEvent = { key: ' ', preventDefault: () => {} }
+      onKey(syntheticEvent)
+    } else if (char === 'Backspace' || char === '\b') {
+      // Backspace
+      const syntheticEvent = { key: 'Backspace', preventDefault: () => {} }
+      onKey(syntheticEvent)
+    } else {
+      // Regular character
+      const syntheticEvent = { key: char, preventDefault: () => {} }
+      onKey(syntheticEvent)
+    }
+  }
+  
+  // Clear the input for next batch of characters
+  input.value = ''
 }
 
 // ── Character / space styling ─────────────────────────────────────────────────
