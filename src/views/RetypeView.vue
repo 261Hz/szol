@@ -65,7 +65,7 @@
       <!-- @focus/@blur = show/hide the "click to type" hint.                 -->
       <!-- break-words = long words (URLs, German compounds) wrap gracefully.  -->
       <div
-        class="leading-loose text-base select-none cursor-text outline-none border border-gray-200 rounded-lg p-4 transition-colors focus:border-emerald-400 break-words min-h-16"
+        class="leading-loose text-base cursor-text outline-none border border-gray-200 rounded-lg p-4 transition-colors focus:border-emerald-400 break-words min-h-16"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right' : ''"
         tabindex="0"
@@ -82,9 +82,10 @@
         <template v-else>
           <template v-for="(word, wi) in words" :key="wi">
             <span
-              class="cursor-pointer rounded"
+              class="cursor-pointer rounded transition-colors hover:bg-emerald-50 active:bg-emerald-50"
               :class="savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-emerald-400 decoration-dotted underline-offset-2' : ''"
               @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
+              @touchend.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
             >
               <span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span>
             </span>
@@ -97,8 +98,12 @@
       <input
         class="opacity-0 h-0 absolute"
         ref="hiddenInput"
+        type="text"
+        inputmode="text"
+        autocorrect="off"
+        autocomplete="off"
         @keydown="onKey"
-        v-model="inputBuffer"
+        @input="inputBuffer = ''"
       />
 
       <!-- ── Progress row ────────────────────────────────────────────────── -->
@@ -253,6 +258,8 @@ watch([() => props.story, mode, activeText], async () => {
   loadSentence(0)
   await nextTick()
   overlayEl.value?.focus()
+  // On mobile, also focus the hidden input to open the keyboard
+  hiddenInput.value?.focus()
 
   if (props.currentUser && props.story?.id) {
     const saved = await getProgress(props.story.id, 'retype')
