@@ -45,7 +45,7 @@
       <button
         v-if="!tatoeba.done && !tatoeba.loading"
         @click="loadTatoeba"
-        class="text-xs text-emerald-600 hover:text-emerald-700 underline transition-all"
+        class="text-xs text-emerald-700 hover:text-emerald-800 underline transition-all"
       >See examples</button>
 
       <!-- 2. Fetch in progress: show a spinner text. -->
@@ -99,7 +99,7 @@
       <button
         v-if="!wiki.done && !wiki.loading"
         @click="loadWiki"
-        class="text-xs text-emerald-600 hover:text-emerald-700 underline transition-all"
+        class="text-xs text-emerald-700 hover:text-emerald-800 underline transition-all"
       >Search Wikipedia</button>
       <div v-else-if="wiki.loading" class="text-xs text-gray-400">Loading…</div>
       <div v-else-if="wiki.results.length" class="flex flex-col gap-3">
@@ -135,7 +135,7 @@
       <button
         v-if="!wq.done && !wq.loading"
         @click="loadWikiquote"
-        class="text-xs text-emerald-600 hover:text-emerald-700 underline transition-all"
+        class="text-xs text-emerald-700 hover:text-emerald-800 underline transition-all"
       >Search Wikiquote</button>
       <div v-else-if="wq.loading" class="text-xs text-gray-400">Loading…</div>
       <div v-else-if="wq.results.length" class="flex flex-col gap-3">

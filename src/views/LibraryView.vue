@@ -9,7 +9,7 @@
         <span>📖 Curated</span>
         <span class="text-gray-400 text-xs">{{ open.curated ? '▲' : '▼' }}</span>
       </button>
-      <div v-if="open.curated" class="px-4 pb-4 pt-1">
+      <div v-if="open.curated" class="px-4 pb-4 pt-1 min-h-[200px]">
         <div v-if="loading" class="text-gray-400 text-sm text-center py-6">{{ t(lang, 'loading') }}</div>
         <div v-else-if="!curatedAndLocal.length" class="text-xs text-gray-400 py-4 text-center">No stories yet for this language.</div>
         <div v-else class="flex flex-col gap-1.5">
@@ -55,7 +55,7 @@
 
         <!-- Add-story form -->
         <div class="mt-3 border-t border-gray-100 pt-3">
-          <button @click="showAdd = !showAdd" class="text-xs text-emerald-600 hover:text-emerald-700 underline transition-all">
+          <button @click="showAdd = !showAdd" class="text-xs text-emerald-700 hover:text-emerald-800 underline transition-all">
             {{ showAdd ? 'Hide form' : '+ Add your own story' }}
           </button>
           <div v-if="showAdd" class="mt-3 flex flex-col gap-3">

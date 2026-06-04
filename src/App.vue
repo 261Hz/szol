@@ -80,17 +80,18 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, onMounted } from 'vue'
+import { ref, watch, computed, onMounted, defineAsyncComponent } from 'vue'
 
 import NavBar      from './components/NavBar.vue'
 import AuthModal   from './components/AuthModal.vue'
-import RetypeView  from './views/RetypeView.vue'
 import LibraryView from './views/LibraryView.vue'
-import VocabView   from './views/VocabView.vue'
-import SpeakView   from './views/SpeakView.vue'
-import WriteView   from './views/WriteView.vue'
-import SettingsView from './views/SettingsView.vue'
-import ChatView    from './views/ChatView.vue'
+
+const RetypeView   = defineAsyncComponent(() => import('./views/RetypeView.vue'))
+const VocabView    = defineAsyncComponent(() => import('./views/VocabView.vue'))
+const SpeakView    = defineAsyncComponent(() => import('./views/SpeakView.vue'))
+const WriteView    = defineAsyncComponent(() => import('./views/WriteView.vue'))
+const SettingsView = defineAsyncComponent(() => import('./views/SettingsView.vue'))
+const ChatView     = defineAsyncComponent(() => import('./views/ChatView.vue'))
 
 import { LANGS } from './data/stories.js'
 import { getMe, logout, onUnauthorized, getAccountVocab, saveVocabWord, removeVocabWord } from './utils/api.js'
