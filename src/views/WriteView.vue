@@ -118,7 +118,7 @@
           ref="canvas"
           class="rounded-xl border-2 border-gray-200 bg-white touch-none cursor-crosshair"
           @mousedown="startDraw" @mousemove="moveDraw" @mouseup="stopDraw" @mouseleave="stopDraw"
-          @touchstart.prevent="startDraw" @touchmove.prevent="moveDraw" @touchend="stopDraw" @touchcancel="stopDraw"
+          @touchstart="startDraw" @touchmove.prevent="moveDraw" @touchend="stopDraw" @touchcancel="stopDraw"
         />
 
         <!-- Buttons below the canvas. -->
@@ -382,6 +382,7 @@ function setupCanvas() {
   ctx = canvas.value.getContext('2d')
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0) // absolute scale — safe to call repeatedly
   ctx.strokeStyle = '#1a1a1a'
+  ctx.fillStyle   = '#1a1a1a'
   ctx.lineWidth   = 4
   ctx.lineCap     = 'round'
   ctx.lineJoin    = 'round'
@@ -403,8 +404,13 @@ function getPos(e) {
 function startDraw(e) {
   drawing = true
   const p = getPos(e)
-  ctx.beginPath()      // start a new path (line segment)
-  ctx.moveTo(p.x, p.y) // move the virtual "pen" to the starting position
+  ctx.beginPath()
+  ctx.moveTo(p.x, p.y)
+  // Draw a dot immediately so single taps leave a visible mark.
+  ctx.arc(p.x, p.y, ctx.lineWidth / 2, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.moveTo(p.x, p.y)
 }
 
 // moveDraw() extends the stroke as the user drags.
