@@ -51,10 +51,11 @@ def chat(
     payload: ChatRequest,
     current_user: models.User = Depends(oauth2.get_current_user),
 ):
-    if not settings.GOOGLE_API_KEY:
+    api_key = settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY
+    if not api_key:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Chat is not configured on this server (missing GOOGLE_API_KEY).",
+            detail="Chat is not configured on this server (missing GEMINI_API_KEY).",
         )
 
     try:
@@ -65,7 +66,7 @@ def chat(
             detail="google-generativeai package is not installed.",
         )
 
-    genai.configure(api_key=settings.GOOGLE_API_KEY)
+    genai.configure(api_key=api_key)
 
     lang_name   = _lang_name(payload.lang)
     proficiency = payload.proficiency or "intermediate"
