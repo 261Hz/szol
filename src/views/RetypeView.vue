@@ -81,14 +81,12 @@
         <!-- Each word is wrapped in a clickable span: click speaks + saves to vocab. -->
         <template v-else>
           <template v-for="(word, wi) in words" :key="wi">
-            <span
-              class="inline-block whitespace-nowrap cursor-pointer rounded transition-colors hover:bg-green-950 active:bg-green-950 select-none"
+            <button
+              type="button"
+              class="inline whitespace-nowrap rounded transition-colors hover:bg-green-950 active:bg-green-950 select-none bg-transparent border-0 p-0 m-0 font-[inherit] leading-[inherit] cursor-pointer"
               :class="savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-green-500 decoration-dotted underline-offset-2' : ''"
-              @pointerdown.stop="retypePointerStart($event)"
-              @pointerup.stop="retypePointerEnd($event, word.map(c => c.char).join(''), sentences[sentenceIdx])"
-            >
-              <span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span>
-            </span>
+              @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
+            ><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span></button>
             <span v-if="wi < words.length - 1" :class="spaceClass(wi)">{{ ' ' }}</span>
           </template>
         </template>
@@ -462,18 +460,4 @@ function focusMobileInput() {
   hiddenInput.value?.focus()
 }
 
-// ── Pointer-event word tap (works in all WebViews) ────────────────────────────
-
-let _retypeStartX = 0, _retypeStartY = 0
-
-function retypePointerStart(e) {
-  _retypeStartX = e.clientX
-  _retypeStartY = e.clientY
-}
-
-function retypePointerEnd(e, wordText, sentence) {
-  if (Math.abs(e.clientX - _retypeStartX) < 10 && Math.abs(e.clientY - _retypeStartY) < 10) {
-    tapWord(wordText, sentence)
-  }
-}
 </script>
