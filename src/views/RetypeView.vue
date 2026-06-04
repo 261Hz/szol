@@ -82,7 +82,7 @@
         <template v-else>
           <template v-for="(word, wi) in words" :key="wi">
             <span
-              class="cursor-pointer rounded transition-colors hover:bg-emerald-50 active:bg-emerald-50"
+              class="inline-block whitespace-nowrap cursor-pointer rounded transition-colors hover:bg-emerald-50 active:bg-emerald-50"
               :class="savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-emerald-400 decoration-dotted underline-offset-2' : ''"
               @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
             >

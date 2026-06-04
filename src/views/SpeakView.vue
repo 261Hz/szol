@@ -59,7 +59,7 @@
         <span
           v-for="(word, i) in sentenceWords"
           :key="i"
-          class="mr-1 transition-colors"
+          class="inline-block whitespace-nowrap mr-1 transition-colors"
           :class="scored
             ? (wordStatuses[i] === 'correct' ? 'text-emerald-600 font-medium' : 'text-red-500')
             : ''"
