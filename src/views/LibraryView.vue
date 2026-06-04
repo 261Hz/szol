@@ -4,80 +4,80 @@
   <div class="flex flex-col gap-2">
 
     <!-- ─── 📖 CURATED ─── -->
-    <div class="border border-gray-200 rounded-lg overflow-hidden">
-      <button @click="toggle('curated')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all">
+    <div class="border border-gray-700 rounded-lg overflow-hidden">
+      <button @click="toggle('curated')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
         <span>📖 Curated</span>
-        <span class="text-gray-400 text-xs">{{ open.curated ? '▲' : '▼' }}</span>
+        <span class="text-gray-500 text-xs">{{ open.curated ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.curated" class="px-4 pb-4 pt-1 min-h-[200px]">
-        <div v-if="loading" class="text-gray-400 text-sm text-center py-6">{{ t(lang, 'loading') }}</div>
-        <div v-else-if="!curatedAndLocal.length" class="text-xs text-gray-400 py-4 text-center">No stories yet for this language.</div>
+        <div v-if="loading" class="text-gray-500 text-sm text-center py-6">{{ t(lang, 'loading') }}</div>
+        <div v-else-if="!curatedAndLocal.length" class="text-xs text-gray-500 py-4 text-center">No stories yet for this language.</div>
         <div v-else class="flex flex-col gap-1.5">
           <div
             v-for="story in curatedAndLocal"
             :key="story.id"
             :class="['rounded-lg border transition-all overflow-hidden',
-              current?.id === story.id ? 'border-emerald-400' : 'border-gray-200']"
+              current?.id === story.id ? 'border-green-600' : 'border-gray-700']"
           >
             <!-- Compact header row — click to expand/collapse -->
             <button
               @click="expandedStory = expandedStory === story.id ? null : story.id"
-              class="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-gray-50 transition-all"
+              class="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-gray-800 transition-all"
             >
               <span
                 class="font-medium text-sm break-words leading-snug"
                 :dir="isRTL(story.lang) ? 'rtl' : 'ltr'"
               >{{ story.title }}</span>
-              <span class="text-gray-300 text-xs ml-2 flex-shrink-0">{{ expandedStory === story.id ? '▲' : '▼' }}</span>
+              <span class="text-gray-600 text-xs ml-2 flex-shrink-0">{{ expandedStory === story.id ? '▲' : '▼' }}</span>
             </button>
 
             <!-- Expanded: metadata + Read button -->
             <div
               v-if="expandedStory === story.id"
-              class="px-3 pb-3 pt-1 border-t border-gray-100 flex flex-col gap-2"
-              :class="current?.id === story.id ? 'bg-emerald-50' : 'bg-gray-50'"
+              class="px-3 pb-3 pt-1 border-t border-gray-800 flex flex-col gap-2"
+              :class="current?.id === story.id ? 'bg-green-950' : 'bg-gray-900'"
             >
               <div class="flex gap-2 flex-wrap">
-                <span class="text-xs text-gray-400">{{ LANGS[story.lang]?.name }}</span>
-                <span class="text-xs text-gray-400">· {{ wordCount(story) }} {{ t(lang, 'words') }}</span>
-                <span v-if="story.author" class="text-xs text-gray-400">· {{ story.author }}</span>
-                <span v-if="story.sequence_order" class="text-xs text-emerald-500">{{ t(lang, 'curated') }}</span>
-                <span v-if="story.local" class="text-xs text-gray-400">{{ t(lang, 'local') }}</span>
+                <span class="text-xs text-gray-500">{{ LANGS[story.lang]?.name }}</span>
+                <span class="text-xs text-gray-500">· {{ wordCount(story) }} {{ t(lang, 'words') }}</span>
+                <span v-if="story.author" class="text-xs text-gray-500">· {{ story.author }}</span>
+                <span v-if="story.sequence_order" class="text-xs text-green-400">{{ t(lang, 'curated') }}</span>
+                <span v-if="story.local" class="text-xs text-gray-500">{{ t(lang, 'local') }}</span>
                 <span v-if="story.franco" class="text-xs text-orange-400">franco</span>
               </div>
               <button
                 @click="$emit('load', story)"
-                class="self-start text-xs px-3 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-all"
+                class="self-start text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all"
               >Read →</button>
             </div>
           </div>
         </div>
 
         <!-- Add-story form -->
-        <div class="mt-3 border-t border-gray-100 pt-3">
-          <button @click="showAdd = !showAdd" class="text-xs text-emerald-700 hover:text-emerald-800 underline transition-all">
+        <div class="mt-3 border-t border-gray-800 pt-3">
+          <button @click="showAdd = !showAdd" class="text-xs text-green-300 hover:text-green-200 underline transition-all">
             {{ showAdd ? 'Hide form' : '+ Add your own story' }}
           </button>
           <div v-if="showAdd" class="mt-3 flex flex-col gap-3">
-            <input v-model="customTitle" type="text" :placeholder="t(lang, 'titleHere')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400" />
-            <textarea v-model="customText" rows="4" :placeholder="t(lang, 'pasteStory')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 resize-none" />
-            <input v-if="lang === 'arz'" v-model="customFranco" type="text" placeholder="Franco transliteration (optional)…" dir="ltr" class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400" />
-            <div v-if="showShareForm" class="flex flex-col gap-2 border-t border-gray-100 pt-3">
-              <div class="text-xs text-gray-500">{{ t(lang, 'shareRequired') }}</div>
-              <input v-model="customAuthor" type="text" :placeholder="t(lang, 'authorHere')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400" />
-              <input v-model="customSource" type="text" :placeholder="t(lang, 'sourceHere')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400" />
+            <input v-model="customTitle" type="text" :placeholder="t(lang, 'titleHere')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
+            <textarea v-model="customText" rows="4" :placeholder="t(lang, 'pasteStory')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600 resize-none" />
+            <input v-if="lang === 'arz'" v-model="customFranco" type="text" placeholder="Franco transliteration (optional)…" dir="ltr" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
+            <div v-if="showShareForm" class="flex flex-col gap-2 border-t border-gray-800 pt-3">
+              <div class="text-xs text-gray-400">{{ t(lang, 'shareRequired') }}</div>
+              <input v-model="customAuthor" type="text" :placeholder="t(lang, 'authorHere')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
+              <input v-model="customSource" type="text" :placeholder="t(lang, 'sourceHere')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
             </div>
             <div class="flex items-center justify-end gap-2">
-              <button @click="addLocal" class="text-sm px-4 py-1.5 rounded-md border border-gray-200 hover:border-emerald-400 transition-all">{{ t(lang, 'saveLocal') }}</button>
+              <button @click="addLocal" class="text-sm px-4 py-1.5 rounded-md border border-gray-700 hover:border-green-600 transition-all">{{ t(lang, 'saveLocal') }}</button>
               <!-- Share Global requires login -->
               <button
                 v-if="currentUser"
                 @click="shareGlobal"
                 :disabled="submitting"
-                class="text-sm px-4 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
+                class="text-sm px-4 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all"
               >{{ submitting ? t(lang, 'sharing') : t(lang, 'shareGlobal') }}</button>
-              <span v-else class="text-xs text-gray-400">
-                <button @click="$emit('openAuth')" class="underline hover:text-emerald-500 transition-all">Login</button>
+              <span v-else class="text-xs text-gray-500">
+                <button @click="$emit('openAuth')" class="underline hover:text-green-400 transition-all">Login</button>
                 to share with the community
               </span>
             </div>
@@ -87,19 +87,19 @@
     </div>
 
     <!-- ─── 🌍 TODAY ─── -->
-    <div class="border border-gray-200 rounded-lg overflow-hidden">
-      <button @click="toggle('today')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all">
+    <div class="border border-gray-700 rounded-lg overflow-hidden">
+      <button @click="toggle('today')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
         <span>🌍 Today</span>
-        <span class="text-gray-400 text-xs">{{ open.today ? '▲' : '▼' }}</span>
+        <span class="text-gray-500 text-xs">{{ open.today ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.today" class="px-4 pb-4 pt-1">
-        <div v-if="todayLoading" class="text-xs text-gray-400 py-4 text-center">Loading…</div>
+        <div v-if="todayLoading" class="text-xs text-gray-500 py-4 text-center">Loading…</div>
         <div v-else-if="todayArticle" class="flex flex-col gap-3">
           <div class="flex gap-3 items-start">
             <img v-if="todayArticle.thumbnail" :src="todayArticle.thumbnail" class="w-20 h-20 object-cover rounded-md flex-shrink-0" />
             <div class="flex flex-col gap-1 flex-1 min-w-0">
-              <div class="font-semibold text-sm text-gray-800">{{ todayArticle.title }}</div>
-              <div class="text-xs text-gray-500 line-clamp-4">
+              <div class="font-semibold text-sm text-gray-100">{{ todayArticle.title }}</div>
+              <div class="text-xs text-gray-400 line-clamp-4">
             <ClickableText
               :text="todayArticle.extract"
               :lang="lang"
@@ -109,23 +109,23 @@
           </div>
             </div>
           </div>
-          <button @click="importWikipediaArticle(todayArticle)" class="self-start text-xs px-3 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-all">Import as Story</button>
+          <button @click="importWikipediaArticle(todayArticle)" class="self-start text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">Import as Story</button>
         </div>
-        <div v-else class="text-xs text-gray-400 py-4 text-center">No featured article available for this language today.</div>
+        <div v-else class="text-xs text-gray-500 py-4 text-center">No featured article available for this language today.</div>
       </div>
     </div>
 
     <!-- ─── 📅 ON THIS DAY ─── -->
-    <div class="border border-gray-200 rounded-lg overflow-hidden">
-      <button @click="toggle('onthisday')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all">
+    <div class="border border-gray-700 rounded-lg overflow-hidden">
+      <button @click="toggle('onthisday')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
         <span>📅 On This Day</span>
-        <span class="text-gray-400 text-xs">{{ open.onthisday ? '▲' : '▼' }}</span>
+        <span class="text-gray-500 text-xs">{{ open.onthisday ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.onthisday" class="px-4 pb-4 pt-1">
-        <div v-if="otdLoading" class="text-xs text-gray-400 py-4 text-center">Loading…</div>
+        <div v-if="otdLoading" class="text-xs text-gray-500 py-4 text-center">Loading…</div>
         <div v-else-if="onThisDay.length" class="flex flex-col gap-2">
-          <div v-for="(ev, i) in onThisDay" :key="i" class="text-xs text-gray-600 leading-snug">
-            <span class="font-medium text-gray-400">{{ ev.year }}</span> —
+          <div v-for="(ev, i) in onThisDay" :key="i" class="text-xs text-gray-300 leading-snug">
+            <span class="font-medium text-gray-500">{{ ev.year }}</span> —
             <ClickableText
               :text="ev.text"
               :lang="lang"
@@ -133,33 +133,33 @@
               @tap="({ word, sentence }) => saveFromLibrary(word, sentence)"
             />
           </div>
-          <button @click="importOnThisDay" class="self-start mt-2 text-xs px-3 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-all">Import All as Story</button>
+          <button @click="importOnThisDay" class="self-start mt-2 text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">Import All as Story</button>
         </div>
-        <div v-else class="text-xs text-gray-400 py-4 text-center">No "On This Day" events available for this language.</div>
+        <div v-else class="text-xs text-gray-500 py-4 text-center">No "On This Day" events available for this language.</div>
       </div>
     </div>
 
     <!-- ─── 🗺️ TRAVEL ─── -->
-    <div class="border border-gray-200 rounded-lg overflow-hidden">
-      <button @click="toggle('travel')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all">
+    <div class="border border-gray-700 rounded-lg overflow-hidden">
+      <button @click="toggle('travel')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
         <span>🗺️ Travel</span>
-        <span class="text-gray-400 text-xs">{{ open.travel ? '▲' : '▼' }}</span>
+        <span class="text-gray-500 text-xs">{{ open.travel ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.travel" class="px-4 pb-4 pt-1">
         <div class="flex gap-2 mb-3">
-          <input v-model="travelQuery" type="text" placeholder="Search destinations…" @keydown.enter="searchTravel" class="flex-1 border border-gray-200 rounded-md px-3 py-1.5 text-sm outline-none focus:border-emerald-400" />
-          <button @click="searchTravel" :disabled="travelLoading" class="text-sm px-3 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all">{{ travelLoading ? '…' : 'Search' }}</button>
+          <input v-model="travelQuery" type="text" placeholder="Search destinations…" @keydown.enter="searchTravel" class="flex-1 border border-gray-700 rounded-md px-3 py-1.5 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
+          <button @click="searchTravel" :disabled="travelLoading" class="text-sm px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ travelLoading ? '…' : 'Search' }}</button>
         </div>
         <div class="flex flex-col gap-1.5">
           <div
             v-for="r in travelResults"
             :key="r.pageid"
-            class="border border-gray-100 rounded-md p-2.5 hover:border-emerald-300 transition-all"
+            class="border border-gray-800 rounded-md p-2.5 hover:border-green-700 transition-all"
           >
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
-                <div class="text-sm font-medium text-gray-700">{{ r.title }}</div>
-                <div class="text-xs text-gray-400 mt-0.5 break-words">
+                <div class="text-sm font-medium text-gray-200">{{ r.title }}</div>
+                <div class="text-xs text-gray-500 mt-0.5 break-words">
                   <ClickableText
                     :text="r.snippet.replace(/<[^>]+>/g, '')"
                     :lang="lang"
@@ -168,29 +168,29 @@
                   />
                 </div>
               </div>
-              <button @click="importWikivoyage(r)" :disabled="travelImporting === r.pageid" class="flex-shrink-0 text-xs px-2.5 py-1 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all">{{ travelImporting === r.pageid ? '…' : 'Import' }}</button>
+              <button @click="importWikivoyage(r)" :disabled="travelImporting === r.pageid" class="flex-shrink-0 text-xs px-2.5 py-1 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ travelImporting === r.pageid ? '…' : 'Import' }}</button>
             </div>
           </div>
-          <div v-if="!travelResults.length && !travelLoading" class="text-xs text-gray-400 text-center py-2">Search Wikivoyage for a destination to read about.</div>
+          <div v-if="!travelResults.length && !travelLoading" class="text-xs text-gray-500 text-center py-2">Search Wikivoyage for a destination to read about.</div>
         </div>
       </div>
     </div>
 
     <!-- ─── 🔗 IMPORT URL ─── -->
-    <div class="border border-gray-200 rounded-lg overflow-hidden">
-      <button @click="toggle('import')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all">
+    <div class="border border-gray-700 rounded-lg overflow-hidden">
+      <button @click="toggle('import')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
         <span>🔗 Import URL</span>
-        <span class="text-gray-400 text-xs">{{ open.import ? '▲' : '▼' }}</span>
+        <span class="text-gray-500 text-xs">{{ open.import ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.import" class="px-4 pb-4 pt-1">
         <div class="flex gap-2 mb-3">
-          <input v-model="importUrl" type="url" placeholder="https://…" @keydown.enter="fetchArticle" class="flex-1 border border-gray-200 rounded-md px-3 py-1.5 text-sm outline-none focus:border-emerald-400" />
-          <button @click="fetchArticle" :disabled="importLoading" class="text-sm px-3 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all">{{ importLoading ? '…' : 'Fetch' }}</button>
+          <input v-model="importUrl" type="url" placeholder="https://…" @keydown.enter="fetchArticle" class="flex-1 border border-gray-700 rounded-md px-3 py-1.5 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
+          <button @click="fetchArticle" :disabled="importLoading" class="text-sm px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ importLoading ? '…' : 'Fetch' }}</button>
         </div>
         <div v-if="importError" class="text-xs text-red-400 mb-2">{{ importError }}</div>
-        <div v-if="importPreview" class="border border-gray-200 rounded-md p-3 flex flex-col gap-2">
-          <div class="text-sm font-semibold text-gray-700">{{ importPreview.title }}</div>
-          <div class="text-xs text-gray-500 break-words">
+        <div v-if="importPreview" class="border border-gray-700 rounded-md p-3 flex flex-col gap-2">
+          <div class="text-sm font-semibold text-gray-200">{{ importPreview.title }}</div>
+          <div class="text-xs text-gray-400 break-words">
             <ClickableText
               :text="importPreview.text.slice(0, 400) + '…'"
               :lang="lang"
@@ -199,35 +199,35 @@
             />
           </div>
           <div class="flex gap-2">
-            <button @click="confirmImport" class="text-xs px-3 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-all">Save as Story</button>
-            <button @click="importPreview = null; importError = ''" class="text-xs px-3 py-1.5 rounded-md border border-gray-200 hover:border-red-300 text-gray-400 hover:text-red-400 transition-all">Discard</button>
+            <button @click="confirmImport" class="text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">Save as Story</button>
+            <button @click="importPreview = null; importError = ''" class="text-xs px-3 py-1.5 rounded-md border border-gray-700 hover:border-red-600 text-gray-500 hover:text-red-400 transition-all">Discard</button>
           </div>
         </div>
       </div>
     </div>
 
     <!-- ─── ⭐ BROWSE BY TOPIC ─── -->
-    <div class="border border-gray-200 rounded-lg overflow-hidden">
-      <button @click="toggle('topics')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all">
+    <div class="border border-gray-700 rounded-lg overflow-hidden">
+      <button @click="toggle('topics')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
         <span>⭐ Browse by Topic</span>
-        <span class="text-gray-400 text-xs">{{ open.topics ? '▲' : '▼' }}</span>
+        <span class="text-gray-500 text-xs">{{ open.topics ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.topics" class="px-4 pb-4 pt-1">
-        <div v-if="!Object.keys(visibleTopics).length" class="text-xs text-gray-400 text-center py-2">No topic sources available for this language. Try English.</div>
+        <div v-if="!Object.keys(visibleTopics).length" class="text-xs text-gray-500 text-center py-2">No topic sources available for this language. Try English.</div>
         <div v-else class="flex flex-col gap-4">
           <div v-for="(sources, topic) in visibleTopics" :key="topic">
-            <div class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">{{ topic }}</div>
+            <div class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">{{ topic }}</div>
             <div class="flex flex-col gap-1.5">
               <div
                 v-for="src in sources"
                 :key="src.url"
-                class="flex items-center justify-between border border-gray-100 rounded-md px-3 py-2 hover:border-emerald-200 transition-all"
+                class="flex items-center justify-between border border-gray-800 rounded-md px-3 py-2 hover:border-green-800 transition-all"
               >
                 <div>
-                  <div class="text-sm text-gray-700">{{ src.name }}</div>
-                  <div class="text-xs text-gray-400">{{ LANGS[src.lang]?.name ?? src.lang }}</div>
+                  <div class="text-sm text-gray-200">{{ src.name }}</div>
+                  <div class="text-xs text-gray-500">{{ LANGS[src.lang]?.name ?? src.lang }}</div>
                 </div>
-                <button @click="importSuggestedSource(src)" :disabled="topicImporting === src.url" class="text-xs px-2.5 py-1 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all">{{ topicImporting === src.url ? '…' : 'Import' }}</button>
+                <button @click="importSuggestedSource(src)" :disabled="topicImporting === src.url" class="text-xs px-2.5 py-1 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ topicImporting === src.url ? '…' : 'Import' }}</button>
               </div>
             </div>
           </div>
@@ -236,57 +236,57 @@
     </div>
 
     <!-- ─── 🎬 SUBTITLES ─── -->
-    <div class="border border-gray-200 rounded-lg overflow-hidden">
-      <button @click="toggle('subtitles')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all">
+    <div class="border border-gray-700 rounded-lg overflow-hidden">
+      <button @click="toggle('subtitles')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
         <span>🎬 Subtitles</span>
-        <span class="text-gray-400 text-xs">{{ open.subtitles ? '▲' : '▼' }}</span>
+        <span class="text-gray-500 text-xs">{{ open.subtitles ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.subtitles" class="px-4 pb-4 pt-1">
         <div class="flex gap-2 mb-3">
-          <input v-model="subsQuery" type="text" placeholder="Movie or show title…" @keydown.enter="searchSubtitles" class="flex-1 border border-gray-200 rounded-md px-3 py-1.5 text-sm outline-none focus:border-emerald-400" />
-          <button @click="searchSubtitles" :disabled="subsLoading" class="text-sm px-3 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all">{{ subsLoading ? '…' : 'Search' }}</button>
+          <input v-model="subsQuery" type="text" placeholder="Movie or show title…" @keydown.enter="searchSubtitles" class="flex-1 border border-gray-700 rounded-md px-3 py-1.5 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
+          <button @click="searchSubtitles" :disabled="subsLoading" class="text-sm px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ subsLoading ? '…' : 'Search' }}</button>
         </div>
         <div class="flex flex-col gap-1.5">
           <div
             v-for="sub in subsResults"
             :key="sub.id"
-            class="border border-gray-100 rounded-md p-2.5 hover:border-emerald-300 transition-all"
+            class="border border-gray-800 rounded-md p-2.5 hover:border-green-700 transition-all"
           >
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
-                <div class="text-sm font-medium text-gray-700 break-words">{{ subTitle(sub) }}</div>
-                <div class="text-xs text-gray-400 mt-0.5">{{ sub.attributes?.language }} · {{ sub.attributes?.release }}</div>
+                <div class="text-sm font-medium text-gray-200 break-words">{{ subTitle(sub) }}</div>
+                <div class="text-xs text-gray-500 mt-0.5">{{ sub.attributes?.language }} · {{ sub.attributes?.release }}</div>
               </div>
-              <button @click="downloadSubtitle(sub)" :disabled="subsDownloading === sub.id" class="flex-shrink-0 text-xs px-2.5 py-1 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all">{{ subsDownloading === sub.id ? '…' : 'Import' }}</button>
+              <button @click="downloadSubtitle(sub)" :disabled="subsDownloading === sub.id" class="flex-shrink-0 text-xs px-2.5 py-1 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ subsDownloading === sub.id ? '…' : 'Import' }}</button>
             </div>
           </div>
-          <div v-if="!subsResults.length && !subsLoading" class="text-xs text-gray-400 text-center py-2">Search for a movie or show to import subtitles as a reading story.<br>Requires OPENSUBTITLES_API_KEY environment variable.</div>
+          <div v-if="!subsResults.length && !subsLoading" class="text-xs text-gray-500 text-center py-2">Search for a movie or show to import subtitles as a reading story.<br>Requires OPENSUBTITLES_API_KEY environment variable.</div>
         </div>
       </div>
     </div>
 
     <!-- ─── 👥 COMMUNITY ─── -->
-    <div class="border border-gray-200 rounded-lg overflow-hidden">
-      <button @click="toggle('community')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all">
+    <div class="border border-gray-700 rounded-lg overflow-hidden">
+      <button @click="toggle('community')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
         <span>👥 Community</span>
-        <span class="text-gray-400 text-xs">{{ open.community ? '▲' : '▼' }}</span>
+        <span class="text-gray-500 text-xs">{{ open.community ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.community" class="px-4 pb-4 pt-1">
-        <div v-if="loading" class="text-xs text-gray-400 py-4 text-center">Loading…</div>
-        <div v-else-if="!filteredCommunity.length" class="text-xs text-gray-400 py-4 text-center">No community stories for this language yet.</div>
+        <div v-if="loading" class="text-xs text-gray-500 py-4 text-center">Loading…</div>
+        <div v-else-if="!filteredCommunity.length" class="text-xs text-gray-500 py-4 text-center">No community stories for this language yet.</div>
         <div v-else class="flex flex-col gap-2">
           <div
             v-for="story in filteredCommunity"
             :key="story.id"
             @click="$emit('load', story)"
             :class="['p-3 rounded-lg border cursor-pointer transition-all',
-              current?.id === story.id ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 hover:border-emerald-300']"
+              current?.id === story.id ? 'border-green-600 bg-green-950' : 'border-gray-700 hover:border-green-700']"
           >
             <div class="font-medium text-sm break-words" :class="{ 'text-right': isRTL(story.lang) }" :dir="isRTL(story.lang) ? 'rtl' : 'ltr'">{{ story.title }}</div>
             <div class="flex gap-2 mt-1 flex-wrap">
-              <span class="text-xs text-gray-400">{{ LANGS[story.lang]?.name }}</span>
-              <span class="text-xs text-gray-400">· {{ wordCount(story) }} {{ t(lang, 'words') }}</span>
-              <span v-if="story.author" class="text-xs text-gray-400">· {{ story.author }}</span>
+              <span class="text-xs text-gray-500">{{ LANGS[story.lang]?.name }}</span>
+              <span class="text-xs text-gray-500">· {{ wordCount(story) }} {{ t(lang, 'words') }}</span>
+              <span v-if="story.author" class="text-xs text-gray-500">· {{ story.author }}</span>
               <span class="text-xs text-blue-400">{{ t(lang, 'community') }}</span>
             </div>
           </div>

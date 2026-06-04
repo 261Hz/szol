@@ -5,7 +5,7 @@
   <div class="flex flex-col gap-6">
 
     <!-- Shown when no story is loaded yet (user hasn't picked one from the Library). -->
-    <div v-if="!story" class="text-gray-400 text-sm text-center py-12">
+    <div v-if="!story" class="text-gray-500 text-sm text-center py-12">
       {{ t(lang, 'noStory') }}
     </div>
 
@@ -18,7 +18,7 @@
           <div class="font-semibold text-lg" :dir="isRTL(lang) ? 'rtl' : 'ltr'">
             {{ story.title }}
           </div>
-          <div class="text-xs text-gray-400 mt-0.5">
+          <div class="text-xs text-gray-500 mt-0.5">
             {{ LANGS[lang]?.name }}
             <span v-if="story.author"> · {{ story.author }}</span>
             <span v-if="story.source"> · {{ story.source }}</span>
@@ -34,12 +34,12 @@
               'text-xs px-3 py-1 rounded-full border transition-all',
               francoOn
                 ? 'bg-orange-400 text-white border-orange-400'
-                : 'border-gray-200 text-gray-500 hover:border-orange-300'
+                : 'border-gray-700 text-gray-400 hover:border-orange-300'
             ]"
           >Franco</button>
           <button
             @click="$emit('go', 'retype')"
-            class="text-xs px-3 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-all"
+            class="text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all"
           >{{ t(lang, 'retype') }} →</button>
         </div>
       </div>
@@ -55,8 +55,8 @@
             v-if="token.type === 'word'"
             @click="tap(token.text)"
             :class="[
-              'cursor-pointer rounded px-0.5 transition-all hover:bg-emerald-50',
-              savedWords.has(normalize(token.text)) ? 'bg-emerald-100 text-emerald-700' : ''
+              'cursor-pointer rounded px-0.5 transition-all hover:bg-green-950',
+              savedWords.has(normalize(token.text)) ? 'bg-green-900 text-green-300' : ''
             ]"
           >{{ token.text }}</span>
           <span v-else>{{ token.text }}</span>
@@ -66,14 +66,14 @@
       <!-- Franco transliteration line -->
       <div
         v-if="francoOn && story.franco"
-        class="text-sm text-gray-400 border-t border-gray-100 pt-3 break-words"
+        class="text-sm text-gray-500 border-t border-gray-800 pt-3 break-words"
         dir="ltr"
       >{{ story.franco }}</div>
 
       <!-- Word panel: appears below the story when a word has been tapped. -->
       <div
         v-if="tapped"
-        class="border border-emerald-300 rounded-lg p-4 bg-emerald-50 flex flex-col gap-2"
+        class="border border-green-700 rounded-lg p-4 bg-green-950 flex flex-col gap-2"
       >
         <!-- Top row: the tapped word (large) + Save button. -->
         <div class="flex items-start justify-between">
@@ -81,14 +81,14 @@
           <button
             @click="saveWord"
             :disabled="savedWords.has(normalize(tapped.word))"
-            class="text-xs px-3 py-1.5 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
+            class="text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all"
           >{{ savedWords.has(normalize(tapped.word)) ? t(lang, 'saved') : t(lang, 'save') }}</button>
         </div>
 
         <!-- Context sentence -->
         <div
           v-if="tapped.sentence"
-          class="text-sm text-gray-500 italic"
+          class="text-sm text-gray-400 italic"
           :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         >{{ tapped.sentence }}</div>
 

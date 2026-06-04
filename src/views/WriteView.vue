@@ -7,7 +7,7 @@
   <div class="flex flex-col gap-6">
 
     <!-- Shown when no story is selected. -->
-    <div v-if="!story" class="text-gray-400 text-sm text-center py-12">
+    <div v-if="!story" class="text-gray-500 text-sm text-center py-12">
       {{ t(lang, 'noStory') }}
     </div>
 
@@ -18,10 +18,10 @@
       <div class="flex items-center justify-between">
         <div>
           <div class="font-semibold text-lg">{{ story.title }}</div>
-          <div class="text-xs text-gray-400">{{ LANGS[lang]?.name }}</div>
+          <div class="text-xs text-gray-500">{{ LANGS[lang]?.name }}</div>
         </div>
         <!-- Progress counter: different text for CJK (characters) vs others (sentence/word). -->
-        <div class="text-xs text-gray-400 font-medium">
+        <div class="text-xs text-gray-500 font-medium">
           <!-- isCJK = true for Chinese and Japanese. Shows "char 5 / 120". -->
           <span v-if="isCJK">{{ unitIdx + 1 }} / {{ cjkChars.length }}</span>
           <!-- For other languages: shows "S2/5 · W3/8" (sentence 2 of 5, word 3 of 8). -->
@@ -30,10 +30,10 @@
       </div>
 
       <!-- Progress bar showing overall completion through the story. -->
-      <div class="h-1 bg-gray-100 rounded-full overflow-hidden">
+      <div class="h-1 bg-gray-800 rounded-full overflow-hidden">
         <!-- progressPct is a computed number 0–100. -->
         <div
-          class="h-full bg-emerald-400 transition-all duration-300"
+          class="h-full bg-green-600 transition-all duration-300"
           :style="{ width: progressPct + '%' }"
         />
       </div>
@@ -45,25 +45,25 @@
       <div v-if="isCJK" class="flex flex-col items-center gap-4">
         <!-- Large faint preview of the character above the drawing area. -->
         <!-- "select-none" prevents the character from being accidentally selected/highlighted. -->
-        <div class="text-5xl font-light text-gray-300 select-none">{{ currentUnit }}</div>
+        <div class="text-5xl font-light text-gray-600 select-none">{{ currentUnit }}</div>
 
         <!-- Container div where Hanzi Writer injects its SVG canvas. -->
         <!-- ref="hanziContainer" gives us a JavaScript reference to this DOM element. -->
         <!-- "style" here sets inline CSS (fixed pixel size required by Hanzi Writer). -->
         <div
           ref="hanziContainer"
-          class="rounded-xl border border-gray-200 bg-gray-50"
+          class="rounded-xl border border-gray-700 bg-gray-900"
           style="width:220px;height:220px"
         />
 
         <!-- Shown when Hanzi Writer can't find stroke data for this character. -->
         <!-- Not all Chinese/Japanese characters are in the Hanzi Writer dataset. -->
-        <div v-if="charError" class="text-xs text-gray-400">
+        <div v-if="charError" class="text-xs text-gray-500">
           Stroke data not available for this character.
         </div>
 
         <!-- Green success message after completing the quiz. -->
-        <div v-if="quizDone" class="text-emerald-600 font-medium text-sm">✓ Complete!</div>
+        <div v-if="quizDone" class="text-green-400 font-medium text-sm">✓ Complete!</div>
 
         <!-- Control buttons for the Hanzi Writer. -->
         <div class="flex gap-3">
@@ -72,14 +72,14 @@
           <button
             @click="animate"
             :disabled="!!charError"
-            class="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-all"
+            class="px-4 py-2 text-sm rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 disabled:opacity-30 transition-all"
           >Animate</button>
           <!-- Practice: starts the interactive tracing quiz (you draw over the character). -->
           <!-- Disabled while a quiz is already in progress. -->
           <button
             @click="startQuiz"
             :disabled="!!charError || quizActive"
-            class="px-4 py-2 text-sm rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
+            class="px-4 py-2 text-sm rounded-lg bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all"
           >{{ quizActive ? 'Practising…' : 'Practice' }}</button>
         </div>
       </div>
@@ -94,7 +94,7 @@
         <!-- v-if="isLatin" = shown only for Latin-alphabet languages (Spanish, French, etc.). -->
         <div
           v-if="isLatin"
-          class="text-xs text-gray-400 text-center px-4 py-2 bg-gray-50 rounded-lg border border-gray-100 w-full"
+          class="text-xs text-gray-500 text-center px-4 py-2 bg-gray-900 rounded-lg border border-gray-800 w-full"
         >
           Handwriting practice is most useful for non-Latin scripts, but you can still trace here freely.
         </div>
@@ -116,7 +116,7 @@
         <!-- .prevent on touch events calls event.preventDefault() to stop page scrolling while drawing. -->
         <canvas
           ref="canvas"
-          class="rounded-xl border-2 border-gray-200 bg-white touch-none cursor-crosshair"
+          class="rounded-xl border-2 border-gray-700 bg-white touch-none cursor-crosshair"
           @mousedown="startDraw" @mousemove="moveDraw" @mouseup="stopDraw" @mouseleave="stopDraw"
           @touchstart="startDraw" @touchmove.prevent="moveDraw" @touchend="stopDraw" @touchcancel="stopDraw"
         />
@@ -126,7 +126,7 @@
           <!-- Clear button: wipes the canvas so the user can try again. -->
           <button
             @click="clearCanvas"
-            class="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all"
+            class="px-4 py-2 text-sm rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition-all"
           >Clear</button>
           <!-- Self-report buttons: only shown for non-Latin scripts. -->
           <!-- Latin doesn't have correct/wrong because there's no automatic check. -->
@@ -135,7 +135,7 @@
             <!-- ✓ Correct: user decides they wrote it right. -->
             <button
               @click="report(true)"
-              class="px-4 py-2 text-sm rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-all"
+              class="px-4 py-2 text-sm rounded-lg bg-green-700 text-white hover:bg-green-600 transition-all"
             >✓ Correct</button>
             <!-- ✗ Wrong: user decides they need more practice. -->
             <button
@@ -152,7 +152,7 @@
         <div
           v-if="selfReport !== null"
           class="text-sm font-medium"
-          :class="selfReport ? 'text-emerald-600' : 'text-red-500'"
+          :class="selfReport ? 'text-green-400' : 'text-red-500'"
         >{{ selfReport ? 'Marked correct!' : 'Keep practising.' }}</div>
 
       </div>
@@ -164,13 +164,13 @@
         <button
           @click="goPrev"
           :disabled="isFirst"
-          class="text-sm px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-all"
+          class="text-sm px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 disabled:opacity-30 transition-all"
         >← Back</button>
         <!-- Next button: disabled on the very last item (shows "Done ✓" then). -->
         <button
           @click="goNext"
           :disabled="isLast"
-          class="text-sm px-4 py-1.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
+          class="text-sm px-4 py-1.5 rounded-lg bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all"
         >{{ isLast ? 'Done ✓' : 'Next →' }}</button>
       </div>
 

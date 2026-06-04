@@ -3,14 +3,14 @@
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
     @click.self="$emit('close')"
   >
-    <div class="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 flex flex-col gap-4">
+    <div class="bg-gray-900 rounded-xl shadow-xl border border-gray-700 w-full max-w-sm mx-4 p-6 flex flex-col gap-4">
 
       <!-- Header -->
       <div class="flex items-center justify-between">
-        <div class="font-semibold text-gray-800">
-          Sz<span class="text-emerald-500">ó</span>l account
+        <div class="font-semibold text-gray-100">
+          Sz<span class="text-green-400">ó</span>l account
         </div>
-        <button @click="$emit('close')" class="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+        <button @click="$emit('close')" class="text-gray-500 hover:text-gray-300 text-lg leading-none">✕</button>
       </div>
 
       <!-- Tab bar -->
@@ -21,7 +21,7 @@
           @click="switchTab(tab)"
           :class="[
             'px-3 py-1 text-sm rounded-md transition-all',
-            activeTab === tab ? 'bg-emerald-500 text-white' : 'text-gray-500 hover:text-gray-800'
+            activeTab === tab ? 'bg-green-700 text-white' : 'text-gray-400 hover:text-gray-100'
           ]"
         >{{ tab }}</button>
       </div>
@@ -36,7 +36,7 @@
           placeholder="Email"
           required
           autocomplete="email"
-          class="border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 transition-all"
+          class="border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600 transition-all"
         />
         <!-- Password with show/hide toggle -->
         <div class="relative">
@@ -48,12 +48,12 @@
             placeholder="Password"
             required
             autocomplete="current-password"
-            class="w-full border border-gray-200 rounded-md px-3 py-2 pr-10 text-sm outline-none focus:border-emerald-400 transition-all"
+            class="w-full border border-gray-700 rounded-md px-3 py-2 pr-10 text-sm outline-none focus:border-green-600 transition-all"
           />
           <button
             type="button"
             @click="showPassword = !showPassword"
-            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 text-xs"
             tabindex="-1"
           >{{ showPassword ? 'Hide' : 'Show' }}</button>
         </div>
@@ -62,7 +62,7 @@
         <button
           type="submit"
           :disabled="loading"
-          class="px-4 py-2 rounded-md bg-emerald-500 text-white text-sm hover:bg-emerald-600 disabled:opacity-40 transition-all"
+          class="px-4 py-2 rounded-md bg-green-700 text-white text-sm hover:bg-green-600 disabled:opacity-40 transition-all"
         >{{ loading ? 'Logging in…' : 'Login' }}</button>
       </form>
 
@@ -78,7 +78,7 @@
           minlength="2"
           maxlength="40"
           autocomplete="username"
-          class="border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 transition-all"
+          class="border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600 transition-all"
         />
         <input
           id="reg-email"
@@ -88,7 +88,7 @@
           placeholder="Email"
           required
           autocomplete="email"
-          class="border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 transition-all"
+          class="border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600 transition-all"
         />
         <!-- Password with show/hide and strength hint -->
         <div class="relative">
@@ -100,12 +100,12 @@
             placeholder="Password (min 8 characters)"
             required
             autocomplete="new-password"
-            class="w-full border border-gray-200 rounded-md px-3 py-2 pr-10 text-sm outline-none focus:border-emerald-400 transition-all"
+            class="w-full border border-gray-700 rounded-md px-3 py-2 pr-10 text-sm outline-none focus:border-green-600 transition-all"
           />
           <button
             type="button"
             @click="showPassword = !showPassword"
-            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 text-xs"
             tabindex="-1"
           >{{ showPassword ? 'Hide' : 'Show' }}</button>
         </div>
@@ -115,7 +115,7 @@
             v-for="i in 4"
             :key="i"
             class="flex-1 rounded-full transition-all"
-            :class="i <= passwordStrength ? strengthColor : 'bg-gray-100'"
+            :class="i <= passwordStrength ? strengthColor : 'bg-gray-800'"
           />
         </div>
         <!-- Confirm password -->
@@ -128,13 +128,13 @@
             placeholder="Confirm password"
             required
             autocomplete="new-password"
-            class="w-full border border-gray-200 rounded-md px-3 py-2 pr-10 text-sm outline-none transition-all"
-            :class="confirmPassword && confirmPassword !== password ? 'border-red-300 focus:border-red-400' : 'border-gray-200 focus:border-emerald-400'"
+            class="w-full border border-gray-700 rounded-md px-3 py-2 pr-10 text-sm outline-none transition-all"
+            :class="confirmPassword && confirmPassword !== password ? 'border-red-300 focus:border-red-400' : 'border-gray-700 focus:border-green-600'"
           />
           <span
             v-if="confirmPassword"
             class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs"
-            :class="confirmPassword === password ? 'text-emerald-500' : 'text-red-400'"
+            :class="confirmPassword === password ? 'text-green-400' : 'text-red-400'"
           >{{ confirmPassword === password ? '✓' : '✗' }}</span>
         </div>
         <!-- Language you're learning — determines which proficiency scale to show -->
@@ -142,7 +142,7 @@
           id="reg-target-lang"
           name="target-lang"
           v-model="targetLang"
-          class="border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 text-gray-500 transition-all"
+          class="border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600 text-gray-400 transition-all"
         >
           <option value="">Language you're learning (optional)</option>
           <option v-for="(l, code) in LANGS" :key="code" :value="code">{{ l.name }}</option>
@@ -153,7 +153,7 @@
           id="reg-proficiency"
           name="proficiency"
           v-model="proficiency"
-          class="border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400 text-gray-500 transition-all"
+          class="border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600 text-gray-400 transition-all"
         >
           <option value="">{{ proficiencyPrompt }}</option>
           <option v-for="lvl in proficiencyOptions" :key="lvl.value" :value="lvl.value">{{ lvl.label }}</option>
@@ -163,7 +163,7 @@
         <button
           type="submit"
           :disabled="loading || !canSubmitRegister"
-          class="px-4 py-2 rounded-md bg-emerald-500 text-white text-sm hover:bg-emerald-600 disabled:opacity-40 transition-all"
+          class="px-4 py-2 rounded-md bg-green-700 text-white text-sm hover:bg-green-600 disabled:opacity-40 transition-all"
         >{{ loading ? 'Creating account…' : 'Create Account' }}</button>
       </form>
 
@@ -254,7 +254,7 @@ const strengthColor = computed(() => {
   if (passwordStrength.value <= 1) return 'bg-red-400'
   if (passwordStrength.value === 2) return 'bg-orange-400'
   if (passwordStrength.value === 3) return 'bg-yellow-400'
-  return 'bg-emerald-400'
+  return 'bg-green-600'
 })
 
 const canSubmitRegister = computed(() =>

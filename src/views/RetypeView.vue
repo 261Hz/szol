@@ -13,7 +13,7 @@
   <div class="flex flex-col gap-4">
 
     <!-- No story selected yet. -->
-    <div v-if="!story" class="text-gray-400 text-sm text-center py-12">
+    <div v-if="!story" class="text-gray-500 text-sm text-center py-12">
       {{ t(lang, 'noStory') }}
     </div>
 
@@ -24,12 +24,12 @@
       <div v-if="hasFranco" class="flex gap-2 text-sm">
         <button
           @click="mode = 'native'"
-          :class="mode === 'native' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-500'"
+          :class="mode === 'native' ? 'bg-gray-800 text-white' : 'bg-gray-800 text-gray-400'"
           class="px-3 py-1 rounded-full transition-all"
         >{{ nativeLabel }}</button>
         <button
           @click="mode = 'franco'"
-          :class="mode === 'franco' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-500'"
+          :class="mode === 'franco' ? 'bg-gray-800 text-white' : 'bg-gray-800 text-gray-400'"
           class="px-3 py-1 rounded-full transition-all"
         >{{ francoLabel }}</button>
       </div>
@@ -41,12 +41,12 @@
       <div
         v-if="completedSentences.length"
         ref="historyEl"
-        class="max-h-40 overflow-y-auto flex flex-col gap-1 border border-gray-100 rounded-lg px-4 py-2"
+        class="max-h-40 overflow-y-auto flex flex-col gap-1 border border-gray-800 rounded-lg px-4 py-2"
       >
         <div
           v-for="(s, i) in completedSentences"
           :key="i"
-          class="text-sm text-gray-300 leading-snug break-words"
+          class="text-sm text-gray-600 leading-snug break-words"
           :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         >
           <ClickableText
@@ -65,7 +65,7 @@
       <!-- @focus/@blur = show/hide the "click to type" hint.                 -->
       <!-- break-words = long words (URLs, German compounds) wrap gracefully.  -->
       <div
-        class="leading-loose text-base cursor-text outline-none border border-gray-200 rounded-lg p-4 transition-colors focus:border-emerald-400 break-words min-h-16"
+        class="leading-loose text-base cursor-text outline-none border border-gray-700 rounded-lg p-4 transition-colors focus:border-green-600 break-words min-h-16"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right' : ''"
         tabindex="0"
@@ -75,15 +75,15 @@
         ref="overlayEl"
       >
         <!-- Done state: all sentences completed. -->
-        <span v-if="done" class="text-emerald-500 font-medium">✓ {{ t(lang, 'done') ?? 'Complete!' }}</span>
+        <span v-if="done" class="text-green-400 font-medium">✓ {{ t(lang, 'done') ?? 'Complete!' }}</span>
 
         <!-- Active sentence: render each word and space with color-coded state. -->
         <!-- Each word is wrapped in a clickable span: click speaks + saves to vocab. -->
         <template v-else>
           <template v-for="(word, wi) in words" :key="wi">
             <span
-              class="inline-block whitespace-nowrap cursor-pointer rounded transition-colors hover:bg-emerald-50 active:bg-emerald-50"
-              :class="savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-emerald-400 decoration-dotted underline-offset-2' : ''"
+              class="inline-block whitespace-nowrap cursor-pointer rounded transition-colors hover:bg-green-950 active:bg-green-950"
+              :class="savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-green-500 decoration-dotted underline-offset-2' : ''"
               @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
             >
               <span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span>
@@ -110,18 +110,18 @@
       <!-- ── Progress row ────────────────────────────────────────────────── -->
       <div class="flex items-center gap-3">
         <!-- Sentence counter. -->
-        <div class="text-xs text-gray-400 whitespace-nowrap">
+        <div class="text-xs text-gray-500 whitespace-nowrap">
           {{ Math.min(completedSentences.length + 1, sentences.length) }} / {{ sentences.length }}
         </div>
         <!-- Progress bar track. -->
-        <div class="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+        <div class="flex-1 h-1 bg-gray-800 rounded-full overflow-hidden">
           <!-- Fill: width = % of sentences completed. -->
           <div
             class="h-full rounded-full transition-all duration-200"
             :style="{ width: pct + '%', background: barColor }"
           />
         </div>
-        <div class="text-xs text-gray-400 min-w-8 text-right">{{ pct }}%</div>
+        <div class="text-xs text-gray-500 min-w-8 text-right">{{ pct }}%</div>
       </div>
 
     </div>
@@ -417,10 +417,10 @@ function charClass(wi, ci) {
   const isFuture = wi > currentWordIndex.value
 
   return {
-    'text-emerald-600':          state === 'correct',
+    'text-green-400':          state === 'correct',
     'text-red-500':              state === 'wrong',
-    'text-gray-800':             state === 'untouched' && !isFuture,
-    'text-gray-300':             isFuture,
+    'text-gray-100':             state === 'untouched' && !isFuture,
+    'text-gray-600':             isFuture,
     'border-b-2 border-gray-700': isCurrent,
   }
 }
@@ -434,9 +434,9 @@ function spaceClass(wi) {
   // Show cursor underline on the space when awaiting Space to advance.
   if (awaitingSpace.value && isActive) return 'border-b-2 border-gray-700'
   // Space after a completed word inherits the "done" color; space before future words is dim.
-  if (done)          return 'text-gray-800'
-  if (wi > currentWordIndex.value) return 'text-gray-300'
-  return 'text-gray-800'
+  if (done)          return 'text-gray-100'
+  if (wi > currentWordIndex.value) return 'text-gray-600'
+  return 'text-gray-100'
 }
 
 // ── Progress ──────────────────────────────────────────────────────────────────

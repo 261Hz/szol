@@ -4,12 +4,12 @@
 
     <!-- Header: "Vocabulary" label + count -->
     <div class="flex items-center justify-between">
-      <div class="text-sm font-medium text-gray-700">{{ t(lang, 'vocab') }}</div>
-      <div class="text-xs text-gray-400">{{ filtered.length }} {{ t(lang, 'words') }}</div>
+      <div class="text-sm font-medium text-gray-200">{{ t(lang, 'vocab') }}</div>
+      <div class="text-xs text-gray-500">{{ filtered.length }} {{ t(lang, 'words') }}</div>
     </div>
 
     <!-- Empty state -->
-    <div v-if="!filtered.length" class="text-gray-400 text-sm text-center py-12">
+    <div v-if="!filtered.length" class="text-gray-500 text-sm text-center py-12">
       {{ t(lang, 'tapWord') }}
     </div>
 
@@ -18,16 +18,16 @@
       <div
         v-for="({ word, originalIndex }) in filtered"
         :key="originalIndex"
-        class="border border-gray-200 rounded-lg p-4 flex flex-col gap-1"
+        class="border border-gray-700 rounded-lg p-4 flex flex-col gap-1"
       >
         <!-- Top row: language tag + remove button -->
         <div class="flex items-start justify-between">
-          <div class="text-xs text-emerald-600 font-medium">{{ LANGS[word.lang]?.name ?? word.lang }}</div>
-          <button @click="emit('remove', originalIndex)" class="text-xs text-gray-300 hover:text-red-400 transition-all">✕</button>
+          <div class="text-xs text-green-400 font-medium">{{ LANGS[word.lang]?.name ?? word.lang }}</div>
+          <button @click="emit('remove', originalIndex)" class="text-xs text-gray-600 hover:text-red-400 transition-all">✕</button>
         </div>
 
         <!-- Word (large) — clickable to save related words from context -->
-        <div class="text-lg font-semibold text-gray-900">
+        <div class="text-lg font-semibold text-gray-50">
           <ClickableText
             :text="word.word"
             :lang="word.lang"
@@ -37,7 +37,7 @@
         </div>
 
         <!-- Context sentence — every word clickable to add to vocab -->
-        <div v-if="word.sentence" class="text-sm text-gray-500 italic">
+        <div v-if="word.sentence" class="text-sm text-gray-400 italic">
           <ClickableText
             :text="word.sentence"
             :lang="word.lang"
@@ -49,16 +49,16 @@
         <!-- Word frequency row (shown only when logged in and data is available) -->
         <div
           v-if="currentUser && userWordMap[word.word.toLowerCase()]"
-          class="text-xs text-emerald-600 flex gap-2"
+          class="text-xs text-green-400 flex gap-2"
         >
           <span>Seen {{ userWordMap[word.word.toLowerCase()].seen_count }}×</span>
-          <span class="text-gray-300">·</span>
+          <span class="text-gray-600">·</span>
           <span>First {{ new Date(userWordMap[word.word.toLowerCase()].first_seen).toLocaleDateString() }}</span>
         </div>
 
         <!-- Subtle login prompt when logged out -->
-        <div v-else-if="!currentUser" class="text-xs text-gray-400">
-          <button @click="emit('openAuth')" class="underline hover:text-emerald-500 transition-all">Login</button>
+        <div v-else-if="!currentUser" class="text-xs text-gray-500">
+          <button @click="emit('openAuth')" class="underline hover:text-green-400 transition-all">Login</button>
           to track how often you see each word
         </div>
 

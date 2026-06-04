@@ -5,7 +5,7 @@
   <div class="flex flex-col gap-6">
 
     <!-- Shown when no story is loaded. -->
-    <div v-if="!story" class="text-gray-400 text-sm text-center py-12">
+    <div v-if="!story" class="text-gray-500 text-sm text-center py-12">
       {{ t(lang, 'noStory') }}
     </div>
 
@@ -14,8 +14,8 @@
     <!-- v-else-if = checked only when the v-if above is false. -->
     <div v-else-if="!hasRecognition" class="text-center py-16 flex flex-col gap-3">
       <div class="text-4xl">🎤</div>
-      <div class="text-gray-600 text-sm font-medium">Speech recognition is not supported in this browser.</div>
-      <div class="text-gray-400 text-xs">Try Chrome or Microsoft Edge.</div>
+      <div class="text-gray-300 text-sm font-medium">Speech recognition is not supported in this browser.</div>
+      <div class="text-gray-500 text-xs">Try Chrome or Microsoft Edge.</div>
     </div>
 
     <!-- Main speak practice interface. -->
@@ -29,19 +29,19 @@
           <div class="font-semibold text-lg" :dir="isRTL(lang) ? 'rtl' : 'ltr'">
             {{ story.title }}
           </div>
-          <div class="text-xs text-gray-400">{{ LANGS[lang]?.name }}</div>
+          <div class="text-xs text-gray-500">{{ LANGS[lang]?.name }}</div>
         </div>
         <!-- Shows "3 / 10" meaning sentence 3 out of 10. currentIdx is 0-based, so add 1 for display. -->
-        <div class="text-xs text-gray-400 font-medium">{{ currentIdx + 1 }} / {{ sentences.length }}</div>
+        <div class="text-xs text-gray-500 font-medium">{{ currentIdx + 1 }} / {{ sentences.length }}</div>
       </div>
 
       <!-- Progress bar: width grows as the user advances through sentences. -->
-      <div class="h-1 bg-gray-100 rounded-full overflow-hidden">
+      <div class="h-1 bg-gray-800 rounded-full overflow-hidden">
         <!-- The inner div's width is a percentage: (sentences done / total) * 100. -->
         <!-- :style sets CSS styles dynamically. { width: '30%' } = 30% wide. -->
         <!-- "transition-all duration-300" = animates the width change smoothly over 300ms. -->
         <div
-          class="h-full bg-emerald-400 transition-all duration-300"
+          class="h-full bg-green-600 transition-all duration-300"
           :style="{ width: ((currentIdx + 1) / sentences.length * 100) + '%' }"
         />
       </div>
@@ -49,7 +49,7 @@
       <!-- Target sentence display. -->
       <!-- Each word is individually colored after scoring: green = correct, red = wrong. -->
       <div
-        class="text-xl leading-relaxed p-4 rounded-xl bg-gray-50 border border-gray-200 break-words"
+        class="text-xl leading-relaxed p-4 rounded-xl bg-gray-900 border border-gray-700 break-words"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right' : ''"
       >
@@ -61,7 +61,7 @@
           :key="i"
           class="inline-block whitespace-nowrap mr-1 transition-colors"
           :class="scored
-            ? (wordStatuses[i] === 'correct' ? 'text-emerald-600 font-medium' : 'text-red-500')
+            ? (wordStatuses[i] === 'correct' ? 'text-green-400 font-medium' : 'text-red-500')
             : ''"
         >{{ word }}</span>
         <!-- scored is true after the user has spoken. Before that, no colors are applied. -->
@@ -72,7 +72,7 @@
         <!-- 🔊 Listen: plays the current sentence aloud using TTS. -->
         <button
           @click="speakSentence"
-          class="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-all"
+          class="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-700 text-sm text-gray-300 hover:bg-gray-800 transition-all"
         >
           🔊 Listen
         </button>
@@ -84,7 +84,7 @@
             'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
             recording
               ? 'bg-red-500 text-white'
-              : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+              : 'border border-gray-700 text-gray-300 hover:bg-gray-800'
           ]"
         >
           🎤 {{ recording ? 'Recording…' : 'Speak' }}
@@ -94,7 +94,7 @@
 
       <!-- Shows what the speech recognizer heard ("Heard: 'el gato es negro'"). -->
       <!-- v-if="transcript" = only shown after the user has spoken. -->
-      <div v-if="transcript" class="text-sm text-gray-500 italic px-1">
+      <div v-if="transcript" class="text-sm text-gray-400 italic px-1">
         Heard: "{{ transcript }}"
       </div>
 
@@ -103,15 +103,15 @@
       <div
         v-if="scored"
         class="flex items-center gap-4 p-4 rounded-xl border"
-        :class="result.pct >= 80 ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'"
+        :class="result.pct >= 80 ? 'border-green-800 bg-green-950' : 'border-amber-800 bg-amber-950'"
       >
         <!-- Large percentage number. -->
         <div
           class="text-4xl font-bold"
-          :class="result.pct >= 80 ? 'text-emerald-600' : 'text-amber-500'"
+          :class="result.pct >= 80 ? 'text-green-400' : 'text-amber-400'"
         >{{ result.pct }}%</div>
         <!-- e.g. "4 / 6 words correct". result.correct and result.total come from scoreWords(). -->
-        <div class="text-sm text-gray-500">{{ result.correct }} / {{ result.total }} words correct</div>
+        <div class="text-sm text-gray-400">{{ result.correct }} / {{ result.total }} words correct</div>
       </div>
 
       <!-- Navigation row: Back on the left, Next on the right. -->
@@ -120,7 +120,7 @@
         <button
           v-if="currentIdx > 0"
           @click="prev"
-          class="text-sm px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-all"
+          class="text-sm px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 transition-all"
         >← Back</button>
         <!-- Empty div keeps the Next button pushed to the right when Back is hidden. -->
         <div v-else />
@@ -129,7 +129,7 @@
         <button
           v-if="scored || transcript"
           @click="next"
-          class="text-sm px-4 py-1.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-all"
+          class="text-sm px-4 py-1.5 rounded-lg bg-green-700 text-white hover:bg-green-600 transition-all"
         >{{ currentIdx < sentences.length - 1 ? 'Next →' : 'Done ✓' }}</button>
       </div>
 
