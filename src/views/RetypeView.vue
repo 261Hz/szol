@@ -85,7 +85,6 @@
               class="cursor-pointer rounded transition-colors hover:bg-emerald-50 active:bg-emerald-50"
               :class="savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-emerald-400 decoration-dotted underline-offset-2' : ''"
               @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
-              @touchend.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
             >
               <span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span>
             </span>
@@ -102,6 +101,7 @@
         inputmode="text"
         autocorrect="off"
         autocomplete="off"
+        autocapitalize="off"
         @keydown="onKey"
         @input="onMobileInput"
       />
@@ -394,13 +394,14 @@ function onMobileInput(e) {
       const syntheticEvent = { key: 'Backspace', preventDefault: () => {} }
       onKey(syntheticEvent)
     } else {
-      // Regular character
+      // Regular character - use the actual character as the key
+      // This preserves case information from the mobile keyboard
       const syntheticEvent = { key: char, preventDefault: () => {} }
       onKey(syntheticEvent)
     }
   }
   
-  // Clear the input for next batch of characters
+  // Clear the input for next batch of characters, but keep focus
   input.value = ''
 }
 
