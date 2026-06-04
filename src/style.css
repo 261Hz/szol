@@ -1,1 +1,28 @@
 @import "tailwindcss";
+
+/* Ensure textareas and inputs work on mobile */
+textarea,
+input[type="text"],
+input[type="search"] {
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: manipulation;
+}
+
+/* Ensure word spans can be tapped on mobile */
+span[class*="cursor-pointer"] {
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+/* The typing overlay should allow touches for tapping words */
+[tabindex="0"] {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+[tabindex="0"] span[class*="cursor-pointer"] {
+  touch-action: auto;
+}
