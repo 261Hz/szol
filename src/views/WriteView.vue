@@ -436,7 +436,10 @@ function clearCanvas() {
 
 // report() records the user's self-assessment of their writing.
 // "correct" is true (they think they got it right) or false (they think they were wrong).
-function report(correct) { selfReport.value = correct }
+function report(correct) {
+  selfReport.value = correct
+  window.clarity?.('event', correct ? 'write_correct' : 'write_incorrect')
+}
 
 // ── Lifecycle hooks & watchers ───────────────────────────────────────────────────
 
@@ -475,6 +478,7 @@ watch([() => props.lang, () => props.story], async () => {
   quizDone.value    = false
   charError.value   = false
   writer            = null // discard the old Hanzi Writer instance
+  if (props.story) window.clarity?.('event', 'write_started')
   await nextTick()
   if (isCJK.value) initWriter()
   else setupCanvas()

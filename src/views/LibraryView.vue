@@ -46,7 +46,7 @@
                 <span v-if="story.franco" class="text-xs text-orange-400">franco</span>
               </div>
               <button
-                @click="$emit('load', story)"
+                @click="emitLoad(story)"
                 class="self-start text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all"
               >Read →</button>
             </div>
@@ -278,7 +278,7 @@
           <div
             v-for="story in filteredCommunity"
             :key="story.id"
-            @click="$emit('load', story)"
+            @click="emitLoad(story)"
             :class="['p-3 rounded-lg border cursor-pointer transition-all',
               current?.id === story.id ? 'border-green-600 bg-green-950' : 'border-gray-700 hover:border-green-700']"
           >
@@ -760,6 +760,12 @@ function pushLocalStory({ title, content, franco = null, source = '' }) {
   localStorage.setItem('szol_local_stories', JSON.stringify(localStories.value))
   // Immediately load the story — App.vue will switch to the Retype tab.
   // This means importing any content (URL, Wikipedia, Wikivoyage, etc.) takes you straight to practice.
+  emitLoad(story)
+}
+
+function emitLoad(story) {
+  window.clarity?.('event', 'story_loaded')
+  window.clarity?.('set', 'story_lang', story.lang)
   emit('load', story)
 }
 
