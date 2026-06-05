@@ -292,6 +292,7 @@ async function advanceSentence() {
 
   if (sentenceIdx.value >= sentences.value.length) {
     done.value = true
+    window.clarity?.('event', 'retype_completed')
     return
   }
 
@@ -366,6 +367,7 @@ function onKey(e) {
   if (currentCharIndex.value === word.length) {
     const hasError = word.some(c => c.state === 'wrong')
     if (hasError) {
+      window.clarity?.('event', 'retype_error')
       // Reset word — user must retype it from scratch.
       words.value[wi].forEach(c => c.state = 'untouched')
       currentCharIndex.value = 0

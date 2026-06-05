@@ -259,6 +259,8 @@ function startRecording() {
     result.value  = scoreWords(sentences.value[currentIdx.value] ?? '', transcript.value)
     scored.value  = true    // show the score panel
     recording.value = false // stop showing the recording indicator
+    window.clarity?.('event', 'speech_scored')
+    window.clarity?.('set', 'speech_score', result.value.pct.toString())
   }
   // onerror fires if something goes wrong (microphone denied, network error, etc.).
   recognition.onerror = () => { recording.value = false }
@@ -266,6 +268,7 @@ function startRecording() {
   recognition.onend   = () => { recording.value = false }
 
   recording.value = true   // show the red "Recording…" state on the button
+  window.clarity?.('event', 'speech_started')
   recognition.start()      // begin listening
 }
 
