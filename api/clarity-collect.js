@@ -9,8 +9,12 @@
 const COLLECT_BASE = 'https://e.clarity.ms'
 
 export default async function handler(req, res) {
-  // Reconstruct the full upstream URL: base + everything after /api/clarity-collect
-  const suffix = req.url.replace(/^\/api\/clarity-collect/, '') || ''
+  // When routed via the vercel.json rewrite, the sub-path arrives as ?proxypath=...
+  // (Vercel rewrites req.url to the destination, losing the original sub-path otherwise).
+  // Fall back to stripping the prefix from req.url for direct calls with no rewrite.
+  const proxypath = req.query?.proxypath
+  const suffix = proxypath ? '/' + proxypath
+    : req.url.replace(/^\/api\/clarity-collect/, '') || ''
   const target = COLLECT_BASE + suffix
 
   // Passthrough headers the Clarity script sends (content-type, content-encoding, etc.)
