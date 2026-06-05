@@ -187,6 +187,14 @@ export function saveProgress(storyId, storyTitle, lang, tab, sentenceIndex) {
   }).catch(() => {})
 }
 
+export async function getAllProgress() {
+  const res = await apiFetch(`${API_URL}/progress/user/all`, {
+    headers: authHeaders(),
+  }).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json()
+}
+
 export async function getProgress(storyId, tab) {
   const res = await apiFetch(
     `${API_URL}/progress/user?story_id=${encodeURIComponent(storyId)}&tab=${tab}`,
