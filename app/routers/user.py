@@ -10,6 +10,7 @@ from fastapi import Response, status, HTTPException, Depends, APIRouter
 from typing import List
 from uuid import UUID
 from sqlalchemy.exc import IntegrityError
+from email_validator import validate_email, EmailNotValidError
 from .. import models, schemas, utils, oauth2
 from ..database import get_db
 from sqlalchemy.orm import Session
@@ -26,6 +27,23 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     # readable message.  Without this check an IntegrityError from Postgres would
     # propagate as an unhandled 500 whose response lacks CORS headers, causing the
     # browser to report a CORS error instead of the real problem.
+    # Verify the email address has a live MX record (rejects typos and fake domains).
+    # check_deliverability does a DNS lookup; we catch any error and return 422.
+    try:
+        info = validate_email(user.email, check_deliverability=True)
+        user.email = info.normalized  # use canonical form (lowercased, etc.)
+    except EmailNotValidError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        )
+
+    if db.query(models.User).filter(models.User.username == user.username).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This username is already taken.",
+        )
+
     if db.query(models.User).filter(models.User.email == user.email).first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

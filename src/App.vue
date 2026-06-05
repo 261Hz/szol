@@ -1,12 +1,16 @@
 <template>
   <div class="min-h-screen bg-white text-gray-900">
 
+    <!-- Language picker: shown on first visit before a language is chosen -->
+    <LangPickView v-if="!activeLang" @pick="pickLang" />
+
+    <template v-else>
     <NavBar
       :active="activeTab"
       :lang="activeLang"
       :current-user="currentUser"
       @tab="activeTab = $event"
-      @lang="activeLang = $event"
+      @lang="changeLang"
       @auth="showAuth = true"
       @logout="handleLogout"
     />
@@ -64,6 +68,7 @@
       @logged-in="handleLogin"
     />
 
+    </template><!-- end v-else -->
   </div>
 </template>
 
@@ -71,15 +76,17 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import NavBar    from './components/NavBar.vue'
 import AuthModal from './components/AuthModal.vue'
-import ReadView    from './views/ReadView.vue'
-import RetypeView  from './views/RetypeView.vue'
-import LibraryView from './views/LibraryView.vue'
-import VocabView   from './views/VocabView.vue'
-import SpeakView   from './views/SpeakView.vue'
+import ReadView     from './views/ReadView.vue'
+import RetypeView   from './views/RetypeView.vue'
+import LibraryView  from './views/LibraryView.vue'
+import VocabView    from './views/VocabView.vue'
+import SpeakView    from './views/SpeakView.vue'
+import LangPickView from './views/LangPickView.vue'
 import { getMe, logout, onUnauthorized } from './utils/api.js'
 
 const activeTab    = ref('library')
-const activeLang   = ref('es')
+// Read saved language; null = first visit, show the picker
+const activeLang   = ref(localStorage.getItem('szol_lang') || null)
 const currentStory = ref(null)
 const currentUser  = ref(null)
 const showAuth     = ref(false)
@@ -87,14 +94,20 @@ const vocabBank    = ref(JSON.parse(localStorage.getItem('szol_vocab') || '[]'))
 
 watch(vocabBank, val => localStorage.setItem('szol_vocab', JSON.stringify(val)), { deep: true })
 
-// When the user switches languages via the dropdown, clear any story that belongs
-// to the previous language and return to Library so no stale content shows.
-watch(activeLang, (newLang) => {
-  if (currentStory.value && currentStory.value.lang !== newLang) {
+function pickLang(code) {
+  activeLang.value = code
+  localStorage.setItem('szol_lang', code)
+}
+
+// Navbar language dropdown — save choice and clear any mismatched story.
+function changeLang(code) {
+  localStorage.setItem('szol_lang', code)
+  if (currentStory.value && currentStory.value.lang !== code) {
     currentStory.value = null
     activeTab.value    = 'library'
   }
-})
+  activeLang.value = code
+}
 
 // Auto re-open login modal when any API call gets a 401
 onUnauthorized(() => {
