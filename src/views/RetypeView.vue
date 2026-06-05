@@ -20,18 +20,25 @@
     <!-- Main typing interface. -->
     <div v-else class="flex flex-col gap-3">
 
-      <!-- Franco / Pinyin mode toggle (Arabic and Chinese only). -->
-      <div v-if="hasFranco" class="flex gap-2 text-sm">
+      <!-- Mode toggles: Franco/Pinyin (Arabic + Chinese) and Ignore Punctuation (all languages). -->
+      <div class="flex gap-2 flex-wrap">
+        <template v-if="hasFranco">
+          <button
+            @click="mode = 'native'"
+            :class="mode === 'native' ? 'bg-gray-800 text-white' : 'bg-gray-800 text-gray-400'"
+            class="text-sm px-3 py-1 rounded-full transition-all"
+          >{{ nativeLabel }}</button>
+          <button
+            @click="mode = 'franco'"
+            :class="mode === 'franco' ? 'bg-gray-800 text-white' : 'bg-gray-800 text-gray-400'"
+            class="text-sm px-3 py-1 rounded-full transition-all"
+          >{{ francoLabel }}</button>
+        </template>
         <button
-          @click="mode = 'native'"
-          :class="mode === 'native' ? 'bg-gray-800 text-white' : 'bg-gray-800 text-gray-400'"
-          class="px-3 py-1 rounded-full transition-all"
-        >{{ nativeLabel }}</button>
-        <button
-          @click="mode = 'franco'"
-          :class="mode === 'franco' ? 'bg-gray-800 text-white' : 'bg-gray-800 text-gray-400'"
-          class="px-3 py-1 rounded-full transition-all"
-        >{{ francoLabel }}</button>
+          @click="ignorePunct = !ignorePunct"
+          :class="ignorePunct ? 'bg-gray-700 text-white' : 'bg-gray-800 text-gray-400'"
+          class="text-sm px-3 py-1 rounded-full transition-all"
+        >ignore punct.</button>
       </div>
 
       <!-- ── Completed-sentence history ──────────────────────────────────── -->
@@ -148,7 +155,8 @@ const emit = defineEmits(['saveWord'])
 
 // ── Mode (native / franco / pinyin) ──────────────────────────────────────────
 
-const mode = ref('native')
+const mode        = ref('native')
+const ignorePunct = ref(false)
 
 // hasFranco = true for Arabic (both varieties) and Chinese, which have Latin-script alternates.
 const hasFranco = computed(() => ['ar', 'arz', 'zh'].includes(props.lang))
@@ -197,10 +205,13 @@ function splitSentences(text) {
 
 // buildWords() converts a sentence string into a structured array for rendering.
 // Returns: [ [{char:'H', state:'untouched'}, ...], [...], ... ]
-// Strips leading/trailing punctuation from each word so comparison is clean.
+// ignorePunct mode strips ALL non-letter/non-digit chars so punctuation is never required to type.
+// Normal mode strips only leading/trailing punctuation from each token.
 function buildWords(text) {
   return text.split(/\s+/)
-    .map(w => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
+    .map(w => ignorePunct.value
+      ? w.replace(/[^\p{L}\p{N}]/gu, '')
+      : w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
     .filter(w => w.length > 0)
     .map(word => word.split('').map(char => ({ char, state: 'untouched' })))
 }
@@ -250,7 +261,7 @@ const historyEl          = ref(null)
 const hiddenInput        = ref(null)
 
 // Rebuild the exercise whenever the story or mode changes, then restore saved progress.
-watch([() => props.story, mode, activeText], async () => {
+watch([() => props.story, mode, activeText, ignorePunct], async () => {
   sentences.value          = splitSentences(activeText.value)
   sentenceIdx.value        = 0
   completedSentences.value = []
@@ -419,7 +430,7 @@ function charClass(wi, ci) {
 
   return {
     'text-green-400':          state === 'correct',
-    'text-red-500':              state === 'wrong',
+    'text-purple-400':           state === 'wrong',
     'text-gray-100':             state === 'untouched' && !isFuture,
     'text-gray-600':             isFuture,
     'border-b-2 border-gray-700': isCurrent,

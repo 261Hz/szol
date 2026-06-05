@@ -26,4 +26,6 @@ dist-ssr
 # Environment variables
 .env
 36205-0.txt
+verwandlung.txt
 insert_fonissa.mjs
+insert_verwandlung.mjs
