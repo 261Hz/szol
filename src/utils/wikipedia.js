@@ -93,6 +93,48 @@ export async function fetchOnThisDay(lang) {
   }
 }
 
+// fetchQuoteOfDay() fetches a random quote from Wikiquote in the active language.
+// Uses the MediaWiki Action API to get a random page title, then fetches its plain-text extract.
+// Results are cached in sessionStorage for the day so the quote stays consistent.
+export async function fetchQuoteOfDay(lang) {
+  const code = wl(lang)
+  const cacheKey = `szol_qotd_${code}_${new Date().toDateString()}`
+  try {
+    const cached = sessionStorage.getItem(cacheKey)
+    if (cached) return JSON.parse(cached)
+  } catch {}
+
+  try {
+    const randRes = await fetch(
+      `https://${code}.wikiquote.org/w/api.php?action=query&list=random&rnnamespace=0&rnlimit=1&format=json&origin=*`
+    )
+    if (!randRes.ok) return null
+    const { query } = await randRes.json()
+    const title = query?.random?.[0]?.title
+    if (!title) return null
+
+    const pageRes = await fetch(
+      `https://${code}.wikiquote.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=extracts&explaintext=1&exchars=500&format=json&origin=*`
+    )
+    if (!pageRes.ok) return null
+    const pageData = await pageRes.json()
+    const pages   = pageData.query?.pages
+    const extract = pages?.[Object.keys(pages)[0]]?.extract?.trim()
+    if (!extract || extract.length < 15) return null
+
+    // Pick the first line that looks like a quote (skip section headers and trivially short lines)
+    const lines = extract.split('\n').map(l => l.trim()).filter(l => l.length > 20 && !l.startsWith('=='))
+    const quote = lines[0]
+    if (!quote) return null
+
+    const result = { quote, author: title }
+    try { sessionStorage.setItem(cacheKey, JSON.stringify(result)) } catch {}
+    return result
+  } catch {
+    return null
+  }
+}
+
 // searchWikipedia() finds Wikipedia articles related to a word, for the ExamplesPanel.
 // Two-step process:
 //   Step 1: opensearch → get article titles that match the word.

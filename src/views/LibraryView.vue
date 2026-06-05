@@ -3,6 +3,33 @@
 <template>
   <div class="flex flex-col gap-2">
 
+    <!-- ─── ▶ IN PROGRESS ─── -->
+    <div v-if="inProgressStories.length" class="border border-green-800 rounded-lg overflow-hidden">
+      <button @click="toggle('inprogress')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-green-300 hover:bg-gray-800 transition-all">
+        <span>▶ In Progress</span>
+        <span class="text-gray-500 text-xs">{{ open.inprogress ? '▲' : '▼' }}</span>
+      </button>
+      <div v-if="open.inprogress" class="px-4 pb-4 pt-1 flex flex-col gap-1.5">
+        <div
+          v-for="p in inProgressStories"
+          :key="p.story_id + p.tab"
+          :class="['rounded-lg border transition-all overflow-hidden',
+            current?.id === p.story_id ? 'border-green-600' : 'border-gray-700']"
+        >
+          <div class="flex items-center justify-between px-3 py-2.5 gap-2">
+            <div class="flex flex-col gap-0.5 min-w-0">
+              <span class="font-medium text-sm text-gray-200 truncate">{{ p.story_title || p.story_id }}</span>
+              <span class="text-xs text-gray-500 capitalize">{{ p.tab }} · sentence {{ p.sentence_index }}</span>
+            </div>
+            <button
+              @click="resumeStory(p)"
+              class="flex-shrink-0 text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all"
+            >Resume →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ─── 📖 CURATED ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('curated')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
@@ -45,10 +72,16 @@
                 <span v-if="story.local" class="text-xs text-gray-500">{{ t(lang, 'local') }}</span>
                 <span v-if="story.franco" class="text-xs text-orange-400">franco</span>
               </div>
-              <button
-                @click="emitLoad(story)"
-                class="self-start text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all"
-              >Read →</button>
+              <div class="flex items-center gap-2">
+                <button
+                  @click="emitLoad(story)"
+                  class="text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all"
+                >Read →</button>
+                <span
+                  v-if="progressByStory[story.id]?.sentence_index > 0"
+                  class="text-xs text-green-400 border border-green-800 rounded-full px-2 py-0.5"
+                >sentence {{ progressByStory[story.id].sentence_index }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -112,6 +145,23 @@
           <button @click="importWikipediaArticle(todayArticle)" class="self-start text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">Import as Story</button>
         </div>
         <div v-else class="text-xs text-gray-500 py-4 text-center">No featured article available for this language today.</div>
+      </div>
+    </div>
+
+    <!-- ─── 📜 QUOTE OF THE DAY ─── -->
+    <div class="border border-gray-700 rounded-lg overflow-hidden">
+      <button @click="toggle('quote')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
+        <span>📜 Quote of the Day</span>
+        <span class="text-gray-500 text-xs">{{ open.quote ? '▲' : '▼' }}</span>
+      </button>
+      <div v-if="open.quote" class="px-4 pb-4 pt-1">
+        <div v-if="quoteLoading" class="text-xs text-gray-500 py-4 text-center">Loading…</div>
+        <div v-else-if="quoteOfDay" class="flex flex-col gap-3">
+          <p class="text-sm text-gray-200 italic leading-relaxed" :dir="isRTL(lang) ? 'rtl' : 'ltr'">"{{ quoteOfDay.quote }}"</p>
+          <p class="text-xs text-gray-500">— {{ quoteOfDay.author }}</p>
+          <button @click="importQuote" class="self-start text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">Import as Story</button>
+        </div>
+        <div v-else class="text-xs text-gray-500 py-4 text-center">No quote available for this language.</div>
       </div>
     </div>
 
@@ -241,27 +291,12 @@
         <span>🎬 Subtitles</span>
         <span class="text-gray-500 text-xs">{{ open.subtitles ? '▲' : '▼' }}</span>
       </button>
-      <div v-if="open.subtitles" class="px-4 pb-4 pt-1">
-        <div class="flex gap-2 mb-3">
-          <input v-model="subsQuery" type="text" placeholder="Movie or show title…" @keydown.enter="searchSubtitles" class="flex-1 border border-gray-700 rounded-md px-3 py-1.5 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
-          <button @click="searchSubtitles" :disabled="subsLoading" class="text-sm px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ subsLoading ? '…' : 'Search' }}</button>
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <div
-            v-for="sub in subsResults"
-            :key="sub.id"
-            class="border border-gray-800 rounded-md p-2.5 hover:border-green-700 transition-all"
-          >
-            <div class="flex items-start justify-between gap-2">
-              <div class="min-w-0">
-                <div class="text-sm font-medium text-gray-200 break-words">{{ subTitle(sub) }}</div>
-                <div class="text-xs text-gray-500 mt-0.5">{{ sub.attributes?.language }} · {{ sub.attributes?.release }}</div>
-              </div>
-              <button @click="downloadSubtitle(sub)" :disabled="subsDownloading === sub.id" class="flex-shrink-0 text-xs px-2.5 py-1 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ subsDownloading === sub.id ? '…' : 'Import' }}</button>
-            </div>
-          </div>
-          <div v-if="!subsResults.length && !subsLoading" class="text-xs text-gray-500 text-center py-2">Search for a movie or show to import subtitles as a reading story.<br>Requires OPENSUBTITLES_API_KEY environment variable.</div>
-        </div>
+      <div v-if="open.subtitles" class="px-4 pb-4 pt-1 flex flex-col gap-3">
+        <p class="text-xs text-gray-400">Download an <span class="font-mono">.srt</span> file from any subtitle site (OpenSubtitles, Subscene, etc.), open it in a text editor, then paste the raw content below.</p>
+        <input v-model="srtTitle" type="text" placeholder="Story title (e.g. Amélie 2001)…" class="w-full border border-gray-700 rounded-md px-3 py-1.5 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
+        <textarea v-model="srtContent" rows="5" placeholder="Paste .srt content here…" dir="ltr" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm font-mono outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600 resize-none" />
+        <div v-if="srtError" class="text-xs text-red-400">{{ srtError }}</div>
+        <button @click="importSRT" class="self-start text-sm px-4 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">Import</button>
       </div>
     </div>
 
@@ -288,6 +323,10 @@
               <span class="text-xs text-gray-500">· {{ wordCount(story) }} {{ t(lang, 'words') }}</span>
               <span v-if="story.author" class="text-xs text-gray-500">· {{ story.author }}</span>
               <span class="text-xs text-blue-400">{{ t(lang, 'community') }}</span>
+              <span
+                v-if="progressByStory[story.id]?.sentence_index > 0"
+                class="text-xs text-green-400 border border-green-800 rounded-full px-2 py-0.5"
+              >sentence {{ progressByStory[story.id].sentence_index }}</span>
             </div>
           </div>
         </div>
@@ -309,8 +348,9 @@ import { t }     from '../utils/i18n.js'
 import ClickableText from '../components/ClickableText.vue'
 // Supabase functions: fetch/submit stories from the remote database.
 import { fetchCommunityStories, submitStory, fetchCuratedStories } from '../utils/supabase.js'
+import { getAllProgress } from '../utils/api.js'
 // Wikipedia helpers for the Today and On This Day sections.
-import { fetchFeaturedArticle, fetchOnThisDay } from '../utils/wikipedia.js'
+import { fetchFeaturedArticle, fetchOnThisDay, fetchQuoteOfDay } from '../utils/wikipedia.js'
 // Wikivoyage helpers for the Travel section.
 import { searchWikivoyage, fetchWikivoyageArticle } from '../utils/wikivoyage.js'
 
@@ -325,6 +365,37 @@ const props = defineProps({
   currentUser: Object,  // null when logged out
 })
 const emit = defineEmits(['load', 'saveWord', 'openAuth'])
+
+// ── In-progress stories ────────────────────────────────────────────────────
+const allProgress = ref([])
+
+async function loadAllProgress() {
+  if (!props.currentUser) { allProgress.value = []; return }
+  allProgress.value = await getAllProgress()
+}
+
+watch(() => props.currentUser, loadAllProgress, { immediate: true })
+
+// Map of storyId → best progress entry (highest sentence_index across tabs)
+const progressByStory = computed(() => {
+  const map = {}
+  for (const p of allProgress.value) {
+    if (!map[p.story_id] || p.sentence_index > map[p.story_id].sentence_index) {
+      map[p.story_id] = p
+    }
+  }
+  return map
+})
+
+// In-progress stories for current language, sorted newest-updated first
+const inProgressStories = computed(() => {
+  return allProgress.value
+    .filter(p => p.lang === props.lang && p.sentence_index > 0)
+    .reduce((acc, p) => {
+      if (!acc.find(x => x.story_id === p.story_id)) acc.push(p)
+      return acc
+    }, [])
+})
 
 // savedWordsSet = normalized Set of words already saved for the active language.
 // Passed to ClickableText so already-saved words highlight green.
@@ -400,14 +471,16 @@ const filteredCommunity = computed(() =>
 // Curated starts open so users see their stories immediately without clicking.
 // All other sections start collapsed to keep the page compact.
 const open = ref({
-  curated:   true,
-  today:     false,
-  onthisday: false,
-  travel:    false,
-  import:    false,
-  topics:    false,
-  subtitles: false,
-  community: false,
+  inprogress: true,
+  curated:    true,
+  today:      false,
+  quote:      false,
+  onthisday:  false,
+  travel:     false,
+  import:     false,
+  topics:     false,
+  subtitles:  false,
+  community:  false,
 })
 
 // toggle() flips a section open or closed when the user clicks its header button.
@@ -418,6 +491,7 @@ async function toggle(section) {
   if (open.value[section]) {
     // Only fetch if: the section just opened AND we don't already have data AND not currently loading.
     if (section === 'today'     && !todayArticle.value && !todayLoading.value) await loadToday()
+    if (section === 'quote'     && !quoteOfDay.value   && !quoteLoading.value) await loadQuote()
     if (section === 'onthisday' && !onThisDay.value.length && !otdLoading.value) await loadOnThisDay()
   }
 }
@@ -533,41 +607,82 @@ function confirmImport() {
 // Wikivoyage has a CORS-enabled API, so we can fetch their content directly from the browser
 // without going through api/extract.js. Other sites need the server proxy.
 const SUGGESTED_SOURCES = {
+  News: [
+    { name: 'BBC Arabic',      url: 'https://www.bbc.com/arabic',             lang: 'ar' },
+    { name: 'Al-Arabiya',      url: 'https://arabic.alarabiya.net',           lang: 'ar' },
+    { name: 'DW German',       url: 'https://www.dw.com/de/',                 lang: 'de' },
+    { name: 'Spiegel Online',  url: 'https://www.spiegel.de',                 lang: 'de' },
+    { name: 'Kathimerini',     url: 'https://www.kathimerini.gr',             lang: 'el' },
+    { name: 'RFI French',      url: 'https://www.rfi.fr/fr/',                 lang: 'fr' },
+    { name: 'Le Monde',        url: 'https://www.lemonde.fr',                 lang: 'fr' },
+    { name: 'Haaretz',         url: 'https://www.haaretz.co.il',              lang: 'he' },
+    { name: 'Magyar Hírlap',   url: 'https://www.magyarhirlap.hu',            lang: 'hu' },
+    { name: 'NHK Web Easy',    url: 'https://www3.nhk.or.jp/news/easy/',      lang: 'ja' },
+    { name: 'Asahi Shimbun',   url: 'https://www.asahi.com',                  lang: 'ja' },
+    { name: 'RIA Novosti',     url: 'https://ria.ru',                         lang: 'ru' },
+    { name: 'La Vanguardia',   url: 'https://www.lavanguardia.com',           lang: 'es' },
+    { name: 'Xinhua',          url: 'https://www.xinhuanet.com',              lang: 'zh' },
+    { name: '人民日報',        url: 'https://www.people.com.cn',              lang: 'zh' },
+  ],
   Sports: [
-    { name: 'BBC Sport',           url: 'https://www.bbc.com/sport',               lang: 'en' },
-    { name: 'Marca',               url: 'https://www.marca.com',                   lang: 'es' },
-    { name: "L'Équipe",            url: 'https://www.lequipe.fr',                  lang: 'fr' },
-    { name: 'Kicker',              url: 'https://www.kicker.de',                   lang: 'de' },
+    { name: 'BBC Sport',       url: 'https://www.bbc.com/sport',              lang: 'en' },
+    { name: 'Marca',           url: 'https://www.marca.com',                  lang: 'es' },
+    { name: "L'Équipe",        url: 'https://www.lequipe.fr',                 lang: 'fr' },
+    { name: 'Kicker',          url: 'https://www.kicker.de',                  lang: 'de' },
+    { name: 'Gazzetta IT',     url: 'https://www.gazzetta.it',                lang: 'it' },
+    { name: 'Sports.ru',       url: 'https://www.sports.ru',                  lang: 'ru' },
+    { name: 'Sport.hu',        url: 'https://sport.hu',                       lang: 'hu' },
+    { name: 'NHK Sports',      url: 'https://www3.nhk.or.jp/sports/',         lang: 'ja' },
+    { name: 'Sina Sports',     url: 'https://sports.sina.com.cn',             lang: 'zh' },
   ],
   Tech: [
-    { name: 'Wired',               url: 'https://www.wired.com',                   lang: 'en' },
-    { name: 'MIT Tech Review',     url: 'https://www.technologyreview.com',        lang: 'en' },
-    { name: 'Heise Online',        url: 'https://www.heise.de',                    lang: 'de' },
+    { name: 'Wired',           url: 'https://www.wired.com',                  lang: 'en' },
+    { name: 'MIT Tech Review', url: 'https://www.technologyreview.com',       lang: 'en' },
+    { name: 'Heise Online',    url: 'https://www.heise.de',                   lang: 'de' },
+    { name: 'Tom\'s Hardware IT', url: 'https://www.tomshw.it',               lang: 'it' },
+    { name: 'Hi-Tech Mail',    url: 'https://hi-tech.mail.ru',                lang: 'ru' },
+    { name: 'IT之家',          url: 'https://www.ithome.com',                 lang: 'zh' },
   ],
   'Animals & Nature': [
-    { name: 'Nat Geo EN',          url: 'https://www.nationalgeographic.com',      lang: 'en' },
-    { name: 'Nat Geo ES',          url: 'https://www.nationalgeographic.com.es',   lang: 'es' },
-    { name: 'Nat Geo DE',          url: 'https://www.nationalgeographic.de',       lang: 'de' },
-    { name: 'Nat Geo JA',          url: 'https://natgeo.nikkeibp.co.jp',           lang: 'ja' },
-    { name: 'WWF',                 url: 'https://www.worldwildlife.org',            lang: 'en' },
+    { name: 'Nat Geo EN',      url: 'https://www.nationalgeographic.com',     lang: 'en' },
+    { name: 'Nat Geo ES',      url: 'https://www.nationalgeographic.com.es',  lang: 'es' },
+    { name: 'Nat Geo FR',      url: 'https://www.nationalgeographic.fr',      lang: 'fr' },
+    { name: 'Nat Geo DE',      url: 'https://www.nationalgeographic.de',      lang: 'de' },
+    { name: 'Nat Geo IT',      url: 'https://www.nationalgeographic.it',      lang: 'it' },
+    { name: 'Nat Geo RU',      url: 'https://www.nat-geo.ru',                 lang: 'ru' },
+    { name: 'Nat Geo JA',      url: 'https://natgeo.nikkeibp.co.jp',          lang: 'ja' },
+    { name: 'WWF',             url: 'https://www.worldwildlife.org',           lang: 'en' },
   ],
   Cooking: [
-    { name: 'Serious Eats',        url: 'https://www.seriouseats.com',              lang: 'en' },
-    { name: 'Marmiton',            url: 'https://www.marmiton.org',                 lang: 'fr' },
-    { name: 'Recetas Gratis',      url: 'https://www.recetasgratis.net',            lang: 'es' },
+    { name: 'Serious Eats',    url: 'https://www.seriouseats.com',             lang: 'en' },
+    { name: 'Marmiton',        url: 'https://www.marmiton.org',                lang: 'fr' },
+    { name: 'Recetas Gratis',  url: 'https://www.recetasgratis.net',           lang: 'es' },
+    { name: 'Giallo Zafferano',url: 'https://www.giallozafferano.it',          lang: 'it' },
+    { name: 'Gastronom.ru',    url: 'https://www.gastronom.ru',                lang: 'ru' },
+    { name: 'Cookpad JP',      url: 'https://cookpad.com/jp',                  lang: 'ja' },
+    { name: '下厨房',           url: 'https://www.xiachufang.com',              lang: 'zh' },
   ],
   Science: [
-    { name: 'Scientific American', url: 'https://www.scientificamerican.com',       lang: 'en' },
+    { name: 'Scientific American', url: 'https://www.scientificamerican.com',      lang: 'en' },
     { name: 'Investigación y Ciencia', url: 'https://www.investigacionyciencia.es', lang: 'es' },
-    { name: 'New Scientist',       url: 'https://www.newscientist.com',             lang: 'en' },
+    { name: 'Spektrum.de',     url: 'https://www.spektrum.de',                lang: 'de' },
+    { name: 'Le Scienze',      url: 'https://www.lescienze.it',               lang: 'it' },
+    { name: 'Nauka i Zhizn',   url: 'https://www.nkj.ru',                     lang: 'ru' },
+    { name: 'Science日本語',   url: 'https://www.science.org',                lang: 'ja' },
   ],
   Travel: [
-    { name: 'Wikivoyage EN', url: 'https://en.wikivoyage.org', lang: 'en', wikivoyage: true },
-    { name: 'Wikivoyage ES', url: 'https://es.wikivoyage.org', lang: 'es', wikivoyage: true },
-    { name: 'Wikivoyage FR', url: 'https://fr.wikivoyage.org', lang: 'fr', wikivoyage: true },
-    { name: 'Wikivoyage DE', url: 'https://de.wikivoyage.org', lang: 'de', wikivoyage: true },
-    { name: 'Wikivoyage JA', url: 'https://ja.wikivoyage.org', lang: 'ja', wikivoyage: true },
-    { name: 'Wikivoyage RU', url: 'https://ru.wikivoyage.org', lang: 'ru', wikivoyage: true },
+    { name: 'Wikivoyage EN',  url: 'https://en.wikivoyage.org',  lang: 'en',  wikivoyage: true },
+    { name: 'Wikivoyage ES',  url: 'https://es.wikivoyage.org',  lang: 'es',  wikivoyage: true },
+    { name: 'Wikivoyage FR',  url: 'https://fr.wikivoyage.org',  lang: 'fr',  wikivoyage: true },
+    { name: 'Wikivoyage DE',  url: 'https://de.wikivoyage.org',  lang: 'de',  wikivoyage: true },
+    { name: 'Wikivoyage IT',  url: 'https://it.wikivoyage.org',  lang: 'it',  wikivoyage: true },
+    { name: 'Wikivoyage RU',  url: 'https://ru.wikivoyage.org',  lang: 'ru',  wikivoyage: true },
+    { name: 'Wikivoyage HE',  url: 'https://he.wikivoyage.org',  lang: 'he',  wikivoyage: true },
+    { name: 'Wikivoyage AR',  url: 'https://ar.wikivoyage.org',  lang: 'ar',  wikivoyage: true },
+    { name: 'Wikivoyage JA',  url: 'https://ja.wikivoyage.org',  lang: 'ja',  wikivoyage: true },
+    { name: 'Wikivoyage ZH',  url: 'https://zh.wikivoyage.org',  lang: 'zh',  wikivoyage: true },
+    { name: 'Wikivoyage EL',  url: 'https://el.wikivoyage.org',  lang: 'el',  wikivoyage: true },
+    { name: 'Wikivoyage HU',  url: 'https://hu.wikivoyage.org',  lang: 'hu',  wikivoyage: true },
   ],
 }
 
@@ -618,58 +733,52 @@ async function importSuggestedSource(src) {
   topicImporting.value = null
 }
 
-// ── Subtitles (OpenSubtitles) ──────────────────────────────────
-const subsQuery       = ref('')   // movie or show title typed by the user
-const subsResults     = ref([])   // array of subtitle match objects from OpenSubtitles
-const subsLoading     = ref(false)
-// subsDownloading = sub.id of the subtitle currently being downloaded, or null.
-// Used to show "…" on the correct Import button during the multi-step download.
-const subsDownloading = ref(null)
+// ── Quote of the Day (Wikiquote) ───────────────────────────────
+const quoteOfDay   = ref(null)
+const quoteLoading = ref(false)
 
-// searchSubtitles() searches OpenSubtitles via the api/opensubtitles.js proxy.
-// The proxy keeps the API key secret — we can't put it in browser-side code.
-async function searchSubtitles() {
-  if (!subsQuery.value.trim()) return
-  subsLoading.value = true
-  try {
-    const res  = await fetch(`/api/opensubtitles?action=search&query=${encodeURIComponent(subsQuery.value.trim())}&lang=${props.lang}`)
-    const data = await res.json()
-    subsResults.value = data.data ?? [] // data.data = the array of results from OpenSubtitles
-  } catch {
-    subsResults.value = []
-  }
-  subsLoading.value = false
+async function loadQuote() {
+  quoteLoading.value = true
+  quoteOfDay.value   = await fetchQuoteOfDay(props.lang)
+  quoteLoading.value = false
 }
 
-// subTitle() extracts the best display title from an OpenSubtitles result object.
-// The API nests the movie name in different places depending on the media type.
-// || chains fallbacks: try movie_name → title → release name → "Unknown".
-function subTitle(sub) {
-  return sub.attributes?.feature_details?.movie_name
-    || sub.attributes?.feature_details?.title
-    || sub.attributes?.release
-    || 'Unknown'
+watch(() => props.lang, () => { quoteOfDay.value = null })
+
+function importQuote() {
+  if (!quoteOfDay.value) return
+  pushLocalStory({
+    title:   `"${quoteOfDay.value.author}"`,
+    content: quoteOfDay.value.quote,
+    source:  'Wikiquote',
+  })
 }
 
-// downloadSubtitle() is a two-step process:
-//   1. api/opensubtitles?action=download posts to OpenSubtitles to get a signed download link.
-//   2. The proxy fetches the SRT file, strips timestamps, and returns plain text.
-// The plain text is then saved as a local story.
-async function downloadSubtitle(sub) {
-  // sub.attributes.files[0].file_id = the ID of the first subtitle file for this result.
-  // Optional chaining (?.) handles missing nested properties without crashing.
-  const fileId = sub.attributes?.files?.[0]?.file_id
-  if (!fileId) return
+// ── Subtitles (SRT paste) ───────────────────────────────────────
+const srtTitle   = ref('')
+const srtContent = ref('')
+const srtError   = ref('')
 
-  subsDownloading.value = sub.id // mark this subtitle as in-progress
-  try {
-    const res  = await fetch(`/api/opensubtitles?action=download&file_id=${fileId}`)
-    const data = await res.json()
-    if (data.text) {
-      pushLocalStory({ title: subTitle(sub), content: data.text, source: 'OpenSubtitles' })
-    }
-  } catch { /* silently ignore */ }
-  subsDownloading.value = null
+function parseSRT(srt) {
+  return srt
+    .replace(/^\d+\s*$/gm, '')
+    .replace(/\d{2}:\d{2}:\d{2}[,.:]\d{2,3}\s*-->\s*\d{2}:\d{2}:\d{2}[,.:]\d{2,3}/g, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\{[^}]+\}/g, '')
+    .split('\n').map(l => l.trim()).filter(Boolean).join(' ')
+    .replace(/\s{2,}/g, ' ').trim()
+}
+
+function importSRT() {
+  srtError.value = ''
+  const raw = srtContent.value.trim()
+  if (!raw) { srtError.value = 'Paste SRT content first.'; return }
+  const text = parseSRT(raw)
+  if (text.length < 20) { srtError.value = 'Could not extract dialogue from this SRT content.'; return }
+  const title = srtTitle.value.trim() || 'Subtitles'
+  pushLocalStory({ title, content: text, source: 'Subtitles' })
+  srtTitle.value   = ''
+  srtContent.value = ''
 }
 
 // ── Add story form ─────────────────────────────────────────────
@@ -767,6 +876,14 @@ function emitLoad(story) {
   window.clarity?.('event', 'story_loaded')
   window.clarity?.('set', 'story_lang', story.lang)
   emit('load', story)
+}
+
+function resumeStory(progress) {
+  const all = [...curatedStories.value, ...localStories.value, ...communityStories.value]
+  const story = all.find(s => s.id === progress.story_id)
+  if (story) {
+    emitLoad(story)
+  }
 }
 
 // wordCount() returns the appropriate size metric depending on the story's language.
