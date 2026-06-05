@@ -2,12 +2,20 @@
 <template>
   <div class="min-h-screen bg-gray-950 text-gray-50">
 
+    <!-- First-visit onboarding: language picker + sign in / guest -->
+    <WelcomeView
+      v-if="!activeLang"
+      @pick="enterAsGuest"
+      @sign-in="enterAndOpenAuth"
+    />
+
+    <template v-else>
     <NavBar
       :active="activeTab"
       :lang="activeLang"
       :currentUser="currentUser"
       @tab="activeTab = $event"
-      @lang="activeLang = $event"
+      @lang="changeLang"
       @auth="showAuth = true"
       @logout="handleLogout"
     />
@@ -76,6 +84,7 @@
       @logged-in="handleLogin"
     />
 
+    </template>
   </div>
 </template>
 
@@ -85,6 +94,7 @@ import { ref, watch, computed, onMounted, defineAsyncComponent } from 'vue'
 import NavBar      from './components/NavBar.vue'
 import AuthModal   from './components/AuthModal.vue'
 import LibraryView from './views/LibraryView.vue'
+import WelcomeView from './views/WelcomeView.vue'
 
 const RetypeView   = defineAsyncComponent(() => import('./views/RetypeView.vue'))
 const VocabView    = defineAsyncComponent(() => import('./views/VocabView.vue'))
@@ -97,13 +107,36 @@ import { LANGS } from './data/stories.js'
 import { getMe, logout, onUnauthorized, getAccountVocab, saveVocabWord, removeVocabWord } from './utils/api.js'
 
 const activeTab    = ref('library')
-const activeLang   = ref('es')
+// null = first visit → show WelcomeView; otherwise restore saved language
+const activeLang   = ref(localStorage.getItem('szol_lang') || null)
 const currentStory = ref(null)
 const currentUser  = ref(null)
 const showAuth     = ref(false)
 
 const vocabBank = ref(JSON.parse(localStorage.getItem('szol_vocab') || '[]'))
 watch(vocabBank, val => localStorage.setItem('szol_vocab', JSON.stringify(val)), { deep: true })
+
+// ── Language helpers ──────────────────────────────────────────────────────────
+
+function _setLang(code) {
+  activeLang.value = code
+  localStorage.setItem('szol_lang', code)
+}
+
+// WelcomeView: user picked a language and wants to continue as guest.
+function enterAsGuest(lang) { _setLang(lang) }
+
+// WelcomeView: user picked a language and wants to sign in.
+function enterAndOpenAuth(lang) { _setLang(lang); showAuth.value = true }
+
+// NavBar language dropdown: save choice and clear any story in the wrong language.
+function changeLang(code) {
+  if (currentStory.value && currentStory.value.lang !== code) {
+    currentStory.value = null
+    activeTab.value    = 'library'
+  }
+  _setLang(code)
+}
 
 onUnauthorized(() => {
   currentUser.value = null
