@@ -1,4 +1,10 @@
 {
+  "rewrites": [
+    {
+      "source": "/api/clarity-collect/:path*",
+      "destination": "/api/clarity-collect?proxypath=:path*"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
