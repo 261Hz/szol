@@ -49,7 +49,7 @@
         type="button"
         @click="$emit('sign-in', selected)"
         :disabled="!selected"
-        class="text-sm text-gray-500 hover:text-gray-300 disabled:opacity-30 transition-all"
+        class="text-sm text-green-500 hover:text-gray-300 disabled:opacity-30 transition-all"
       >
         Sign in / Create account
       </button>
