@@ -41,46 +41,63 @@
         <div v-else-if="!curatedAndLocal.length" class="text-xs text-gray-500 py-4 text-center">No stories yet for this language.</div>
         <div v-else class="flex flex-col gap-1.5">
           <div
-            v-for="story in curatedAndLocal"
-            :key="story.id"
+            v-for="book in groupedCurated"
+            :key="book.bookTitle + (book.author || '')"
             :class="['rounded-lg border transition-all overflow-hidden',
-              current?.id === story.id ? 'border-green-600' : 'border-gray-700']"
+              book.chapters.some(c => current?.id === c.id) ? 'border-green-600' : 'border-gray-700']"
           >
-            <!-- Compact header row — click to expand/collapse -->
+            <!-- Book header — single-chapter: load directly; multi-chapter: expand -->
             <button
-              @click="expandedStory = expandedStory === story.id ? null : story.id"
+              @click="book.chapters.length === 1
+                ? emitLoad(book.chapters[0])
+                : (expandedBook = expandedBook === book.bookTitle ? null : book.bookTitle)"
               class="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-gray-800 transition-all"
             >
-              <span
-                class="font-medium text-sm break-words leading-snug"
-                :dir="isRTL(story.lang) ? 'rtl' : 'ltr'"
-              >{{ story.title }}</span>
-              <span class="text-gray-600 text-xs ml-2 flex-shrink-0">{{ expandedStory === story.id ? '▲' : '▼' }}</span>
+              <div class="flex flex-col gap-0.5 min-w-0">
+                <span class="font-medium text-sm break-words leading-snug" :dir="isRTL(book.lang) ? 'rtl' : 'ltr'">
+                  {{ book.bookTitle }}
+                </span>
+                <div class="flex gap-1.5 text-xs text-gray-500 flex-wrap">
+                  <span v-if="book.author">{{ book.author }}</span>
+                  <span v-if="book.chapters.length > 1">· {{ book.chapters.length }} chapters</span>
+                  <span v-if="chaptersWithProgress(book) > 0" class="text-green-400">
+                    · {{ chaptersWithProgress(book) }}/{{ book.chapters.length }} read
+                  </span>
+                  <span v-if="book.chapters[0]?.local" class="text-gray-600">· local</span>
+                </div>
+              </div>
+              <span class="text-gray-600 text-xs ml-2 flex-shrink-0">
+                {{ book.chapters.length > 1 ? (expandedBook === book.bookTitle ? '▲' : '▼') : '→' }}
+              </span>
             </button>
 
-            <!-- Expanded: metadata + Read button -->
+            <!-- Chapter list (multi-chapter books only, when expanded) -->
             <div
-              v-if="expandedStory === story.id"
-              class="px-3 pb-3 pt-1 border-t border-gray-800 flex flex-col gap-2"
-              :class="current?.id === story.id ? 'bg-green-950' : 'bg-gray-900'"
+              v-if="book.chapters.length > 1 && expandedBook === book.bookTitle"
+              class="border-t border-gray-800 divide-y divide-gray-800"
+              :class="book.chapters.some(c => current?.id === c.id) ? 'bg-green-950' : 'bg-gray-900'"
             >
-              <div class="flex gap-2 flex-wrap">
-                <span class="text-xs text-gray-500">{{ LANGS[story.lang]?.name }}</span>
-                <span class="text-xs text-gray-500">· {{ wordCount(story) }} {{ t(lang, 'words') }}</span>
-                <span v-if="story.author" class="text-xs text-gray-500">· {{ story.author }}</span>
-                <span v-if="story.sequence_order" class="text-xs text-green-400">{{ t(lang, 'curated') }}</span>
-                <span v-if="story.local" class="text-xs text-gray-500">{{ t(lang, 'local') }}</span>
-                <span v-if="story.franco" class="text-xs text-orange-400">franco</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <button
-                  @click="emitLoad(story)"
-                  class="text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all"
-                >Read →</button>
-                <span
-                  v-if="progressByStory[story.id]?.sentence_index > 0"
-                  class="text-xs text-green-400 border border-green-800 rounded-full px-2 py-0.5"
-                >sentence {{ progressByStory[story.id].sentence_index }}</span>
+              <div
+                v-for="chapter in book.chapters"
+                :key="chapter.id"
+                class="flex items-center justify-between px-3 py-2 gap-2"
+              >
+                <span class="text-sm text-gray-300 min-w-0 truncate" :dir="isRTL(book.lang) ? 'rtl' : 'ltr'">
+                  {{ chapterLabel(chapter) }}
+                </span>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                  <span
+                    v-if="progressByStory[chapter.id]?.sentence_index > 0"
+                    class="text-xs text-green-400 border border-green-800 rounded-full px-2 py-0.5"
+                  >↗ {{ progressByStory[chapter.id].sentence_index }}</span>
+                  <button
+                    @click="emitLoad(chapter)"
+                    :class="['text-xs px-2.5 py-1 rounded-md transition-all',
+                      current?.id === chapter.id
+                        ? 'bg-green-600 text-white'
+                        : 'bg-green-700 text-white hover:bg-green-600']"
+                  >{{ current?.id === chapter.id ? 'Reading' : 'Read →' }}</button>
+                </div>
               </div>
             </div>
           </div>
@@ -457,10 +474,39 @@ watch(() => props.lang, async (newLang) => {
 })
 
 // curatedAndLocal = official + user-added stories, filtered to the active language.
-// These are shown in the 📖 Curated section. Spread (...) merges the two arrays.
 const curatedAndLocal = computed(() =>
   [...curatedStories.value, ...localStories.value].filter(s => s.lang === props.lang)
 )
+
+// groupedCurated groups curatedAndLocal into book objects.
+// Titles following "Book Title — Chapter Label" are split; others are their own single-chapter book.
+const groupedCurated = computed(() => {
+  const bookMap = new Map()
+  for (const story of curatedAndLocal.value) {
+    const sep      = story.title.indexOf(' — ')   // em dash with spaces
+    const bookKey  = sep !== -1 ? story.title.slice(0, sep) : story.title
+    const groupKey = bookKey + '|' + (story.author || '')
+    if (!bookMap.has(groupKey)) {
+      bookMap.set(groupKey, { bookTitle: bookKey, author: story.author || null, lang: story.lang, chapters: [] })
+    }
+    bookMap.get(groupKey).chapters.push(story)
+  }
+  for (const g of bookMap.values()) {
+    g.chapters.sort((a, b) => (a.sequence_order ?? 0) - (b.sequence_order ?? 0))
+  }
+  return [...bookMap.values()]
+})
+
+// chapterLabel extracts the part after " — " from a story title, or returns the full title.
+function chapterLabel(story) {
+  const sep = story.title.indexOf(' — ')
+  return sep !== -1 ? story.title.slice(sep + 3) : story.title
+}
+
+// chaptersWithProgress counts how many chapters in a book have any recorded progress.
+function chaptersWithProgress(book) {
+  return book.chapters.filter(c => progressByStory.value[c.id]?.sentence_index > 0).length
+}
 // filteredCommunity = community stories for the active language only.
 const filteredCommunity = computed(() =>
   communityStories.value.filter(s => s.lang === props.lang)
@@ -783,7 +829,7 @@ function importSRT() {
 
 // ── Add story form ─────────────────────────────────────────────
 // These refs bind to the form inputs inside the Curated section via v-model.
-const expandedStory = ref(null)   // id of the currently expanded curated story card
+const expandedBook  = ref(null)    // bookTitle of the currently expanded book card
 const showAdd       = ref(false)  // controls whether the form is visible
 const customTitle   = ref('')
 const customText    = ref('')
