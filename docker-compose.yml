@@ -1,0 +1,41 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    container_name: fastapi-szol
+    ports:
+      - "5000:8000"
+    env_file:
+      - .env
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    volumes:
+      - ./app:/app
+    depends_on:
+      - db_szol
+
+  frontend:
+    image: node:20
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    command: sh -c "npm install && npm run dev -- --host"
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+  db_szol:
+    image: postgres:17
+    container_name: postgres_szol
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgresDB_data_szol:/var/lib/postgresql/data
+    
+    
+volumes:
+  postgresDB_data_szol:
