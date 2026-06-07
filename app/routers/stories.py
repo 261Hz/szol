@@ -12,8 +12,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from .. import models, schemas, oauth2
-from ..database import get_db
+import models, schemas, oauth2
+from database import get_db
 
 # prefix="/stories" means every route below is relative to /stories.
 # tags=["Stories"] groups these routes together in the auto-generated /docs UI.

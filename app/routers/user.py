@@ -11,8 +11,8 @@ from typing import List
 from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from email_validator import validate_email, EmailNotValidError
-from .. import models, schemas, utils, oauth2
-from ..database import get_db
+import models, schemas, utils, oauth2
+from database import get_db
 from sqlalchemy.orm import Session
 
 router = APIRouter(

@@ -1,12 +1,14 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List, Optional
+from config import settings
+
 import os
 from groq import Groq
 
 router = APIRouter(tags=["Chat"])
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+client = Groq(api_key=settings.GROQ_API_KEY)
 
 _LANG_NAMES = {
     "en": "English", "es": "Spanish", "fr": "French", "de": "German",

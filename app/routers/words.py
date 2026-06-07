@@ -13,8 +13,8 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from .. import models, schemas, oauth2
-from ..database import get_db
+import models, schemas, oauth2
+from database import get_db
 
 router = APIRouter(
     prefix="/words",
