@@ -260,13 +260,13 @@ async function fetchCaptions(id) {
   captionsLoading.value = true
   captionsError.value   = ''
   try {
-    // 1. Fetch caption track list directly from browser (residential IP + YT cookies).
+    // 1. Get track list to distinguish manual vs auto-generated.
     const listRes = await fetch(
-      `https://www.youtube.com/api/timedtext?v=${encodeURIComponent(id)}&type=list&hl=en`
+      `https://www.youtube.com/api/timedtext?v=${encodeURIComponent(id)}&type=list`
     )
     const listXml = await listRes.text()
+    console.log('[szol] timedtext list:', listXml.slice(0, 800))
 
-    // Parse <track .../> elements — kind="asr" = auto-generated.
     const tracks = []
     for (const m of listXml.matchAll(/<track\b([^>]*)>/g)) {
       const attr = m[1]
@@ -275,32 +275,35 @@ async function fetchCaptions(id) {
       const kind = attr.match(/\bkind="([^"]*)"/)?.[1]  ?? ''
       if (lang) tracks.push({ lang, name, kind })
     }
+    console.log('[szol] parsed tracks:', tracks)
 
-    const manual = tracks.filter(t => t.kind !== 'asr' && !t.name.toLowerCase().includes('auto'))
-
+    // 2. If list is empty, try direct fetch as fallback (some videos skip the list).
     if (!tracks.length) {
+      const direct = await fetch(
+        `https://www.youtube.com/api/timedtext?v=${encodeURIComponent(id)}&lang=en&fmt=json3`
+      )
+      const data = await direct.json()
+      console.log('[szol] direct fetch events:', data.events?.length)
+      if (data.events?.length) {
+        segments.value = parseCaptions(data)
+        return
+      }
       captionsError.value = 'This video has no captions. Choose a video with subtitles.'
       return
     }
+
+    const manual = tracks.filter(t => t.kind !== 'asr' && !t.name.toLowerCase().includes('auto'))
     if (!manual.length) {
-      captionsError.value = 'This video only has auto-generated captions, which have too many errors for dictation. Choose a video with manually reviewed subtitles.'
+      captionsError.value = 'This video only has auto-generated captions. Choose a video with manually reviewed subtitles.'
       return
     }
 
-    // 2. Pick best English manual track.
     const pick = manual.find(t => t.lang.startsWith('en')) ?? manual[0]
-
-    // 3. Fetch caption content in json3 format.
     const captionRes = await fetch(
       `https://www.youtube.com/api/timedtext?v=${encodeURIComponent(id)}&lang=${pick.lang}&name=${encodeURIComponent(pick.name)}&fmt=json3`
     )
     const data = await captionRes.json()
-
-    if (!data.events?.length) {
-      captionsError.value = 'Caption track is empty.'
-      return
-    }
-
+    if (!data.events?.length) { captionsError.value = 'Caption track is empty.'; return }
     segments.value = parseCaptions(data)
     if (!segments.value.length) captionsError.value = 'Could not parse captions.'
   } catch (e) {
