@@ -338,37 +338,47 @@ async function loadAudioUrl(url) {
   }
 }
 
-// Parse the YouTube transcript panel format:
-//   0:09\nSome text\n0:13\nMore text
-// Falls back to plain-text word-chunking if no timestamps found.
+// Parse YouTube transcript panel output. Handles two formats:
+//   "0:09\nSome text"  — timestamp on its own line
+//   "0:09 Some text"   — timestamp inline before text (also common)
+// Timestamps are always stripped from the output text.
 function parsePastedTranscript(text) {
-  const lines  = text.trim().split('\n').map(l => l.trim()).filter(Boolean)
-  const timeRe = /^(\d+):(\d{2})(?::(\d{2}))?$/
-  const entries = []
+  const lines      = text.trim().split('\n').map(l => l.trim()).filter(Boolean)
+  const timeLineRe = /^(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s+|$)/
+  const tsStripRe  = /\b\d{1,2}:\d{2}(?::\d{2})?\b/g
 
+  const entries = []
   let i = 0
+
   while (i < lines.length) {
-    const m = lines[i].match(timeRe)
+    const m = lines[i].match(timeLineRe)
     if (m) {
       const parts = m[3]
         ? [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])]
         : [0, parseInt(m[1]), parseInt(m[2])]
       const start = parts[0] * 3600 + parts[1] * 60 + parts[2]
-      const textLines = []
+
+      // Text on the same line after the timestamp (inline format)
+      const sameLineText = lines[i].replace(timeLineRe, '').trim()
+      const textLines = sameLineText ? [sameLineText] : []
+
       i++
-      while (i < lines.length && !lines[i].match(timeRe)) {
+      while (i < lines.length && !lines[i].match(timeLineRe)) {
         textLines.push(lines[i])
         i++
       }
-      if (textLines.length) entries.push({ start, text: textLines.join(' ') })
+
+      const entryText = textLines.join(' ').replace(tsStripRe, '').replace(/\s+/g, ' ').trim()
+      if (entryText) entries.push({ start, text: entryText })
     } else {
       i++
     }
   }
 
-  // No timestamps — treat as plain text, rough 2s per entry
+  // No timestamps found — strip stray ones and chunk by word count
   if (!entries.length) {
-    const words = text.replace(/\s+/g, ' ').trim().split(' ')
+    const clean = text.replace(tsStripRe, ' ').replace(/\s+/g, ' ').trim()
+    const words = clean.split(' ').filter(Boolean)
     for (let j = 0; j < words.length; j += 10) {
       entries.push({ start: j * 2, text: words.slice(j, j + 10).join(' ') })
     }
