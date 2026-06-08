@@ -1,4 +1,4 @@
-youtube-transcript-api==0.6.3
+youtube-transcript-api==1.2.4
 alembic==1.18.4
 groq
 annotated-doc==0.0.4

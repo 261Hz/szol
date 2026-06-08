@@ -46,12 +46,12 @@ def get_transcript(v: str):
 
     events = [
         {
-            "tStartMs":    int(entry["start"] * 1000),
-            "dDurationMs": int(entry["duration"] * 1000),
-            "segs":        [{"utf8": entry["text"]}],
+            "tStartMs":    int(entry.start * 1000),
+            "dDurationMs": int(entry.duration * 1000),
+            "segs":        [{"utf8": entry.text}],
         }
         for entry in entries
-        if entry.get("text", "").strip()
+        if entry.text.strip()
     ]
 
     return {
