@@ -142,6 +142,10 @@ class WordCacheResponse(WordCacheBase):
 
 # ── Video stories (Listen feature) ───────────────────────────────────────────
 
+class ListenFromUrl(BaseModel):
+    url:  str
+    lang: str = 'en'
+
 class VideoStoryResponse(BaseModel):
     id:             UUID
     video_id:       Optional[str] = None

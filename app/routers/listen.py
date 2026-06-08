@@ -1,9 +1,73 @@
-from fastapi import APIRouter, Depends
+import re, json
+import urllib.request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..database import get_db
 
 router = APIRouter()
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def extract_video_id(url: str) -> str | None:
+    url = url.strip()
+    patterns = [
+        r'[?&]v=([a-zA-Z0-9_-]{11})',
+        r'youtu\.be/([a-zA-Z0-9_-]{11})',
+        r'youtube\.com/embed/([a-zA-Z0-9_-]{11})',
+        r'youtube\.com/shorts/([a-zA-Z0-9_-]{11})',
+        r'youtube\.com/live/([a-zA-Z0-9_-]{11})',
+    ]
+    for p in patterns:
+        m = re.search(p, url)
+        if m:
+            return m.group(1)
+    if re.match(r'^[a-zA-Z0-9_-]{11}$', url):
+        return url
+    return None
+
+
+def get_video_title(video_id: str) -> str:
+    """Fetch the video title via YouTube's public oEmbed endpoint."""
+    try:
+        oembed = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
+        with urllib.request.urlopen(oembed, timeout=5) as r:
+            return json.loads(r.read().decode())['title']
+    except Exception:
+        return f"YouTube: {video_id}"
+
+
+def build_segments(entries: list[dict], words_per_seg: int = 15) -> list[dict]:
+    """Group caption entries into ~15-word practice segments."""
+    segments, cur = [], {"start_ms": 0, "end_ms": 0, "words": []}
+    for entry in entries:
+        text  = entry['text'].replace('\n', ' ').strip()
+        start = int(entry['start'] * 1000)
+        end   = int((entry['start'] + entry.get('duration', 2.0)) * 1000)
+        if not text:
+            continue
+        if not cur['words']:
+            cur['start_ms'] = start
+        cur['end_ms'] = end
+        cur['words'].extend(text.split())
+        if len(cur['words']) >= words_per_seg:
+            segments.append({
+                'start': cur['start_ms'] // 1000,
+                'end':   cur['end_ms']   // 1000,
+                'text':  ' '.join(cur['words']),
+            })
+            cur = {"start_ms": 0, "end_ms": 0, "words": []}
+    if cur['words']:
+        segments.append({
+            'start': cur['start_ms'] // 1000,
+            'end':   cur['end_ms']   // 1000,
+            'text':  ' '.join(cur['words']),
+        })
+    return segments
+
+
+# ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.get("/listen-stories", response_model=list[schemas.VideoStoryResponse])
 def get_listen_stories(lang: str, db: Session = Depends(get_db)):
@@ -13,3 +77,73 @@ def get_listen_stories(lang: str, db: Session = Depends(get_db)):
         .order_by(models.VideoStory.sequence_order)
         .all()
     )
+
+
+@router.post("/listen-stories/from-url", response_model=schemas.VideoStoryResponse)
+def create_from_url(payload: schemas.ListenFromUrl, db: Session = Depends(get_db)):
+    video_id = extract_video_id(payload.url)
+    if not video_id:
+        raise HTTPException(400, "Could not find a YouTube video ID in that URL.")
+
+    # Return existing story rather than duplicating
+    existing = (
+        db.query(models.VideoStory)
+        .filter(models.VideoStory.video_id == video_id, models.VideoStory.lang == payload.lang)
+        .first()
+    )
+    if existing:
+        return existing
+
+    # Fetch transcript via youtube-transcript-api
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
+
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+
+        manual = None
+        for t in transcript_list:
+            if not t.is_generated:
+                manual = t
+                break
+
+        if manual is None:
+            raise HTTPException(
+                422,
+                "This video only has auto-generated captions. "
+                "Choose a video with manually reviewed subtitles for better accuracy."
+            )
+
+        # Prefer the requested language, fall back to the first manual track
+        try:
+            entries = transcript_list.find_manually_created_transcript([payload.lang]).fetch()
+        except Exception:
+            entries = manual.fetch()
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        error = str(exc).lower()
+        if 'disabled' in error or 'no transcript' in error:
+            raise HTTPException(404, "This video has no captions.")
+        raise HTTPException(502, f"Could not fetch transcript: {exc}")
+
+    segments = build_segments(
+        [{'text': e['text'], 'start': e['start'], 'duration': e.get('duration', 2.0)} for e in entries]
+    )
+    if not segments:
+        raise HTTPException(422, "Transcript is empty.")
+
+    title = get_video_title(video_id)
+
+    story = models.VideoStory(
+        video_id    = video_id,
+        source_type = 'youtube',
+        title       = title,
+        lang        = payload.lang,
+        source      = 'YouTube',
+        segments    = segments,
+    )
+    db.add(story)
+    db.commit()
+    db.refresh(story)
+    return story
