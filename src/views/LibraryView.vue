@@ -182,6 +182,26 @@
       </div>
     </div>
 
+    <!-- ─── 🕐 LITERARY CLOCK (English only) ─── -->
+    <div v-if="lang === 'en'" class="border border-gray-700 rounded-lg overflow-hidden">
+      <button @click="toggle('litclock')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
+        <span>🕐 Literary Clock</span>
+        <span class="text-gray-500 text-xs">{{ open.litclock ? '▲' : '▼' }}</span>
+      </button>
+      <div v-if="open.litclock" class="px-4 pb-4 pt-1">
+        <div v-if="litClockLoading" class="text-xs text-gray-500 py-4 text-center">{{ t(lang, 'loading') }}</div>
+        <div v-else-if="litClockQuote" class="flex flex-col gap-3">
+          <p class="text-sm text-gray-200 italic leading-relaxed">
+            <ClickableText :text="litClockQuote.quote_first" lang="en" :savedWords="savedWordsSet" @tap="({ word, sentence }) => saveFromLibrary(word, sentence)" /><!--
+            --><span class="text-emerald-400 font-semibold not-italic">{{ litClockQuote.quote_time_case }}</span><!--
+            --><ClickableText :text="litClockQuote.quote_last" lang="en" :savedWords="savedWordsSet" @tap="({ word, sentence }) => saveFromLibrary(word, sentence)" />
+          </p>
+          <p class="text-xs text-gray-500">— <em>{{ litClockQuote.title }}</em> · {{ litClockQuote.author }}</p>
+        </div>
+        <div v-else class="text-xs text-gray-500 text-center py-4">No quote for this time.</div>
+      </div>
+    </div>
+
     <!-- ─── 📅 ON THIS DAY ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('onthisday')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
@@ -355,7 +375,7 @@
 
 <script setup>
 // ref = reactive variable. computed = auto-recalculates. onMounted = runs after the component appears.
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 // LANGS = configuration for all 13 supported languages (name, BCP47, RTL flag, etc.)
 import { LANGS } from '../data/stories.js'
 // isRTL = true for Arabic and Hebrew (affects text direction in story cards).
@@ -471,6 +491,12 @@ watch(() => props.lang, async (newLang) => {
   curatedStories.value   = curated
   communityStories.value = community
   loading.value          = false // hide the spinner
+  startLitClockTimer()
+})
+
+onUnmounted(() => {
+  clearTimeout(litClockTimer)
+  clearInterval(litClockTimer)
 })
 
 // curatedAndLocal = official + user-added stories, filtered to the active language.
@@ -521,6 +547,7 @@ const open = ref({
   curated:    true,
   today:      false,
   quote:      false,
+  litclock:   false,
   onthisday:  false,
   travel:     false,
   import:     false,
@@ -538,6 +565,7 @@ async function toggle(section) {
     // Only fetch if: the section just opened AND we don't already have data AND not currently loading.
     if (section === 'today'     && !todayArticle.value && !todayLoading.value) await loadToday()
     if (section === 'quote'     && !quoteOfDay.value   && !quoteLoading.value) await loadQuote()
+    if (section === 'litclock'  && !litClockQuote.value && !litClockLoading.value) await fetchLitClock()
     if (section === 'onthisday' && !onThisDay.value.length && !otdLoading.value) await loadOnThisDay()
   }
 }
@@ -557,6 +585,41 @@ async function loadToday() {
 function importWikipediaArticle(article) {
   if (!article?.extract) return // safety check in case article loaded but has no text
   pushLocalStory({ title: article.title, content: article.extract, source: 'Wikipedia' })
+}
+
+// ── Literary Clock ────────────────────────────────────────────────────────────
+// Data: https://literature-clock.jenevoldsen.com — English quotes keyed to the minute.
+const litClockQuote   = ref(null)   // { quote_first, quote_time_case, quote_last, title, author }
+const litClockLoading = ref(false)
+let   litClockTimer   = null
+
+async function fetchLitClock() {
+  litClockLoading.value = true
+  try {
+    const now = new Date()
+    const hh  = String(now.getHours()).padStart(2, '0')
+    const mm  = String(now.getMinutes()).padStart(2, '0')
+    const res = await fetch(`https://literature-clock.jenevoldsen.com/times/${hh}_${mm}.json`)
+    if (!res.ok) throw new Error()
+    const quotes = await res.json()
+    if (quotes?.length) {
+      // Pick a random quote from the list for this minute
+      litClockQuote.value = quotes[Math.floor(Math.random() * quotes.length)]
+    }
+  } catch {
+    litClockQuote.value = null
+  } finally {
+    litClockLoading.value = false
+  }
+}
+
+function startLitClockTimer() {
+  // Refresh at the start of every new minute
+  const msToNextMinute = (60 - new Date().getSeconds()) * 1000
+  litClockTimer = setTimeout(() => {
+    fetchLitClock()
+    litClockTimer = setInterval(fetchLitClock, 60_000)
+  }, msToNextMinute)
 }
 
 // ── On This Day ────────────────────────────────────────────────
