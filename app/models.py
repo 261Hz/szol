@@ -1,5 +1,5 @@
 from .database import Base
-from sqlalchemy import ARRAY, TIMESTAMP, Column, Integer, String, Boolean, Uuid
+from sqlalchemy import ARRAY, TIMESTAMP, Column, Integer, String, Boolean, Uuid, JSON
 from sqlalchemy.sql.expression import text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.schema import ForeignKey
@@ -75,6 +75,20 @@ class WordCache(Base):
     example    = Column(String)
     source     = Column(String, server_default='wiktionary')
     created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'))
+
+class VideoStory(Base):
+    __tablename__ = "video_stories"
+
+    id             = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
+    video_id       = Column(String, nullable=False, index=True)   # YouTube video ID
+    title          = Column(String, nullable=False)
+    lang           = Column(String, nullable=False, index=True)
+    author         = Column(String)                                # channel / speaker
+    source         = Column(String)                                # e.g. 'TED', 'DW', 'BBC'
+    segments       = Column(JSON, nullable=False)                  # [{start, end, text}, ...]
+    sequence_order = Column(Integer)
+    created_at     = Column(TIMESTAMP(timezone=True), server_default=text('now()'))
+
 
 class CommunityStory(Base):
     __tablename__ = "community_stories"

@@ -140,6 +140,22 @@ class WordCacheResponse(WordCacheBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ── Video stories (Listen feature) ───────────────────────────────────────────
+
+class VideoStoryResponse(BaseModel):
+    id:             UUID
+    video_id:       str
+    title:          str
+    lang:           str
+    author:         Optional[str] = None
+    source:         Optional[str] = None
+    segments:       List[dict]
+    sequence_order: Optional[int] = None
+    created_at:     datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ── Community stories ─────────────────────────────────────────────────────────
 
 class CommunityStoryBase(BaseModel):
