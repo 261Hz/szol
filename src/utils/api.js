@@ -212,6 +212,24 @@ export async function fetchCuratedStories(lang) {
   return await r.json().catch(() => [])
 }
 
+export async function fetchListenStories(lang) {
+  const r = await fetch(`${API_URL}/listen-stories?lang=${lang}`)
+  return await r.json().catch(() => [])
+}
+
+export async function addListenFromUrl(url, lang) {
+  const res = await apiFetch(`${API_URL}/listen-stories/from-url`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ url, lang }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Could not fetch transcript.')
+  }
+  return await res.json()
+}
+
 export async function fetchCommunityStories(lang) {
   const r = await fetch(`${API_URL}/stories/community?lang=${lang}`)
   return await r.json().catch(() => [])
