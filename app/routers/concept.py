@@ -1,4 +1,4 @@
-import json, re, os
+import os
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from groq import Groq
@@ -6,42 +6,41 @@ from groq import Groq
 router = APIRouter(tags=["Concept"])
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
+_LANG_NAMES = {
+    "en": "English", "es": "Spanish", "fr": "French", "de": "German",
+    "it": "Italian", "ru": "Russian", "he": "Hebrew", "ar": "Arabic (Modern Standard)",
+    "arz": "Egyptian Arabic (spoken dialect)", "ja": "Japanese",
+    "zh": "Mandarin Chinese (Simplified)", "hu": "Hungarian", "el": "Greek",
+}
+
 
 class ConceptRequest(BaseModel):
     concept:  str
     category: str
+    lang:     str = "en"
 
 
 @router.post("/concept-of-day")
 def concept_of_day(req: ConceptRequest):
+    lang_name = _LANG_NAMES.get(req.lang, req.lang)
     prompt = (
         f'You are a multilingual language teacher.\n\n'
         f'Concept ({req.category}): "{req.concept}"\n\n'
-        f'For each of the 13 languages below, write exactly ONE short, natural example sentence '
-        f'that clearly uses this concept. Keep sentences simple (5–12 words), everyday language, B1 level.\n\n'
-        f'Reply ONLY with a JSON object — no markdown, no explanation, just the JSON:\n\n'
-        f'{{"en":"...","es":"...","fr":"...","de":"...","he":"...","ar":"...","arz":"...",'
-        f'"ja":"...","ru":"...","it":"...","el":"...","zh":"...","hu":"..."}}'
+        f'Write exactly ONE short, natural example sentence in {lang_name} '
+        f'that clearly illustrates this concept. '
+        f'Use simple everyday vocabulary suitable for a B1 learner (5–12 words). '
+        f'Reply with ONLY the sentence — no explanation, no punctuation outside the sentence.'
     )
 
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=700,
-        temperature=0.5,
+        max_tokens=80,
+        temperature=0.6,
     )
 
-    content = response.choices[0].message.content.strip()
+    sentence = response.choices[0].message.content.strip().strip('"').strip("'")
+    if not sentence:
+        raise HTTPException(500, "Model returned an empty sentence.")
 
-    try:
-        translations = json.loads(content)
-    except Exception:
-        m = re.search(r'\{[^{}]+\}', content, re.DOTALL)
-        if not m:
-            raise HTTPException(500, "Could not parse translations from model response.")
-        try:
-            translations = json.loads(m.group())
-        except Exception:
-            raise HTTPException(500, "Could not parse translations from model response.")
-
-    return {"translations": translations}
+    return {"sentence": sentence}
