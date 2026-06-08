@@ -7,20 +7,38 @@
 
   <div class="flex flex-col gap-4">
 
-    <!-- ── Video URL input ── -->
-    <div class="flex gap-2">
-      <input
-        v-model="urlInput"
-        type="text"
-        placeholder="Paste a YouTube URL or video ID…"
-        @keydown.enter="loadVideo"
-        class="flex-1 bg-slate-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 outline-none focus:border-emerald-600 placeholder:text-gray-600 transition-all"
-      />
-      <button
-        @click="loadVideo"
-        :disabled="captionsLoading || !urlInput.trim()"
-        class="text-sm px-4 py-2 rounded-lg bg-emerald-700 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
-      >{{ captionsLoading ? '…' : 'Load' }}</button>
+    <!-- ── Video URL + transcript paste ── -->
+    <div class="flex flex-col gap-2">
+      <div class="flex gap-2">
+        <input
+          v-model="urlInput"
+          type="text"
+          placeholder="Paste a YouTube URL or video ID…"
+          @keydown.enter="loadVideo"
+          class="flex-1 bg-slate-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 outline-none focus:border-emerald-600 placeholder:text-gray-600 transition-all"
+        />
+        <button
+          @click="loadVideo"
+          :disabled="!urlInput.trim()"
+          class="text-sm px-4 py-2 rounded-lg bg-emerald-700 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
+        >Load</button>
+      </div>
+
+      <!-- Transcript paste — YouTube blocks their caption API from 3rd-party apps.
+           Workaround: open the video on YouTube → … → Open transcript → copy all → paste here. -->
+      <div class="flex gap-2">
+        <textarea
+          v-model="transcriptInput"
+          rows="2"
+          placeholder="Paste transcript here (YouTube → … → Open transcript → copy all)"
+          class="flex-1 bg-slate-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 outline-none focus:border-emerald-600 placeholder:text-gray-500 resize-none transition-all"
+        />
+        <button
+          @click="loadTranscript"
+          :disabled="!transcriptInput.trim()"
+          class="text-sm px-4 py-2 rounded-lg bg-emerald-700 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all self-start"
+        >Set</button>
+      </div>
     </div>
 
     <!-- ── Header (shown once a video is loaded) ── -->
@@ -176,9 +194,10 @@ const props = defineProps({
 
 // ── Video config ──────────────────────────────────────────────────────────────
 
-const videoId    = ref('')
-const videoTitle = ref('')
-const urlInput   = ref('')
+const videoId         = ref('')
+const videoTitle      = ref('')
+const urlInput        = ref('')
+const transcriptInput = ref('')
 
 function extractVideoId(input) {
   input = input.trim()
@@ -198,6 +217,36 @@ function extractVideoId(input) {
   return null
 }
 
+// loadTranscript() parses plain text pasted from YouTube's transcript panel.
+// YouTube's transcript panel gives plain text with optional timestamps — we strip
+// those and split into ~15-word segments the same way parseCaptions() does.
+function loadTranscript() {
+  const raw = transcriptInput.value.trim()
+  if (!raw) return
+  captionsError.value = ''
+
+  // Strip YouTube timestamp lines like "0:12" or "1:23:45"
+  const text = raw
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l && !/^\d+:\d{2}(:\d{2})?$/.test(l))
+    .join(' ')
+    .replace(/\s{2,}/g, ' ')
+
+  const words = text.split(/\s+/).filter(Boolean)
+  const result = []
+  for (let i = 0; i < words.length; i += 15) {
+    result.push({ start: 0, end: 0, text: words.slice(i, i + 15).join(' ') })
+  }
+
+  if (!result.length) { captionsError.value = 'Could not parse transcript text.'; return }
+  segments.value   = result
+  segmentIdx.value = 0
+  userInput.value  = ''
+  showTranscript.value = false
+  transcriptInput.value = ''
+}
+
 async function loadVideo() {
   const id = extractVideoId(urlInput.value)
   if (!id) { captionsError.value = 'Could not find a YouTube video ID in that URL.'; return }
@@ -212,9 +261,6 @@ async function loadVideo() {
   showTranscript.value = false
   videoId.value     = id
   videoTitle.value  = ''
-
-  await fetchCaptions(id)
-  if (captionsError.value) return  // captions required — don't load player
 
   // Check resume
   const saved = JSON.parse(localStorage.getItem('szol_video_progress') || '{}')
