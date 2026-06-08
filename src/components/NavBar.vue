@@ -70,6 +70,7 @@ defineEmits(['tab', 'lang', 'auth', 'logout'])
 
 const tabs = computed(() => [
   { key: 'retype',  label: t(props.lang, 'retype') },
+  { key: 'listen',  label: t(props.lang, 'listen') },
   { key: 'speak',   label: t(props.lang, 'speak') },
   { key: 'write',   label: t(props.lang, 'write') },
   { key: 'chat',    label: '💬 Tutor' },
