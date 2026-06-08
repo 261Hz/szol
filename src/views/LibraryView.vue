@@ -599,7 +599,7 @@ async function fetchLitClock() {
     const now = new Date()
     const hh  = String(now.getHours()).padStart(2, '0')
     const mm  = String(now.getMinutes()).padStart(2, '0')
-    const res = await fetch(`https://literature-clock.jenevoldsen.com/times/${hh}_${mm}.json`)
+    const res = await fetch(`https://raw.githubusercontent.com/JohannesNE/literature-clock/master/docs/times/${hh}_${mm}.json`)
     if (!res.ok) throw new Error()
     const quotes = await res.json()
     if (quotes?.length) {
