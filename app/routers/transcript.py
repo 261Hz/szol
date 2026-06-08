@@ -17,7 +17,7 @@ def get_transcript(v: str):
     Returns events in json3-compatible format.
     """
     try:
-        transcript_list = YouTubeTranscriptApi().list_transcripts(v)
+        transcript_list = YouTubeTranscriptApi.list_transcripts(v)
     except TranscriptsDisabled:
         raise HTTPException(status_code=404, detail="Captions are disabled for this video.")
     except VideoUnavailable:
@@ -46,12 +46,12 @@ def get_transcript(v: str):
 
     events = [
         {
-            "tStartMs":    int(entry.start * 1000),
-            "dDurationMs": int(entry.duration * 1000),
-            "segs":        [{"utf8": entry.text}],
+            "tStartMs":    int(entry["start"] * 1000),
+            "dDurationMs": int(entry["duration"] * 1000),
+            "segs":        [{"utf8": entry["text"]}],
         }
         for entry in entries
-        if entry.text.strip()
+        if entry.get("text", "").strip()
     ]
 
     return {
