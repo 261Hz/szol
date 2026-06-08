@@ -6,7 +6,7 @@
     <!-- ─── ▶ IN PROGRESS ─── -->
     <div v-if="inProgressStories.length" class="border border-green-800 rounded-lg overflow-hidden">
       <button @click="toggle('inprogress')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-green-300 hover:bg-gray-800 transition-all">
-        <span>▶ In Progress</span>
+        <span>▶ {{ t(lang, 'inProgress') }}</span>
         <span class="text-gray-500 text-xs">{{ open.inprogress ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.inprogress" class="px-4 pb-4 pt-1 flex flex-col gap-1.5">
@@ -24,7 +24,7 @@
             <button
               @click="resumeStory(p)"
               class="flex-shrink-0 text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all"
-            >Resume →</button>
+            >{{ t(lang, 'resumeArrow') }}</button>
           </div>
         </div>
       </div>
@@ -33,12 +33,12 @@
     <!-- ─── 📖 CURATED ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('curated')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>📖 Curated</span>
+        <span>📖 {{ t(lang, 'curated') }}</span>
         <span class="text-gray-500 text-xs">{{ open.curated ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.curated" class="px-4 pb-4 pt-1 min-h-[200px]">
         <div v-if="loading" class="text-gray-500 text-sm text-center py-6">{{ t(lang, 'loading') }}</div>
-        <div v-else-if="!curatedAndLocal.length" class="text-xs text-gray-500 py-4 text-center">No stories yet for this language.</div>
+        <div v-else-if="!curatedAndLocal.length" class="text-xs text-gray-500 py-4 text-center">{{ t(lang, 'noStoriesYet') }}</div>
         <div v-else class="flex flex-col gap-1.5">
           <div
             v-for="book in groupedCurated"
@@ -59,9 +59,9 @@
                 </span>
                 <div class="flex gap-1.5 text-xs text-gray-500 flex-wrap">
                   <span v-if="book.author">{{ book.author }}</span>
-                  <span v-if="book.chapters.length > 1">· {{ book.chapters.length }} chapters</span>
+                  <span v-if="book.chapters.length > 1">· {{ book.chapters.length }} {{ t(lang, 'chapters') }}</span>
                   <span v-if="chaptersWithProgress(book) > 0" class="text-green-400">
-                    · {{ chaptersWithProgress(book) }}/{{ book.chapters.length }} read
+                    · {{ chaptersWithProgress(book) }}/{{ book.chapters.length }} {{ t(lang, 'read') }}
                   </span>
                   <span v-if="book.chapters[0]?.local" class="text-gray-600">· local</span>
                 </div>
@@ -96,7 +96,7 @@
                       current?.id === chapter.id
                         ? 'bg-green-600 text-white'
                         : 'bg-green-700 text-white hover:bg-green-600']"
-                  >{{ current?.id === chapter.id ? 'Reading' : 'Read →' }}</button>
+                  >{{ current?.id === chapter.id ? t(lang, 'reading') : t(lang, 'readArrow') }}</button>
                 </div>
               </div>
             </div>
@@ -106,7 +106,7 @@
         <!-- Add-story form -->
         <div class="mt-3 border-t border-gray-800 pt-3">
           <button @click="showAdd = !showAdd" class="text-xs text-green-300 hover:text-green-200 underline transition-all">
-            {{ showAdd ? 'Hide form' : '+ Add your own story' }}
+            {{ showAdd ? t(lang, 'hideForm') : t(lang, 'addYourStory') }}
           </button>
           <div v-if="showAdd" class="mt-3 flex flex-col gap-3">
             <input v-model="customTitle" type="text" :placeholder="t(lang, 'titleHere')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
@@ -127,8 +127,8 @@
                 class="text-sm px-4 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all"
               >{{ submitting ? t(lang, 'sharing') : t(lang, 'shareGlobal') }}</button>
               <span v-else class="text-xs text-gray-500">
-                <button @click="$emit('openAuth')" class="underline hover:text-green-400 transition-all">Login</button>
-                to share with the community
+                <button @click="$emit('openAuth')" class="underline hover:text-green-400 transition-all">{{ t(lang, 'login') ?? 'Login' }}</button>
+                {{ t(lang, 'loginToShare') }}
               </span>
             </div>
           </div>
@@ -139,11 +139,11 @@
     <!-- ─── 🌍 TODAY ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('today')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>🌍 Today</span>
+        <span>🌍 {{ t(lang, 'today') }}</span>
         <span class="text-gray-500 text-xs">{{ open.today ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.today" class="px-4 pb-4 pt-1">
-        <div v-if="todayLoading" class="text-xs text-gray-500 py-4 text-center">Loading…</div>
+        <div v-if="todayLoading" class="text-xs text-gray-500 py-4 text-center">{{ t(lang, 'loading') }}</div>
         <div v-else-if="todayArticle" class="flex flex-col gap-3">
           <div class="flex gap-3 items-start">
             <img v-if="todayArticle.thumbnail" :src="todayArticle.thumbnail" class="w-20 h-20 object-cover rounded-md flex-shrink-0" />
@@ -159,37 +159,37 @@
           </div>
             </div>
           </div>
-          <button @click="importWikipediaArticle(todayArticle)" class="self-start text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">Import as Story</button>
+          <button @click="importWikipediaArticle(todayArticle)" class="self-start text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">{{ t(lang, 'importAsStory') }}</button>
         </div>
-        <div v-else class="text-xs text-gray-500 py-4 text-center">No featured article available for this language today.</div>
+        <div v-else class="text-xs text-gray-500 py-4 text-center">{{ t(lang, 'noToday') }}</div>
       </div>
     </div>
 
     <!-- ─── 📜 QUOTE OF THE DAY ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('quote')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>📜 Quote of the Day</span>
+        <span>📜 {{ t(lang, 'quoteOfDay') }}</span>
         <span class="text-gray-500 text-xs">{{ open.quote ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.quote" class="px-4 pb-4 pt-1">
-        <div v-if="quoteLoading" class="text-xs text-gray-500 py-4 text-center">Loading…</div>
+        <div v-if="quoteLoading" class="text-xs text-gray-500 py-4 text-center">{{ t(lang, 'loading') }}</div>
         <div v-else-if="quoteOfDay" class="flex flex-col gap-3">
           <p class="text-sm text-gray-200 italic leading-relaxed" :dir="isRTL(lang) ? 'rtl' : 'ltr'">"{{ quoteOfDay.quote }}"</p>
           <p class="text-xs text-gray-500">— {{ quoteOfDay.author }}</p>
-          <button @click="importQuote" class="self-start text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">Import as Story</button>
+          <button @click="importQuote" class="self-start text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">{{ t(lang, 'importAsStory') }}</button>
         </div>
-        <div v-else class="text-xs text-gray-500 py-4 text-center">No quote available for this language.</div>
+        <div v-else class="text-xs text-gray-500 py-4 text-center">{{ t(lang, 'noQuote') }}</div>
       </div>
     </div>
 
     <!-- ─── 📅 ON THIS DAY ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('onthisday')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>📅 On This Day</span>
+        <span>📅 {{ t(lang, 'onThisDay') }}</span>
         <span class="text-gray-500 text-xs">{{ open.onthisday ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.onthisday" class="px-4 pb-4 pt-1">
-        <div v-if="otdLoading" class="text-xs text-gray-500 py-4 text-center">Loading…</div>
+        <div v-if="otdLoading" class="text-xs text-gray-500 py-4 text-center">{{ t(lang, 'loading') }}</div>
         <div v-else-if="onThisDay.length" class="flex flex-col gap-2">
           <div v-for="(ev, i) in onThisDay" :key="i" class="text-xs text-gray-300 leading-snug">
             <span class="font-medium text-gray-500">{{ ev.year }}</span> —
@@ -200,22 +200,22 @@
               @tap="({ word, sentence }) => saveFromLibrary(word, sentence)"
             />
           </div>
-          <button @click="importOnThisDay" class="self-start mt-2 text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">Import All as Story</button>
+          <button @click="importOnThisDay" class="self-start mt-2 text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">{{ t(lang, 'importAll') }}</button>
         </div>
-        <div v-else class="text-xs text-gray-500 py-4 text-center">No "On This Day" events available for this language.</div>
+        <div v-else class="text-xs text-gray-500 py-4 text-center">{{ t(lang, 'noOnThisDay') }}</div>
       </div>
     </div>
 
     <!-- ─── 🗺️ TRAVEL ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('travel')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>🗺️ Travel</span>
+        <span>🗺️ {{ t(lang, 'travel') }}</span>
         <span class="text-gray-500 text-xs">{{ open.travel ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.travel" class="px-4 pb-4 pt-1">
         <div class="flex gap-2 mb-3">
-          <input v-model="travelQuery" type="text" placeholder="Search destinations…" @keydown.enter="searchTravel" class="flex-1 border border-gray-700 rounded-md px-3 py-1.5 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
-          <button @click="searchTravel" :disabled="travelLoading" class="text-sm px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ travelLoading ? '…' : 'Search' }}</button>
+          <input v-model="travelQuery" type="text" :placeholder="t(lang, 'searchDest')" @keydown.enter="searchTravel" class="flex-1 border border-gray-700 rounded-md px-3 py-1.5 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
+          <button @click="searchTravel" :disabled="travelLoading" class="text-sm px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ travelLoading ? '…' : t(lang, 'search') }}</button>
         </div>
         <div class="flex flex-col gap-1.5">
           <div
@@ -235,10 +235,10 @@
                   />
                 </div>
               </div>
-              <button @click="importWikivoyage(r)" :disabled="travelImporting === r.pageid" class="flex-shrink-0 text-xs px-2.5 py-1 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ travelImporting === r.pageid ? '…' : 'Import' }}</button>
+              <button @click="importWikivoyage(r)" :disabled="travelImporting === r.pageid" class="flex-shrink-0 text-xs px-2.5 py-1 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ travelImporting === r.pageid ? '…' : t(lang, 'import') }}</button>
             </div>
           </div>
-          <div v-if="!travelResults.length && !travelLoading" class="text-xs text-gray-500 text-center py-2">Search Wikivoyage for a destination to read about.</div>
+          <div v-if="!travelResults.length && !travelLoading" class="text-xs text-gray-500 text-center py-2">{{ t(lang, 'noTravelResults') }}</div>
         </div>
       </div>
     </div>
@@ -246,13 +246,13 @@
     <!-- ─── 🔗 IMPORT URL ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('import')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>🔗 Import URL</span>
+        <span>🔗 {{ t(lang, 'importUrlSec') }}</span>
         <span class="text-gray-500 text-xs">{{ open.import ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.import" class="px-4 pb-4 pt-1">
         <div class="flex gap-2 mb-3">
           <input v-model="importUrl" type="url" placeholder="https://…" @keydown.enter="fetchArticle" class="flex-1 border border-gray-700 rounded-md px-3 py-1.5 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
-          <button @click="fetchArticle" :disabled="importLoading" class="text-sm px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ importLoading ? '…' : 'Fetch' }}</button>
+          <button @click="fetchArticle" :disabled="importLoading" class="text-sm px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ importLoading ? '…' : t(lang, 'fetch') }}</button>
         </div>
         <div v-if="importError" class="text-xs text-red-400 mb-2">{{ importError }}</div>
         <div v-if="importPreview" class="border border-gray-700 rounded-md p-3 flex flex-col gap-2">
@@ -266,8 +266,8 @@
             />
           </div>
           <div class="flex gap-2">
-            <button @click="confirmImport" class="text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">Save as Story</button>
-            <button @click="importPreview = null; importError = ''" class="text-xs px-3 py-1.5 rounded-md border border-gray-700 hover:border-red-600 text-gray-500 hover:text-red-400 transition-all">Discard</button>
+            <button @click="confirmImport" class="text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">{{ t(lang, 'saveAsStory') }}</button>
+            <button @click="importPreview = null; importError = ''" class="text-xs px-3 py-1.5 rounded-md border border-gray-700 hover:border-red-600 text-gray-500 hover:text-red-400 transition-all">{{ t(lang, 'discard') }}</button>
           </div>
         </div>
       </div>
@@ -276,11 +276,11 @@
     <!-- ─── ⭐ BROWSE BY TOPIC ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('topics')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>⭐ Browse by Topic</span>
+        <span>⭐ {{ t(lang, 'browseTopics') }}</span>
         <span class="text-gray-500 text-xs">{{ open.topics ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.topics" class="px-4 pb-4 pt-1">
-        <div v-if="!Object.keys(visibleTopics).length" class="text-xs text-gray-500 text-center py-2">No topic sources available for this language. Try English.</div>
+        <div v-if="!Object.keys(visibleTopics).length" class="text-xs text-gray-500 text-center py-2">{{ t(lang, 'noTopics') }}</div>
         <div v-else class="flex flex-col gap-4">
           <div v-for="(sources, topic) in visibleTopics" :key="topic">
             <div class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">{{ topic }}</div>
@@ -294,7 +294,7 @@
                   <div class="text-sm text-gray-200">{{ src.name }}</div>
                   <div class="text-xs text-gray-500">{{ LANGS[src.lang]?.name ?? src.lang }}</div>
                 </div>
-                <button @click="importSuggestedSource(src)" :disabled="topicImporting === src.url" class="text-xs px-2.5 py-1 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ topicImporting === src.url ? '…' : 'Import' }}</button>
+                <button @click="importSuggestedSource(src)" :disabled="topicImporting === src.url" class="text-xs px-2.5 py-1 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ topicImporting === src.url ? '…' : t(lang, 'import') }}</button>
               </div>
             </div>
           </div>
@@ -305,27 +305,27 @@
     <!-- ─── 🎬 SUBTITLES ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('subtitles')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>🎬 Subtitles</span>
+        <span>🎬 {{ t(lang, 'subtitlesSec') }}</span>
         <span class="text-gray-500 text-xs">{{ open.subtitles ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.subtitles" class="px-4 pb-4 pt-1 flex flex-col gap-3">
-        <p class="text-xs text-gray-400">Download an <span class="font-mono">.srt</span> file from any subtitle site (OpenSubtitles, Subscene, etc.), open it in a text editor, then paste the raw content below.</p>
-        <input v-model="srtTitle" type="text" placeholder="Story title (e.g. Amélie 2001)…" class="w-full border border-gray-700 rounded-md px-3 py-1.5 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
-        <textarea v-model="srtContent" rows="5" placeholder="Paste .srt content here…" dir="ltr" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm font-mono outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600 resize-none" />
+        <p class="text-xs text-gray-400">{{ t(lang, 'subtitlesHelp') }}</p>
+        <input v-model="srtTitle" type="text" :placeholder="t(lang, 'srtTitle')" class="w-full border border-gray-700 rounded-md px-3 py-1.5 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
+        <textarea v-model="srtContent" rows="5" :placeholder="t(lang, 'srtPaste')" dir="ltr" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm font-mono outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600 resize-none" />
         <div v-if="srtError" class="text-xs text-red-400">{{ srtError }}</div>
-        <button @click="importSRT" class="self-start text-sm px-4 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">Import</button>
+        <button @click="importSRT" class="self-start text-sm px-4 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">{{ t(lang, 'import') }}</button>
       </div>
     </div>
 
     <!-- ─── 👥 COMMUNITY ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('community')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>👥 Community</span>
+        <span>👥 {{ t(lang, 'community') }}</span>
         <span class="text-gray-500 text-xs">{{ open.community ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.community" class="px-4 pb-4 pt-1">
-        <div v-if="loading" class="text-xs text-gray-500 py-4 text-center">Loading…</div>
-        <div v-else-if="!filteredCommunity.length" class="text-xs text-gray-500 py-4 text-center">No community stories for this language yet.</div>
+        <div v-if="loading" class="text-xs text-gray-500 py-4 text-center">{{ t(lang, 'loading') }}</div>
+        <div v-else-if="!filteredCommunity.length" class="text-xs text-gray-500 py-4 text-center">{{ t(lang, 'noCommunity') }}</div>
         <div v-else class="flex flex-col gap-2">
           <div
             v-for="story in filteredCommunity"
