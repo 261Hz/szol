@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@extractus/article-extractor": "^8.1.0",
-    "@supabase/supabase-js": "^2.105.3",
     "@vercel/analytics": "^2.0.1",
     "hanzi-writer": "^3.7.3",
     "vue": "^3.5.32"

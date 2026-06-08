@@ -205,6 +205,31 @@ export async function getProgress(storyId, tab) {
   return await res.json()
 }
 
+// ── Stories ───────────────────────────────────────────────────────────────────
+
+export async function fetchCuratedStories(lang) {
+  const r = await fetch(`${API_URL}/stories?lang=${lang}`)
+  return await r.json().catch(() => [])
+}
+
+export async function fetchCommunityStories(lang) {
+  const r = await fetch(`${API_URL}/stories/community?lang=${lang}`)
+  return await r.json().catch(() => [])
+}
+
+export async function submitStory(story) {
+  const res = await apiFetch(`${API_URL}/stories`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(story),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to submit story')
+  }
+  return await res.json()
+}
+
 // ── AI tutor chat ─────────────────────────────────────────────────────────────
 
 export async function sendChat({ message, storyContent, lang, history, vocab, proficiency }) {
