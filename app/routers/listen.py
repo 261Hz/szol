@@ -124,9 +124,11 @@ def create_from_url(payload: schemas.ListenFromUrl, db: Session = Depends(get_db
     except HTTPException:
         raise
     except Exception as exc:
-        error = str(exc).lower()
-        if 'disabled' in error or 'no transcript' in error:
+        msg = str(exc).lower()
+        if 'disabled' in msg or 'no transcript' in msg or 'could not retrieve' in msg:
             raise HTTPException(404, "This video has no captions.")
+        if 'no element found' in msg or 'parse' in msg:
+            raise HTTPException(422, "Captions exist but could not be downloaded for this video — YouTube may be restricting access.")
         raise HTTPException(502, f"Could not fetch transcript: {exc}")
 
     segments = build_segments(
