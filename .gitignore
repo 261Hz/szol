@@ -30,3 +30,4 @@ insert_fonissa.mjs
 venv/
 __pycache__/
 *.pyc
+szol/

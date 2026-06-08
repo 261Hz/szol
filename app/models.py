@@ -80,7 +80,9 @@ class VideoStory(Base):
     __tablename__ = "video_stories"
 
     id             = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
-    video_id       = Column(String, nullable=False, index=True)   # YouTube video ID
+    video_id       = Column(String, nullable=True, index=True)    # YouTube video ID; null for non-YouTube sources
+    audio_url      = Column(String)                                # direct audio stream URL (TED, podcast, etc.)
+    source_type    = Column(String, nullable=False, server_default=text("'youtube'"))  # 'youtube'|'ted'|'podcast'|'upload'
     title          = Column(String, nullable=False)
     lang           = Column(String, nullable=False, index=True)
     author         = Column(String)                                # channel / speaker

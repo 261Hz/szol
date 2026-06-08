@@ -144,7 +144,9 @@ class WordCacheResponse(WordCacheBase):
 
 class VideoStoryResponse(BaseModel):
     id:             UUID
-    video_id:       str
+    video_id:       Optional[str] = None
+    audio_url:      Optional[str] = None
+    source_type:    str = 'youtube'
     title:          str
     lang:           str
     author:         Optional[str] = None
