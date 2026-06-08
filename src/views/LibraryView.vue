@@ -364,7 +364,7 @@ import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import ClickableText from '../components/ClickableText.vue'
 // Supabase functions: fetch/submit stories from the remote database.
-import { fetchCommunityStories, submitStory, fetchCuratedStories } from '../utils/supabase.js'
+import { fetchCommunityStories, submitStory, fetchCuratedStories } from '../utils/api.js'
 import { getAllProgress } from '../utils/api.js'
 // Wikipedia helpers for the Today and On This Day sections.
 import { fetchFeaturedArticle, fetchOnThisDay, fetchQuoteOfDay } from '../utils/wikipedia.js'
