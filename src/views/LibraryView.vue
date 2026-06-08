@@ -136,6 +136,42 @@
       </div>
     </div>
 
+    <!-- ─── 💡 CONCEPT OF THE DAY ─── -->
+    <div class="border border-gray-700 rounded-lg overflow-hidden">
+      <button @click="toggle('concept')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
+        <span>💡 Concept of the Day</span>
+        <span class="text-gray-500 text-xs">{{ open.concept ? '▲' : '▼' }}</span>
+      </button>
+      <div v-if="open.concept" class="px-4 pb-4 pt-2 flex flex-col gap-3">
+        <!-- Category + concept label -->
+        <div>
+          <div class="text-xs text-gray-500 uppercase tracking-wide mb-0.5">
+            {{ conceptDay.categoryEmoji }} {{ conceptDay.category }}
+          </div>
+          <div class="text-base font-semibold text-gray-100">{{ conceptDay.concept }}</div>
+        </div>
+
+        <div v-if="conceptLoading" class="text-xs text-gray-500 py-2">{{ t(lang, 'loading') }}</div>
+        <div v-else-if="conceptError" class="text-xs text-red-400 py-2">{{ conceptError }}</div>
+        <div v-else-if="conceptTranslations" class="flex flex-col gap-2">
+          <div
+            v-for="(sentence, code) in conceptTranslations"
+            :key="code"
+            :class="['rounded-lg px-3 py-2 text-sm', code === lang ? 'bg-emerald-950 border border-emerald-800' : 'bg-slate-900']"
+            :dir="['he','ar','arz'].includes(code) ? 'rtl' : 'ltr'"
+          >
+            <div class="text-xs text-gray-500 mb-0.5">{{ LANGS[code]?.name ?? code }}</div>
+            <ClickableText
+              :text="sentence"
+              :lang="code"
+              :savedWords="allSavedWordsSet"
+              @tap="({ word, sentence: s }) => saveFromLibrary(word, s)"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ─── 🌍 TODAY ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('today')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
@@ -332,8 +368,9 @@ import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import ClickableText from '../components/ClickableText.vue'
 // Supabase functions: fetch/submit stories from the remote database.
-import { fetchCommunityStories, submitStory, fetchCuratedStories } from '../utils/api.js'
+import { fetchCommunityStories, submitStory, fetchCuratedStories, fetchConceptTranslations } from '../utils/api.js'
 import { getAllProgress } from '../utils/api.js'
+import { getConceptOfDay } from '../data/concepts.js'
 // Wikipedia helpers for the Today and On This Day sections.
 import { fetchFeaturedArticle, fetchOnThisDay, fetchQuoteOfDay } from '../utils/wikipedia.js'
 // Wikivoyage helpers for the Travel section.
@@ -492,6 +529,7 @@ const filteredCommunity = computed(() =>
 const open = ref({
   inprogress: true,
   curated:    true,
+  concept:    false,
   today:      false,
   quote:      false,
   litclock:   false,
@@ -508,10 +546,34 @@ async function toggle(section) {
   open.value[section] = !open.value[section]
   if (open.value[section]) {
     // Only fetch if: the section just opened AND we don't already have data AND not currently loading.
+    if (section === 'concept'   && !conceptTranslations.value && !conceptLoading.value) await loadConcept()
     if (section === 'today'     && !todayArticle.value && !todayLoading.value) await loadToday()
     if (section === 'quote'     && !quoteOfDay.value   && !quoteLoading.value) await loadQuote()
     if (section === 'litclock'  && !litClockQuote.value && !litClockLoading.value) await fetchLitClock()
     if (section === 'onthisday' && !onThisDay.value.length && !otdLoading.value) await loadOnThisDay()
+  }
+}
+
+// ── Concept of the Day ────────────────────────────────────────────────────────
+const conceptDay          = getConceptOfDay()
+const conceptTranslations = ref(null)   // { en: "...", es: "...", ... }
+const conceptLoading      = ref(false)
+const conceptError        = ref('')
+
+// allSavedWordsSet includes words from ALL languages for cross-language highlighting.
+const allSavedWordsSet = computed(() =>
+  new Set(props.words.map(w => w.word.toLowerCase().replace(/[^\p{L}\p{M}]/gu, '')))
+)
+
+async function loadConcept() {
+  conceptLoading.value = true
+  conceptError.value   = ''
+  try {
+    conceptTranslations.value = await fetchConceptTranslations(conceptDay.concept, conceptDay.category)
+  } catch (e) {
+    conceptError.value = e.message || 'Could not load concept translations.'
+  } finally {
+    conceptLoading.value = false
   }
 }
 

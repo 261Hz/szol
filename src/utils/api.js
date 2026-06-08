@@ -212,6 +212,23 @@ export async function fetchCuratedStories(lang) {
   return await r.json().catch(() => [])
 }
 
+export async function fetchConceptTranslations(concept, category) {
+  const cacheKey = `szol_concept_${new Date().toDateString()}`
+  try {
+    const cached = localStorage.getItem(cacheKey)
+    if (cached) return JSON.parse(cached)
+  } catch {}
+  const res = await apiFetch(`${API_URL}/concept-of-day`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ concept, category }),
+  })
+  if (!res.ok) throw new Error('Could not load concept translations.')
+  const { translations } = await res.json()
+  try { localStorage.setItem(cacheKey, JSON.stringify(translations)) } catch {}
+  return translations
+}
+
 export async function fetchListenStories(lang) {
   const r = await fetch(`${API_URL}/listen-stories?lang=${lang}`)
   return await r.json().catch(() => [])
