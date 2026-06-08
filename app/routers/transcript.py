@@ -17,7 +17,7 @@ def get_transcript(v: str):
     Returns events in json3-compatible format.
     """
     try:
-        transcript_list = YouTubeTranscriptApi.list_transcripts(v)
+        transcript_list = YouTubeTranscriptApi().list_transcripts(v)
     except TranscriptsDisabled:
         raise HTTPException(status_code=404, detail="Captions are disabled for this video.")
     except VideoUnavailable:
