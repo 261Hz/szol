@@ -182,10 +182,18 @@ const urlInput   = ref('')
 
 function extractVideoId(input) {
   input = input.trim()
-  // Full URL: youtube.com/watch?v=ID or youtu.be/ID
-  const m = input.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-  if (m) return m[1]
-  // Bare 11-char ID
+  const patterns = [
+    /[?&]v=([a-zA-Z0-9_-]{11})/,                   // watch?v=ID
+    /youtu\.be\/([a-zA-Z0-9_-]{11})/,               // youtu.be/ID
+    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,     // embed/ID
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,    // shorts/ID
+    /youtube\.com\/live\/([a-zA-Z0-9_-]{11})/,      // live/ID
+    /youtube\.com\/v\/([a-zA-Z0-9_-]{11})/,         // /v/ID
+  ]
+  for (const re of patterns) {
+    const m = input.match(re)
+    if (m) return m[1]
+  }
   if (/^[a-zA-Z0-9_-]{11}$/.test(input)) return input
   return null
 }
