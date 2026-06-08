@@ -1,451 +1,291 @@
-<!-- ListenView.vue — YouTube audio dictation practice. -->
-<!-- User listens to a YouTube video segment by segment and types what they hear. -->
-<!-- Words are colored green (correct) or purple (wrong) in real time. -->
+<!-- ListenView.vue — YouTube audio dictation. -->
+<!-- Curated video segments are stored in the backend (video_stories table). -->
+<!-- YouTube is used only as a player — captions come from our database. -->
 <template>
-  <!-- Hidden YouTube player container — IFrame API needs a real DOM node -->
-  <div ref="ytContainerEl" style="width:0;height:0;overflow:hidden;position:absolute;pointer-events:none;" />
+  <!-- Hidden YouTube player container -->
+  <div ref="ytEl" style="width:0;height:0;overflow:hidden;position:absolute;pointer-events:none;" />
 
   <div class="flex flex-col gap-4">
 
-    <!-- ── Video URL + transcript paste ── -->
-    <div class="flex flex-col gap-2">
-      <div class="flex gap-2">
-        <input
-          v-model="urlInput"
-          type="text"
-          placeholder="Paste a YouTube URL or video ID…"
-          @keydown.enter="loadVideo"
-          class="flex-1 bg-slate-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 outline-none focus:border-emerald-600 placeholder:text-gray-600 transition-all"
-        />
-        <button
-          @click="loadVideo"
-          :disabled="!urlInput.trim()"
-          class="text-sm px-4 py-2 rounded-lg bg-emerald-700 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
-        >Load</button>
+    <!-- ── Curated video list ── -->
+    <div class="flex flex-col gap-1.5">
+      <div v-if="loading" class="text-xs text-gray-500 text-center py-4">Loading…</div>
+      <div v-else-if="!curatedVideos.length" class="text-xs text-gray-500 text-center py-4">
+        No curated videos yet for this language.
+      </div>
+      <div
+        v-for="v in curatedVideos"
+        :key="v.id"
+        @click="selectVideo(v)"
+        :class="['flex items-center justify-between px-3 py-2.5 rounded-lg border cursor-pointer transition-all',
+          activeVideo?.id === v.id ? 'border-emerald-600 bg-emerald-950' : 'border-gray-700 hover:border-emerald-800']"
+      >
+        <div class="flex flex-col gap-0.5 min-w-0">
+          <span class="text-sm font-medium text-gray-100 truncate">{{ v.title }}</span>
+          <span class="text-xs text-gray-500">{{ v.author ?? v.source }} · {{ v.segments.length }} segments</span>
+        </div>
+        <span class="text-xs text-emerald-600 flex-shrink-0 ml-2">{{ activeVideo?.id === v.id ? '▶ playing' : 'Listen →' }}</span>
+      </div>
+    </div>
+
+    <!-- ── Custom URL + transcript paste ── -->
+    <details class="border border-gray-800 rounded-lg overflow-hidden">
+      <summary class="px-3 py-2 text-xs text-gray-500 cursor-pointer hover:text-gray-300 select-none">+ Custom video</summary>
+      <div class="px-3 pb-3 pt-2 flex flex-col gap-2 border-t border-gray-800">
+        <div class="flex gap-2">
+          <input
+            v-model="urlInput"
+            type="text"
+            placeholder="YouTube URL or video ID…"
+            @keydown.enter="loadCustomVideo"
+            class="flex-1 bg-slate-900 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-100 outline-none focus:border-emerald-600 placeholder:text-gray-600 transition-all"
+          />
+          <button @click="loadCustomVideo" :disabled="!urlInput.trim()"
+            class="text-sm px-3 py-1.5 rounded-lg bg-emerald-700 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all">Load</button>
+        </div>
+        <div class="flex gap-2">
+          <textarea
+            v-model="transcriptInput"
+            rows="2"
+            placeholder="Paste transcript (YouTube → … → Open transcript → copy)"
+            class="flex-1 bg-slate-900 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-100 outline-none focus:border-emerald-600 placeholder:text-gray-500 resize-none transition-all"
+          />
+          <button @click="loadTranscript" :disabled="!transcriptInput.trim()"
+            class="text-sm px-3 py-1.5 rounded-lg bg-emerald-700 text-white hover:bg-emerald-600 disabled:opacity-40 self-start transition-all">Set</button>
+        </div>
+        <div v-if="customError" class="text-xs text-red-400">{{ customError }}</div>
+      </div>
+    </details>
+
+    <!-- ── Player (shown once a video is selected) ── -->
+    <template v-if="activeVideo">
+
+      <!-- Difficulty -->
+      <div class="flex gap-1.5">
+        <button v-for="d in ['easy','medium','hard']" :key="d" @click="difficulty = d"
+          :class="['text-xs px-3 py-1.5 rounded-full capitalize transition-all',
+            difficulty === d ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-white']"
+        >{{ d }}</button>
       </div>
 
-      <!-- Transcript paste — YouTube blocks their caption API from 3rd-party apps.
-           Workaround: open the video on YouTube → … → Open transcript → copy all → paste here. -->
-      <div class="flex gap-2">
+      <!-- Waveform -->
+      <div class="bg-slate-900 rounded-xl px-4 pt-4 pb-3 flex flex-col gap-2">
+        <svg width="100%" height="60" viewBox="0 0 400 60" preserveAspectRatio="none">
+          <rect v-for="(h, i) in bars" :key="i"
+            :x="i * 10 + 1" :width="8" :y="(60 - h) / 2" :height="h" rx="2"
+            :fill="isPlaying ? '#10b981' : '#065f46'"
+            :opacity="isPlaying ? 0.85 : 0.4"
+          />
+        </svg>
+        <div class="flex justify-between text-xs text-gray-500">
+          <span>segment {{ segmentIdx + 1 }} / {{ activeVideo.segments.length }}</span>
+          <span>{{ fmtTime(currentTime) }} / {{ fmtTime(duration) }}</span>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="flex items-center justify-center gap-6">
+        <button @click="rewind" :disabled="!playerReady"
+          class="flex flex-col items-center gap-0.5 text-gray-400 hover:text-white disabled:opacity-30 transition-all">
+          <span class="text-lg">⏮</span><span class="text-xs">10s</span>
+        </button>
+        <button @click="togglePlay" :disabled="!playerReady"
+          :class="['w-14 h-14 rounded-full text-2xl flex items-center justify-center transition-all',
+            playerReady ? 'bg-emerald-700 hover:bg-emerald-600 text-white' : 'bg-gray-800 text-gray-600']"
+        >{{ isPlaying ? '⏸' : '▶' }}</button>
+        <button @click="seekToSegmentStart" :disabled="!playerReady"
+          class="flex flex-col items-center gap-0.5 text-gray-400 hover:text-white disabled:opacity-30 transition-all">
+          <span class="text-lg">↩</span><span class="text-xs">restart</span>
+        </button>
+      </div>
+      <div v-if="!playerReady && !playerError" class="text-xs text-gray-500 text-center">Loading player…</div>
+      <div v-if="playerError" class="text-xs text-red-400 text-center">{{ playerError }}</div>
+
+      <!-- Dictation input -->
+      <div class="flex flex-col gap-2">
         <textarea
-          v-model="transcriptInput"
-          rows="2"
-          placeholder="Paste transcript here (YouTube → … → Open transcript → copy all)"
-          class="flex-1 bg-slate-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 outline-none focus:border-emerald-600 placeholder:text-gray-500 resize-none transition-all"
+          v-model="userInput"
+          rows="3"
+          placeholder="Type what you hear…"
+          class="w-full bg-slate-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-100 outline-none focus:border-emerald-600 resize-none placeholder:text-gray-600 transition-all"
         />
-        <button
-          @click="loadTranscript"
-          :disabled="!transcriptInput.trim()"
-          class="text-sm px-4 py-2 rounded-lg bg-emerald-700 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all self-start"
-        >Set</button>
-      </div>
-    </div>
-
-    <!-- ── Header (shown once a video is loaded) ── -->
-    <div v-if="videoTitle" class="flex items-center justify-between gap-3">
-      <div class="flex flex-col gap-0.5 min-w-0">
-        <h2 class="font-semibold text-gray-100 text-base truncate">{{ videoTitle }}</h2>
-        <span class="text-xs text-gray-500 uppercase tracking-wide">{{ LANGS[lang]?.name ?? lang }}</span>
-      </div>
-      <button
-        v-if="resumeSegment !== null"
-        @click="resumeFromSaved"
-        class="flex-shrink-0 text-xs text-emerald-400 border border-emerald-800 rounded-md px-2.5 py-1 hover:bg-emerald-950 transition-all"
-      >Resume seg. {{ resumeSegment + 1 }}</button>
-    </div>
-
-    <!-- ── Difficulty toggle ── -->
-    <div class="flex gap-1.5">
-      <button
-        v-for="d in ['easy', 'medium', 'hard']"
-        :key="d"
-        @click="setDifficulty(d)"
-        :class="['text-xs px-3 py-1.5 rounded-full capitalize transition-all',
-          difficulty === d ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-white']"
-      >{{ d }}</button>
-    </div>
-
-    <!-- ── Waveform + timing ── -->
-    <div class="bg-slate-900 rounded-xl px-4 pt-4 pb-3 flex flex-col gap-2">
-      <svg width="100%" height="60" viewBox="0 0 400 60" preserveAspectRatio="none">
-        <rect
-          v-for="(h, i) in bars"
-          :key="i"
-          :x="i * 10 + 1"
-          :width="8"
-          :y="(60 - h) / 2"
-          :height="h"
-          rx="2"
-          :fill="isPlaying ? '#10b981' : '#065f46'"
-          :opacity="isPlaying ? 0.85 : 0.4"
-        />
-      </svg>
-      <div class="flex justify-between text-xs text-gray-500">
-        <span>segment {{ segmentIdx + 1 }} / {{ segments.length }}</span>
-        <span>{{ fmtTime(currentTime) }} / {{ fmtTime(duration) }}</span>
-      </div>
-    </div>
-
-    <!-- ── Captions loading / error ── -->
-    <div v-if="captionsLoading" class="text-xs text-gray-500 text-center py-1">Loading captions…</div>
-    <div v-if="captionsError" class="text-xs text-red-400 text-center py-1">{{ captionsError }}</div>
-
-    <!-- ── Player error ── -->
-    <div v-if="playerError" class="text-xs text-red-400 text-center py-2">
-      {{ playerError }}
-    </div>
-
-    <!-- ── Controls ── -->
-    <div class="flex items-center justify-center gap-6">
-      <button
-        @click="rewind"
-        :disabled="!playerReady"
-        class="text-sm text-gray-400 hover:text-white disabled:opacity-30 transition-all flex flex-col items-center gap-0.5"
-      >
-        <span class="text-lg">⏮</span>
-        <span class="text-xs">10s</span>
-      </button>
-
-      <button
-        @click="togglePlay"
-        :disabled="!playerReady"
-        :class="['w-14 h-14 rounded-full text-2xl flex items-center justify-center transition-all',
-          playerReady ? 'bg-emerald-700 hover:bg-emerald-600 text-white' : 'bg-gray-800 text-gray-600']"
-      >{{ isPlaying ? '⏸' : '▶' }}</button>
-
-      <button
-        @click="seekToSegmentStart"
-        :disabled="!playerReady"
-        class="text-sm text-gray-400 hover:text-white disabled:opacity-30 transition-all flex flex-col items-center gap-0.5"
-      >
-        <span class="text-lg">↩</span>
-        <span class="text-xs">restart</span>
-      </button>
-    </div>
-
-    <!-- Loading indicator -->
-    <div v-if="!playerReady && !playerError" class="text-xs text-gray-500 text-center">
-      Loading player…
-    </div>
-
-    <!-- ── Input area ── -->
-    <div class="flex flex-col gap-2">
-      <textarea
-        v-model="userInput"
-        rows="3"
-        placeholder="Type what you hear…"
-        class="w-full bg-slate-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-100 outline-none focus:border-emerald-600 resize-none placeholder:text-gray-600 transition-all"
-      />
-
-      <!-- Word-by-word color feedback -->
-      <div v-if="comparedWords.length" class="flex flex-wrap gap-1.5 px-1">
-        <span
-          v-for="(w, i) in comparedWords"
-          :key="i"
-          :class="['text-sm px-1.5 py-0.5 rounded font-mono transition-colors',
-            w.state === 'correct' ? 'bg-emerald-900 text-emerald-300' :
-            w.state === 'wrong'   ? 'bg-purple-900 text-purple-300' :
-                                    'text-gray-500']"
-        >{{ w.typed }}</span>
+        <div v-if="comparedWords.length" class="flex flex-wrap gap-1.5 px-1">
+          <span v-for="(w, i) in comparedWords" :key="i"
+            :class="['text-sm px-1.5 py-0.5 rounded font-mono',
+              w.state === 'correct' ? 'bg-emerald-900 text-emerald-300' :
+              w.state === 'wrong'   ? 'bg-purple-900 text-purple-300' : 'text-gray-500']"
+          >{{ w.typed }}</span>
+        </div>
+        <div v-if="accuracy !== null" class="flex justify-end">
+          <span class="text-xs text-gray-500">
+            Accuracy: <span class="text-emerald-400 font-medium">{{ accuracy }}%</span>
+          </span>
+        </div>
       </div>
 
-      <!-- Accuracy badge -->
-      <div v-if="accuracy !== null" class="flex justify-end">
-        <span class="text-xs text-gray-500">
-          Accuracy: <span class="text-emerald-400 font-medium">{{ accuracy }}%</span>
-          <span class="ml-1 text-gray-600">({{ correctCount }}/{{ segmentWords.length }} words)</span>
-        </span>
+      <!-- Transcript reveal -->
+      <div v-if="showTranscript && currentSegment"
+        class="bg-slate-900 border border-emerald-800 rounded-lg px-4 py-3 text-sm text-gray-200 leading-relaxed">
+        {{ currentSegment.text }}
       </div>
-    </div>
 
-    <!-- ── Transcript reveal ── -->
-    <div
-      v-if="showTranscript && currentSegment"
-      class="bg-slate-900 border border-emerald-800 rounded-lg px-4 py-3 text-sm text-gray-200 leading-relaxed"
-    >{{ currentSegment.text }}</div>
+      <!-- Actions -->
+      <div class="flex items-center justify-between">
+        <button @click="showTranscript = !showTranscript"
+          class="text-xs px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 hover:border-emerald-700 hover:text-emerald-400 transition-all">
+          {{ showTranscript ? 'Hide transcript' : 'Show correct text' }}
+        </button>
+        <button @click="nextSegment" :disabled="segmentIdx >= activeVideo.segments.length - 1"
+          class="text-xs px-4 py-1.5 rounded-md bg-emerald-700 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all">
+          Next segment →
+        </button>
+      </div>
 
-    <!-- ── Action row ── -->
-    <div class="flex items-center justify-between">
-      <button
-        @click="showTranscript = !showTranscript"
-        class="text-xs px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 hover:border-emerald-700 hover:text-emerald-400 transition-all"
-      >{{ showTranscript ? 'Hide transcript' : 'Show correct text' }}</button>
-
-      <button
-        @click="nextSegment"
-        :disabled="segmentIdx >= segments.length - 1"
-        class="text-xs px-4 py-1.5 rounded-md bg-emerald-700 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
-      >Next segment →</button>
-    </div>
-
+    </template>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import Fuse from 'fuse.js'
-import { LANGS } from '../data/stories.js'
 
 const props = defineProps({
-  story:       Object,
   lang:        String,
   currentUser: Object,
+  story:       Object,
 })
 
-// ── Video config ──────────────────────────────────────────────────────────────
+const API_URL = 'https://szol.onrender.com'
 
-const videoId         = ref('')
-const videoTitle      = ref('')
+// ── Curated videos ────────────────────────────────────────────────────────────
+
+const curatedVideos = ref([])
+const loading       = ref(false)
+
+async function fetchCuratedVideos(lang) {
+  loading.value = true
+  try {
+    const r = await fetch(`${API_URL}/listen-stories?lang=${lang}`)
+    curatedVideos.value = r.ok ? await r.json() : []
+  } catch { curatedVideos.value = [] }
+  finally   { loading.value = false }
+}
+
+watch(() => props.lang, lang => { if (lang) fetchCuratedVideos(lang) }, { immediate: true })
+
+// ── Active video + segments ───────────────────────────────────────────────────
+
+const activeVideo    = ref(null)
+const segmentIdx     = ref(0)
+const userInput      = ref('')
+const showTranscript = ref(false)
+const difficulty     = ref('medium')
+
+const currentSegment = computed(() => activeVideo.value?.segments[segmentIdx.value] ?? null)
+
+function selectVideo(v) {
+  if (player?.destroy) { player.destroy(); player = null }
+  playerReady.value    = false
+  playerError.value    = ''
+  isPlaying.value      = false
+  activeVideo.value    = v
+  segmentIdx.value     = 0
+  userInput.value      = ''
+  showTranscript.value = false
+  stopWave()
+  loadYTApi(v.video_id)
+}
+
+// ── Custom URL + transcript paste ─────────────────────────────────────────────
+
 const urlInput        = ref('')
 const transcriptInput = ref('')
+const customError     = ref('')
 
 function extractVideoId(input) {
   input = input.trim()
   const patterns = [
-    /[?&]v=([a-zA-Z0-9_-]{11})/,                   // watch?v=ID
-    /youtu\.be\/([a-zA-Z0-9_-]{11})/,               // youtu.be/ID
-    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,     // embed/ID
-    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,    // shorts/ID
-    /youtube\.com\/live\/([a-zA-Z0-9_-]{11})/,      // live/ID
-    /youtube\.com\/v\/([a-zA-Z0-9_-]{11})/,         // /v/ID
+    /[?&]v=([a-zA-Z0-9_-]{11})/,
+    /youtu\.be\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
   ]
-  for (const re of patterns) {
-    const m = input.match(re)
-    if (m) return m[1]
-  }
+  for (const re of patterns) { const m = input.match(re); if (m) return m[1] }
   if (/^[a-zA-Z0-9_-]{11}$/.test(input)) return input
   return null
 }
 
-// loadTranscript() parses plain text pasted from YouTube's transcript panel.
-// YouTube's transcript panel gives plain text with optional timestamps — we strip
-// those and split into ~15-word segments the same way parseCaptions() does.
+function loadCustomVideo() {
+  const id = extractVideoId(urlInput.value)
+  if (!id) { customError.value = 'Could not find a YouTube video ID.'; return }
+  customError.value = ''
+  selectVideo({ id: 'custom-' + id, video_id: id, title: 'Custom video', segments: [] })
+}
+
 function loadTranscript() {
   const raw = transcriptInput.value.trim()
-  if (!raw) return
-  captionsError.value = ''
-
-  // Strip YouTube timestamp lines like "0:12" or "1:23:45"
-  const text = raw
-    .split('\n')
-    .map(l => l.trim())
+  if (!raw || !activeVideo.value) return
+  const text = raw.split('\n').map(l => l.trim())
     .filter(l => l && !/^\d+:\d{2}(:\d{2})?$/.test(l))
-    .join(' ')
-    .replace(/\s{2,}/g, ' ')
-
+    .join(' ').replace(/\s{2,}/g, ' ')
   const words = text.split(/\s+/).filter(Boolean)
-  const result = []
-  for (let i = 0; i < words.length; i += 15) {
-    result.push({ start: 0, end: 0, text: words.slice(i, i + 15).join(' ') })
-  }
-
-  if (!result.length) { captionsError.value = 'Could not parse transcript text.'; return }
-  segments.value   = result
-  segmentIdx.value = 0
-  userInput.value  = ''
-  showTranscript.value = false
+  const segs  = []
+  for (let i = 0; i < words.length; i += 15)
+    segs.push({ start: 0, end: 0, text: words.slice(i, i + 15).join(' ') })
+  if (!segs.length) { customError.value = 'Could not parse transcript.'; return }
+  activeVideo.value     = { ...activeVideo.value, segments: segs }
+  segmentIdx.value      = 0
+  userInput.value       = ''
+  showTranscript.value  = false
   transcriptInput.value = ''
 }
 
-async function loadVideo() {
-  const id = extractVideoId(urlInput.value)
-  if (!id) { captionsError.value = 'Could not find a YouTube video ID in that URL.'; return }
-
-  // Tear down existing player
-  if (player?.destroy) { player.destroy(); player = null }
-  playerReady.value = false
-  isPlaying.value   = false
-  segments.value    = []
-  segmentIdx.value  = 0
-  userInput.value   = ''
-  showTranscript.value = false
-  videoId.value     = id
-  videoTitle.value  = ''
-
-  // Check resume
-  const saved = JSON.parse(localStorage.getItem('szol_video_progress') || '{}')
-  const vp    = saved[id]
-  resumeSegment.value = (vp && vp.segmentIndex > 0 && vp.segmentIndex < segments.value.length)
-    ? vp.segmentIndex : null
-
-  loadYTApi(id)
-}
-
-// ── Captions / segments (fetched dynamically) ─────────────────────────────────
-
-const segments        = ref([])
-const captionsLoading = ref(false)
-const captionsError   = ref('')
-
-// Parse YouTube json3 caption events into ~15-word practice segments.
-function parseCaptions(json) {
-  const events = (json.events || []).filter(e => e.segs)
-  const result = []
-  let cur = { startMs: 0, endMs: 0, words: [] }
-
-  for (const ev of events) {
-    const text = ev.segs.map(s => s.utf8 ?? '').join('').replace(/\n/g, ' ').trim()
-    if (!text) continue
-    const evEnd = ev.tStartMs + (ev.dDurationMs ?? 2000)
-    if (!cur.words.length) cur.startMs = ev.tStartMs
-    cur.endMs = evEnd
-    cur.words.push(...text.split(/\s+/).filter(Boolean))
-    // Flush at ~15 words or ~22 seconds
-    if (cur.words.length >= 15 || (evEnd - cur.startMs) >= 22000) {
-      result.push({ start: Math.floor(cur.startMs / 1000), end: Math.ceil(cur.endMs / 1000), text: cur.words.join(' ') })
-      cur = { startMs: 0, endMs: 0, words: [] }
-    }
-  }
-  if (cur.words.length) {
-    result.push({ start: Math.floor(cur.startMs / 1000), end: Math.ceil(cur.endMs / 1000), text: cur.words.join(' ') })
-  }
-  return result
-}
-
-async function fetchCaptions(id) {
-  captionsLoading.value = true
-  captionsError.value   = ''
-  try {
-    // 1. Get track list to distinguish manual vs auto-generated.
-    const listRes = await fetch(
-      `https://www.youtube.com/api/timedtext?v=${encodeURIComponent(id)}&type=list`
-    )
-    const listXml = await listRes.text()
-    console.log('[szol] timedtext list:', listXml.slice(0, 800))
-
-    const tracks = []
-    for (const m of listXml.matchAll(/<track\b([^>]*)>/g)) {
-      const attr = m[1]
-      const lang = attr.match(/lang_code="([^"]*)"/)?.[1] ?? ''
-      const name = attr.match(/\bname="([^"]*)"/)?.[1]  ?? ''
-      const kind = attr.match(/\bkind="([^"]*)"/)?.[1]  ?? ''
-      if (lang) tracks.push({ lang, name, kind })
-    }
-    console.log('[szol] parsed tracks:', tracks)
-
-    // 2. If list is empty, try direct fetch as fallback (some videos skip the list).
-    if (!tracks.length) {
-      const direct = await fetch(
-        `https://www.youtube.com/api/timedtext?v=${encodeURIComponent(id)}&lang=en&fmt=json3`
-      )
-      const data = await direct.json()
-      console.log('[szol] direct fetch events:', data.events?.length)
-      if (data.events?.length) {
-        segments.value = parseCaptions(data)
-        return
-      }
-      captionsError.value = 'This video has no captions. Choose a video with subtitles.'
-      return
-    }
-
-    const manual = tracks.filter(t => t.kind !== 'asr' && !t.name.toLowerCase().includes('auto'))
-    if (!manual.length) {
-      captionsError.value = 'This video only has auto-generated captions. Choose a video with manually reviewed subtitles.'
-      return
-    }
-
-    const pick = manual.find(t => t.lang.startsWith('en')) ?? manual[0]
-    const captionRes = await fetch(
-      `https://www.youtube.com/api/timedtext?v=${encodeURIComponent(id)}&lang=${pick.lang}&name=${encodeURIComponent(pick.name)}&fmt=json3`
-    )
-    const data = await captionRes.json()
-    if (!data.events?.length) { captionsError.value = 'Caption track is empty.'; return }
-    segments.value = parseCaptions(data)
-    if (!segments.value.length) captionsError.value = 'Could not parse captions.'
-  } catch (e) {
-    captionsError.value = `Failed to load captions: ${e.message}`
-  } finally {
-    captionsLoading.value = false
-  }
-}
-
-// ── Difficulty ────────────────────────────────────────────────────────────────
-
-const difficulty = ref('medium')
-
-function setDifficulty(d) {
-  difficulty.value = d
-}
-
-// ── Segment state ─────────────────────────────────────────────────────────────
-
-const segmentIdx     = ref(0)
-const userInput      = ref('')
-const showTranscript = ref(false)
-const resumeSegment  = ref(null)
-
-const currentSegment = computed(() => segments.value[segmentIdx.value] ?? null)
-
 // ── YouTube player ────────────────────────────────────────────────────────────
 
-const ytContainerEl = ref(null)
-const playerReady   = ref(false)
-const playerError   = ref('')
-const isPlaying     = ref(false)
-const currentTime   = ref(0)
-const duration      = ref(0)
+const ytEl        = ref(null)
+const playerReady = ref(false)
+const playerError = ref('')
+const isPlaying   = ref(false)
+const currentTime = ref(0)
+const duration    = ref(0)
 
-let player      = null
-let pollTimer   = null
+let player    = null
+let pollTimer = null
 
-function initPlayer(id) {
-  if (!ytContainerEl.value) return
+function initPlayer(videoId) {
+  if (!ytEl.value) return
   try {
-    player = new window.YT.Player(ytContainerEl.value, {
-      width:    0,
-      height:   0,
-      videoId:  id,
-      playerVars: {
-        controls:       0,
-        rel:            0,
-        disablekb:      1,
-        fs:             0,
-        modestbranding: 1,
-        iv_load_policy: 3,
-      },
+    player = new window.YT.Player(ytEl.value, {
+      width: 0, height: 0, videoId,
+      playerVars: { controls: 0, rel: 0, disablekb: 1, fs: 0, modestbranding: 1, iv_load_policy: 3 },
       events: {
         onReady(e) {
           playerReady.value = true
           duration.value    = e.target.getDuration() || 0
-          const startAt = segments.value[segmentIdx.value]?.start ?? 0
-          e.target.seekTo(startAt, true)
+          const start       = activeVideo.value?.segments[0]?.start ?? 0
+          e.target.seekTo(start, true)
           e.target.pauseVideo()
-          if (!videoTitle.value || videoTitle.value === 'Loading…') {
-            videoTitle.value = e.target.getVideoData?.()?.title ?? 'YouTube Dictation'
-          }
+          const data = e.target.getVideoData?.()
+          if (data?.title && activeVideo.value?.title === 'Custom video')
+            activeVideo.value = { ...activeVideo.value, title: data.title }
         },
         onStateChange(e) {
-          const playing = e.data === window.YT.PlayerState.PLAYING
-          isPlaying.value = playing
-          if (playing) {
-            startWave()
-            pollTimer = setInterval(pollTime, 400)
-          } else {
-            stopWave()
-            clearInterval(pollTimer)
-          }
+          isPlaying.value = e.data === window.YT.PlayerState.PLAYING
+          if (isPlaying.value) { startWave(); pollTimer = setInterval(pollTime, 400) }
+          else { stopWave(); clearInterval(pollTimer) }
         },
-        onError() {
-          playerError.value = 'Video unavailable. The video may be restricted or deleted.'
-          playerReady.value = false
-        },
+        onError() { playerError.value = 'Video unavailable or restricted.' },
       },
     })
-  } catch (e) {
-    playerError.value = 'Could not load the YouTube player.'
-  }
+  } catch { playerError.value = 'Could not load the YouTube player.' }
 }
 
-function loadYTApi(id) {
-  if (window.YT?.Player) {
-    initPlayer(id)
-    return
-  }
-  window.onYouTubeIframeAPIReady = () => initPlayer(id)
+function loadYTApi(videoId) {
+  if (window.YT?.Player) { initPlayer(videoId); return }
+  window.onYouTubeIframeAPIReady = () => initPlayer(videoId)
   if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
-    const s   = document.createElement('script')
-    s.src     = 'https://www.youtube.com/iframe_api'
-    s.onerror = () => { playerError.value = 'Failed to load YouTube API.' }
+    const s = document.createElement('script')
+    s.src   = 'https://www.youtube.com/iframe_api'
     document.head.appendChild(s)
   }
 }
@@ -453,153 +293,88 @@ function loadYTApi(id) {
 function pollTime() {
   if (!player?.getCurrentTime) return
   currentTime.value = player.getCurrentTime()
-  const seg = segments.value[segmentIdx.value]
-  if (!seg) return
-  if (currentTime.value >= seg.end) {
-    player.pauseVideo()
-    currentTime.value = seg.end
+  const seg = currentSegment.value
+  if (seg?.end > 0 && currentTime.value >= seg.end) {
+    player.pauseVideo(); currentTime.value = seg.end
   }
 }
 
 function togglePlay() {
   if (!player || !playerReady.value) return
-  if (isPlaying.value) {
-    player.pauseVideo()
-  } else {
-    player.playVideo()
-  }
+  isPlaying.value ? player.pauseVideo() : player.playVideo()
 }
 
 function rewind() {
   if (!player || !playerReady.value) return
-  const newTime = Math.max(SEGMENTS[segmentIdx.value].start, (player.getCurrentTime() || 0) - 10)
-  player.seekTo(newTime, true)
-  currentTime.value = newTime
+  const min = currentSegment.value?.start ?? 0
+  player.seekTo(Math.max(min, (player.getCurrentTime() || 0) - 10), true)
 }
 
 function seekToSegmentStart() {
   if (!player || !playerReady.value) return
-  player.seekTo(SEGMENTS[segmentIdx.value].start, true)
-  currentTime.value = SEGMENTS[segmentIdx.value].start
-  if (isPlaying.value) player.playVideo()
+  const start = currentSegment.value?.start ?? 0
+  player.seekTo(start, true); currentTime.value = start
 }
 
 function nextSegment() {
-  if (segmentIdx.value >= segments.value.length - 1) return
-  const next = segments.value[segmentIdx.value + 1]
-  if (player) { player.pauseVideo(); player.seekTo(next.start, true) }
-  segmentIdx.value++
-  userInput.value      = ''
-  showTranscript.value = false
-  currentTime.value    = next.start
+  if (!activeVideo.value || segmentIdx.value >= activeVideo.value.segments.length - 1) return
+  const next = activeVideo.value.segments[segmentIdx.value + 1]
+  if (player) { player.pauseVideo(); if (next.start > 0) player.seekTo(next.start, true) }
+  segmentIdx.value++; userInput.value = ''; showTranscript.value = false
+  if (next.start > 0) currentTime.value = next.start
 }
 
-function fmtTime(secs) {
-  const s = Math.floor(secs || 0)
-  const m = Math.floor(s / 60)
-  return `${m}:${String(s % 60).padStart(2, '0')}`
+function fmtTime(s) {
+  s = Math.floor(s || 0)
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
-// ── Waveform animation ────────────────────────────────────────────────────────
+// ── Waveform ──────────────────────────────────────────────────────────────────
 
-// 40 bars with varied base heights for a realistic look
-const BASE_HEIGHTS = Array.from({ length: 40 }, (_, i) => {
-  const envelope = Math.sin((i / 39) * Math.PI)        // peaks in the middle
-  const detail   = Math.sin(i * 1.7) * 0.25            // local variation
-  return Math.max(4, Math.round((envelope * 0.6 + detail + 0.5) * 44 + 6))
-})
-
-const bars = ref([...BASE_HEIGHTS])
+const BASE_HEIGHTS = Array.from({ length: 40 }, (_, i) =>
+  Math.max(4, Math.round((Math.sin((i / 39) * Math.PI) * 0.6 + Math.sin(i * 1.7) * 0.25 + 0.5) * 44 + 6))
+)
+const bars    = ref([...BASE_HEIGHTS])
 let waveTimer = null
 
 function startWave() {
   if (waveTimer) return
   waveTimer = setInterval(() => {
-    bars.value = BASE_HEIGHTS.map((base, i) => {
-      const noise = (Math.random() - 0.5) * 28
-      return Math.max(4, Math.min(56, base + noise))
-    })
+    bars.value = BASE_HEIGHTS.map(b => Math.max(4, Math.min(56, b + (Math.random() - 0.5) * 28)))
   }, 90)
 }
-
-function stopWave() {
-  clearInterval(waveTimer)
-  waveTimer = null
-  bars.value = [...BASE_HEIGHTS]
-}
+function stopWave() { clearInterval(waveTimer); waveTimer = null; bars.value = [...BASE_HEIGHTS] }
 
 // ── Word comparison ───────────────────────────────────────────────────────────
 
 function normalizeWord(w) {
-  return w
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')   // strip diacritics
-    .replace(/[^a-z0-9]/g, '')         // keep only letters + digits
+  return w.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
 }
 
 function wordMatch(typed, expected) {
-  if (difficulty.value === 'hard')  return typed === expected
-  const t = normalizeWord(typed)
-  const e = normalizeWord(expected)
+  if (difficulty.value === 'hard')   return typed === expected
+  const t = normalizeWord(typed), e = normalizeWord(expected)
   if (difficulty.value === 'medium') return t === e
-  // Easy: fuzzy via Fuse.js
-  const fuse = new Fuse([e], { threshold: 0.4 })
-  return fuse.search(t).length > 0
+  return new Fuse([e], { threshold: 0.4 }).search(t).length > 0
 }
 
-const segmentWords = computed(() =>
-  (currentSegment.value?.text ?? '').split(/\s+/).filter(Boolean)
-)
-
-const userWords = computed(() =>
-  userInput.value.trim().split(/\s+/).filter(w => w)
-)
-
+const segmentWords  = computed(() => (currentSegment.value?.text ?? '').split(/\s+/).filter(Boolean))
+const userWords     = computed(() => userInput.value.trim().split(/\s+/).filter(Boolean))
 const comparedWords = computed(() =>
   userWords.value.map((w, i) => {
-    const expected = segmentWords.value[i]
-    if (!expected) return { typed: w, state: 'extra' }
-    return { typed: w, state: wordMatch(w, expected) ? 'correct' : 'wrong' }
+    const exp = segmentWords.value[i]
+    if (!exp) return { typed: w, state: 'extra' }
+    return { typed: w, state: wordMatch(w, exp) ? 'correct' : 'wrong' }
   })
 )
-
-const correctCount = computed(() =>
-  comparedWords.value.filter(w => w.state === 'correct').length
-)
-
 const accuracy = computed(() => {
   if (!userWords.value.length) return null
-  return Math.round((correctCount.value / segmentWords.value.length) * 100)
+  return Math.round(comparedWords.value.filter(w => w.state === 'correct').length / segmentWords.value.length * 100)
 })
-
-// ── localStorage progress ─────────────────────────────────────────────────────
-
-function saveProgress() {
-  const all = JSON.parse(localStorage.getItem('szol_video_progress') || '{}')
-  all[videoId.value] = { segmentIndex: segmentIdx.value, timestamp: Date.now() }
-  localStorage.setItem('szol_video_progress', JSON.stringify(all))
-}
-
-function resumeFromSaved() {
-  const idx = resumeSegment.value
-  resumeSegment.value  = null
-  segmentIdx.value     = idx
-  userInput.value      = ''
-  showTranscript.value = false
-  const startAt = segments.value[idx]?.start ?? 0
-  if (player && playerReady.value) {
-    player.seekTo(startAt, true)
-    currentTime.value = startAt
-  }
-}
-
-watch(segmentIdx, saveProgress)
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 onMounted(() => {
-  // Pre-load the YT API script so it's ready when the user submits a video.
   if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
     const s = document.createElement('script')
     s.src   = 'https://www.youtube.com/iframe_api'
@@ -608,8 +383,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  clearInterval(pollTimer)
-  stopWave()
+  clearInterval(pollTimer); stopWave()
   if (player?.destroy) player.destroy()
 })
 </script>
