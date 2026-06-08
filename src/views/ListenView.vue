@@ -260,16 +260,51 @@ async function fetchCaptions(id) {
   captionsLoading.value = true
   captionsError.value   = ''
   try {
-    const r    = await fetch(`/api/timedtext?v=${encodeURIComponent(id)}&lang=en`)
-    const data = await r.json()
-    if (data.error || !data.events?.length) {
-      captionsError.value = 'No captions available for this video.'
+    // 1. Fetch caption track list directly from browser (residential IP + YT cookies).
+    const listRes = await fetch(
+      `https://www.youtube.com/api/timedtext?v=${encodeURIComponent(id)}&type=list&hl=en`
+    )
+    const listXml = await listRes.text()
+
+    // Parse <track .../> elements — kind="asr" = auto-generated.
+    const tracks = []
+    for (const m of listXml.matchAll(/<track\b([^>]*)>/g)) {
+      const attr = m[1]
+      const lang = attr.match(/lang_code="([^"]*)"/)?.[1] ?? ''
+      const name = attr.match(/\bname="([^"]*)"/)?.[1]  ?? ''
+      const kind = attr.match(/\bkind="([^"]*)"/)?.[1]  ?? ''
+      if (lang) tracks.push({ lang, name, kind })
+    }
+
+    const manual = tracks.filter(t => t.kind !== 'asr' && !t.name.toLowerCase().includes('auto'))
+
+    if (!tracks.length) {
+      captionsError.value = 'This video has no captions. Choose a video with subtitles.'
       return
     }
+    if (!manual.length) {
+      captionsError.value = 'This video only has auto-generated captions, which have too many errors for dictation. Choose a video with manually reviewed subtitles.'
+      return
+    }
+
+    // 2. Pick best English manual track.
+    const pick = manual.find(t => t.lang.startsWith('en')) ?? manual[0]
+
+    // 3. Fetch caption content in json3 format.
+    const captionRes = await fetch(
+      `https://www.youtube.com/api/timedtext?v=${encodeURIComponent(id)}&lang=${pick.lang}&name=${encodeURIComponent(pick.name)}&fmt=json3`
+    )
+    const data = await captionRes.json()
+
+    if (!data.events?.length) {
+      captionsError.value = 'Caption track is empty.'
+      return
+    }
+
     segments.value = parseCaptions(data)
     if (!segments.value.length) captionsError.value = 'Could not parse captions.'
-  } catch {
-    captionsError.value = 'Failed to load captions.'
+  } catch (e) {
+    captionsError.value = `Failed to load captions: ${e.message}`
   } finally {
     captionsLoading.value = false
   }
