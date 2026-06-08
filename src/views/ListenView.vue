@@ -10,7 +10,7 @@
     <!-- ── Header ── -->
     <div class="flex items-center justify-between gap-3">
       <div class="flex flex-col gap-0.5 min-w-0">
-        <h2 class="font-semibold text-gray-100 text-base truncate">{{ VIDEO.title }}</h2>
+        <h2 class="font-semibold text-gray-100 text-base truncate">{{ videoTitle }}</h2>
         <span class="text-xs text-gray-500 uppercase tracking-wide">{{ LANGS[lang]?.name ?? lang }}</span>
       </div>
       <button
@@ -47,10 +47,14 @@
         />
       </svg>
       <div class="flex justify-between text-xs text-gray-500">
-        <span>segment {{ segmentIdx + 1 }} / {{ SEGMENTS.length }}</span>
+        <span>segment {{ segmentIdx + 1 }} / {{ segments.length }}</span>
         <span>{{ fmtTime(currentTime) }} / {{ fmtTime(duration) }}</span>
       </div>
     </div>
+
+    <!-- ── Captions loading / error ── -->
+    <div v-if="captionsLoading" class="text-xs text-gray-500 text-center py-1">Loading captions…</div>
+    <div v-if="captionsError" class="text-xs text-red-400 text-center py-1">{{ captionsError }}</div>
 
     <!-- ── Player error ── -->
     <div v-if="playerError" class="text-xs text-red-400 text-center py-2">
@@ -122,7 +126,7 @@
 
     <!-- ── Transcript reveal ── -->
     <div
-      v-if="showTranscript"
+      v-if="showTranscript && currentSegment"
       class="bg-slate-900 border border-emerald-800 rounded-lg px-4 py-3 text-sm text-gray-200 leading-relaxed"
     >{{ currentSegment.text }}</div>
 
@@ -135,7 +139,7 @@
 
       <button
         @click="nextSegment"
-        :disabled="segmentIdx >= SEGMENTS.length - 1"
+        :disabled="segmentIdx >= segments.length - 1"
         class="text-xs px-4 py-1.5 rounded-md bg-emerald-700 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
       >Next segment →</button>
     </div>
@@ -154,20 +158,60 @@ const props = defineProps({
   currentUser: Object,
 })
 
-// ── Test video + hardcoded transcript ─────────────────────────────────────────
+// ── Video config ──────────────────────────────────────────────────────────────
 
-const VIDEO = {
-  id:    'arj7oStGLkU',
-  title: 'TED Talk — English Dictation Practice',
+const videoId    = ref('arj7oStGLkU')
+const videoTitle = ref('Loading…')
+
+// ── Captions / segments (fetched dynamically) ─────────────────────────────────
+
+const segments        = ref([])
+const captionsLoading = ref(false)
+const captionsError   = ref('')
+
+// Parse YouTube json3 caption events into ~15-word practice segments.
+function parseCaptions(json) {
+  const events = (json.events || []).filter(e => e.segs)
+  const result = []
+  let cur = { startMs: 0, endMs: 0, words: [] }
+
+  for (const ev of events) {
+    const text = ev.segs.map(s => s.utf8 ?? '').join('').replace(/\n/g, ' ').trim()
+    if (!text) continue
+    const evEnd = ev.tStartMs + (ev.dDurationMs ?? 2000)
+    if (!cur.words.length) cur.startMs = ev.tStartMs
+    cur.endMs = evEnd
+    cur.words.push(...text.split(/\s+/).filter(Boolean))
+    // Flush at ~15 words or ~22 seconds
+    if (cur.words.length >= 15 || (evEnd - cur.startMs) >= 22000) {
+      result.push({ start: Math.floor(cur.startMs / 1000), end: Math.ceil(cur.endMs / 1000), text: cur.words.join(' ') })
+      cur = { startMs: 0, endMs: 0, words: [] }
+    }
+  }
+  if (cur.words.length) {
+    result.push({ start: Math.floor(cur.startMs / 1000), end: Math.ceil(cur.endMs / 1000), text: cur.words.join(' ') })
+  }
+  return result
 }
 
-const SEGMENTS = [
-  { start: 0,   end: 32,  text: "I want to start by offering you a free no-tech life hack and all it requires of you is this: that you change your posture for two minutes." },
-  { start: 32,  end: 65,  text: "But before I give it away, I want to ask you to right now do a little audit of your body and what you're doing with your body." },
-  { start: 65,  end: 95,  text: "So how many of you are sort of making yourselves smaller? Maybe you're hunching, crossing your legs, maybe wrapping your ankles." },
-  { start: 95,  end: 125, text: "Sometimes we hold onto our arms like this. Sometimes we spread out. I see you. So I want you to pay attention to what you're doing right now." },
-  { start: 125, end: 160, text: "We're going to come back to that in a few minutes, and I'm hoping that if you learn to tweak this a little bit, it could significantly change the way your life unfolds." },
-]
+async function fetchCaptions(id) {
+  captionsLoading.value = true
+  captionsError.value   = ''
+  try {
+    const r    = await fetch(`/api/timedtext?v=${encodeURIComponent(id)}&lang=en`)
+    const data = await r.json()
+    if (data.error || !data.events?.length) {
+      captionsError.value = 'No captions available for this video.'
+      return
+    }
+    segments.value = parseCaptions(data)
+    if (!segments.value.length) captionsError.value = 'Could not parse captions.'
+  } catch {
+    captionsError.value = 'Failed to load captions.'
+  } finally {
+    captionsLoading.value = false
+  }
+}
 
 // ── Difficulty ────────────────────────────────────────────────────────────────
 
@@ -184,7 +228,7 @@ const userInput      = ref('')
 const showTranscript = ref(false)
 const resumeSegment  = ref(null)
 
-const currentSegment = computed(() => SEGMENTS[segmentIdx.value])
+const currentSegment = computed(() => segments.value[segmentIdx.value] ?? null)
 
 // ── YouTube player ────────────────────────────────────────────────────────────
 
@@ -204,7 +248,7 @@ function initPlayer() {
     player = new window.YT.Player(ytContainerEl.value, {
       width:    0,
       height:   0,
-      videoId:  VIDEO.id,
+      videoId:  videoId.value,
       playerVars: {
         controls:       0,
         rel:            0,
@@ -212,14 +256,17 @@ function initPlayer() {
         fs:             0,
         modestbranding: 1,
         iv_load_policy: 3,
-        start:          SEGMENTS[0].start,
       },
       events: {
         onReady(e) {
           playerReady.value = true
           duration.value    = e.target.getDuration() || 0
-          e.target.seekTo(SEGMENTS[segmentIdx.value].start, true)
+          const startAt = segments.value[segmentIdx.value]?.start ?? 0
+          e.target.seekTo(startAt, true)
           e.target.pauseVideo()
+          if (!videoTitle.value || videoTitle.value === 'Loading…') {
+            videoTitle.value = e.target.getVideoData?.()?.title ?? 'YouTube Dictation'
+          }
         },
         onStateChange(e) {
           const playing = e.data === window.YT.PlayerState.PLAYING
@@ -264,7 +311,8 @@ function loadYTApi() {
 function pollTime() {
   if (!player?.getCurrentTime) return
   currentTime.value = player.getCurrentTime()
-  const seg = SEGMENTS[segmentIdx.value]
+  const seg = segments.value[segmentIdx.value]
+  if (!seg) return
   if (currentTime.value >= seg.end) {
     player.pauseVideo()
     currentTime.value = seg.end
@@ -295,12 +343,13 @@ function seekToSegmentStart() {
 }
 
 function nextSegment() {
-  if (segmentIdx.value >= SEGMENTS.length - 1) return
-  if (player) { player.pauseVideo(); player.seekTo(SEGMENTS[segmentIdx.value + 1].start, true) }
+  if (segmentIdx.value >= segments.value.length - 1) return
+  const next = segments.value[segmentIdx.value + 1]
+  if (player) { player.pauseVideo(); player.seekTo(next.start, true) }
   segmentIdx.value++
   userInput.value      = ''
   showTranscript.value = false
-  currentTime.value    = SEGMENTS[segmentIdx.value].start
+  currentTime.value    = next.start
 }
 
 function fmtTime(secs) {
@@ -358,7 +407,7 @@ function wordMatch(typed, expected) {
 }
 
 const segmentWords = computed(() =>
-  currentSegment.value.text.split(/\s+/).filter(Boolean)
+  (currentSegment.value?.text ?? '').split(/\s+/).filter(Boolean)
 )
 
 const userWords = computed(() =>
@@ -386,19 +435,20 @@ const accuracy = computed(() => {
 
 function saveProgress() {
   const all = JSON.parse(localStorage.getItem('szol_video_progress') || '{}')
-  all[VIDEO.id] = { segmentIndex: segmentIdx.value, timestamp: Date.now() }
+  all[videoId.value] = { segmentIndex: segmentIdx.value, timestamp: Date.now() }
   localStorage.setItem('szol_video_progress', JSON.stringify(all))
 }
 
 function resumeFromSaved() {
   const idx = resumeSegment.value
-  resumeSegment.value = null
-  segmentIdx.value    = idx
-  userInput.value     = ''
+  resumeSegment.value  = null
+  segmentIdx.value     = idx
+  userInput.value      = ''
   showTranscript.value = false
+  const startAt = segments.value[idx]?.start ?? 0
   if (player && playerReady.value) {
-    player.seekTo(SEGMENTS[idx].start, true)
-    currentTime.value = SEGMENTS[idx].start
+    player.seekTo(startAt, true)
+    currentTime.value = startAt
   }
 }
 
@@ -406,12 +456,15 @@ watch(segmentIdx, saveProgress)
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
-onMounted(() => {
+onMounted(async () => {
+  await fetchCaptions(videoId.value)
+
   const saved = JSON.parse(localStorage.getItem('szol_video_progress') || '{}')
-  const vp    = saved[VIDEO.id]
-  if (vp && vp.segmentIndex > 0 && vp.segmentIndex < SEGMENTS.length) {
+  const vp    = saved[videoId.value]
+  if (vp && vp.segmentIndex > 0 && vp.segmentIndex < segments.value.length) {
     resumeSegment.value = vp.segmentIndex
   }
+
   loadYTApi()
 })
 
