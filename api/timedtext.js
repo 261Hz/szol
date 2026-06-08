@@ -44,7 +44,16 @@ export default async function handler(req, res) {
       ?.captionTracks
 
     if (!captionTracks?.length) {
-      return res.status(404).json({ error: 'This video has no captions. Choose a video that has subtitles enabled.' })
+      return res.status(404).json({
+        error: 'This video has no captions. Choose a video that has subtitles enabled.',
+        _debug: {
+          playabilityStatus: player?.playabilityStatus?.status,
+          hasCaptions: !!player?.captions,
+          captionsKeys: player?.captions ? Object.keys(player.captions) : null,
+          tracklistKeys: player?.captions?.playerCaptionsTracklistRenderer
+            ? Object.keys(player.captions.playerCaptionsTracklistRenderer) : null,
+        }
+      })
     }
 
     // 2. Filter out auto-generated tracks (vssId starts with "a.", e.g. "a.en")
