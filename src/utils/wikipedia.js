@@ -104,35 +104,57 @@ export async function fetchQuoteOfDay(lang) {
     if (cached) return JSON.parse(cached)
   } catch {}
 
-  try {
-    const randRes = await fetch(
-      `https://${code}.wikiquote.org/w/api.php?action=query&list=random&rnnamespace=0&rnlimit=1&format=json&origin=*`
-    )
-    if (!randRes.ok) return null
-    const { query } = await randRes.json()
-    const title = query?.random?.[0]?.title
-    if (!title) return null
+  // Try up to 3 random pages to find one with a usable quote
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const randRes = await fetch(
+        `https://${code}.wikiquote.org/w/api.php?action=query&list=random&rnnamespace=0&rnlimit=1&format=json&origin=*`
+      )
+      if (!randRes.ok) return null
+      const { query } = await randRes.json()
+      const title = query?.random?.[0]?.title
+      if (!title) continue
 
-    const pageRes = await fetch(
-      `https://${code}.wikiquote.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=extracts&explaintext=1&exchars=500&format=json&origin=*`
-    )
-    if (!pageRes.ok) return null
-    const pageData = await pageRes.json()
-    const pages   = pageData.query?.pages
-    const extract = pages?.[Object.keys(pages)[0]]?.extract?.trim()
-    if (!extract || extract.length < 15) return null
+      // 2000 chars gives enough room to get past biographical intros on author pages
+      const pageRes = await fetch(
+        `https://${code}.wikiquote.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=extracts&explaintext=1&exchars=2000&format=json&origin=*`
+      )
+      if (!pageRes.ok) continue
+      const pageData = await pageRes.json()
+      const pages    = pageData.query?.pages
+      const extract  = pages?.[Object.keys(pages)[0]]?.extract?.trim()
+      if (!extract || extract.length < 20) continue
 
-    // Pick the first line that looks like a quote (skip section headers and trivially short lines)
-    const lines = extract.split('\n').map(l => l.trim()).filter(l => l.length > 20 && !l.startsWith('=='))
-    const quote = lines[0]
-    if (!quote) return null
+      const allLines = extract.split('\n').map(l => l.trim()).filter(Boolean)
 
-    const result = { quote, author: title }
-    try { sessionStorage.setItem(cacheKey, JSON.stringify(result)) } catch {}
-    return result
-  } catch {
-    return null
+      // Strict candidates: sentence-like lines, not bios, not headers
+      const strict = allLines.filter(l =>
+        l.length >= 40 &&
+        l.length <= 280 &&
+        !l.startsWith('==') &&
+        !/\(\d{4}/.test(l) &&          // skip bio intros "(born 1776..."
+        /[.!?'"’”]$/.test(l) // ends like a sentence or quoted phrase
+      )
+
+      // Fallback: any line of reasonable length that isn't a header
+      const loose = allLines.filter(l =>
+        l.length >= 40 && l.length <= 280 && !l.startsWith('==')
+      )
+
+      const candidates = strict.length ? strict : loose
+      if (!candidates.length) continue
+
+      // Pick randomly from the first 5 so we don't always get the top line
+      const quote = candidates[Math.floor(Math.random() * Math.min(candidates.length, 5))]
+      const result = { quote, author: title }
+      try { sessionStorage.setItem(cacheKey, JSON.stringify(result)) } catch {}
+      return result
+
+    } catch {
+      continue
+    }
   }
+  return null
 }
 
 // searchWikipedia() finds Wikipedia articles related to a word, for the ExamplesPanel.
