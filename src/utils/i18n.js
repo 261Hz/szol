@@ -13,6 +13,7 @@ export const UI = {
 
   // ── English ───────────────────────────────────────────────────────────────────
   en: {
+  listen:        'Listen',
   read:          'Read',          // label for the Read tab in the navbar
   retype:        'Retype',        // label for the Retype (typing practice) tab
   speak:         'Speak',         // label for the Speak (pronunciation practice) tab
@@ -50,6 +51,7 @@ export const UI = {
   // ── Spanish (Español) ─────────────────────────────────────────────────────────
   // All keys are identical to English above -- only the translated values differ.
   es: {
+    listen:        'Escuchar',
     read:          'Leer',
     retype:        'Reescribir',
     speak:         'Hablar',
@@ -86,6 +88,7 @@ export const UI = {
 
   // ── French (Français) ─────────────────────────────────────────────────────────
   fr: {
+    listen:        'Écouter',
     read:          'Lire',
     retype:        'Réécrire',
     speak:         'Parler',
@@ -122,6 +125,7 @@ export const UI = {
 
   // ── German (Deutsch) ──────────────────────────────────────────────────────────
   de: {
+    listen:        'Hören',
     read:          'Lesen',
     retype:        'Nachschreiben',
     speak:         'Sprechen',
@@ -158,6 +162,7 @@ export const UI = {
 
   // ── Hebrew (עברית) — reads right-to-left ──────────────────────────────────────
   he: {
+    listen:        'האזן',
     read:          'קרא',
     retype:        'העתק',
     speak:         'דבר',
@@ -194,6 +199,7 @@ export const UI = {
 
   // ── Arabic (العربية) — Modern Standard Arabic, reads right-to-left ───────────
   ar: {
+    listen:        'استمع',
     read:          'اقرأ',
     retype:        'أعد الكتابة',
     speak:         'تكلم',
@@ -230,6 +236,7 @@ export const UI = {
 
   // ── Egyptian Arabic (مصري / arz) — colloquial Egyptian dialect, right-to-left ─
   arz: {
+    listen:        'اسمع',
     read:          'اقرا',
     retype:        'اكتب تاني',
     speak:         'اتكلم',
@@ -266,6 +273,7 @@ export const UI = {
 
   // ── Japanese (日本語) ──────────────────────────────────────────────────────────
   ja: {
+    listen:        '聴く',
     read:          '読む',
     retype:        '書き直す',
     speak:         '話す',
@@ -302,6 +310,7 @@ export const UI = {
 
   // ── Russian (Русский) — Cyrillic alphabet ─────────────────────────────────────
   ru: {
+    listen:        'Слушать',
     read:          'Читать',
     retype:        'Переписать',
     speak:         'Говорить',
@@ -338,6 +347,7 @@ export const UI = {
 
   // ── Italian (Italiano) ────────────────────────────────────────────────────────
   it: {
+    listen:        'Ascoltare',
     read:          'Leggere',
     retype:        'Riscrivere',
     speak:         'Parlare',
@@ -374,6 +384,7 @@ export const UI = {
 
   // ── Greek (Ελληνικά) — Greek alphabet ─────────────────────────────────────────
   el: {
+    listen:        'Ακούω',
     read:          'Διαβάζω',
     retype:        'Ξαναγράφω',
     speak:         'Μιλάω',
@@ -410,6 +421,7 @@ export const UI = {
 
   // ── Chinese Simplified (中文) ──────────────────────────────────────────────────
   zh: {
+    listen:        '听力',
     read:          '阅读',
     retype:        '重写',
     speak:         '说话',
@@ -446,6 +458,7 @@ export const UI = {
 
   // ── Hungarian (Magyar) ────────────────────────────────────────────────────────
   hu: {
+    listen:        'Hallgatás',
     read:          'Olvasás',
     retype:        'Újraírás',
     speak:         'Beszéd',
