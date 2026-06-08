@@ -7,8 +7,24 @@
 
   <div class="flex flex-col gap-4">
 
-    <!-- ── Header ── -->
-    <div class="flex items-center justify-between gap-3">
+    <!-- ── Video URL input ── -->
+    <div class="flex gap-2">
+      <input
+        v-model="urlInput"
+        type="text"
+        placeholder="Paste a YouTube URL or video ID…"
+        @keydown.enter="loadVideo"
+        class="flex-1 bg-slate-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 outline-none focus:border-emerald-600 placeholder:text-gray-600 transition-all"
+      />
+      <button
+        @click="loadVideo"
+        :disabled="captionsLoading || !urlInput.trim()"
+        class="text-sm px-4 py-2 rounded-lg bg-emerald-700 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
+      >{{ captionsLoading ? '…' : 'Load' }}</button>
+    </div>
+
+    <!-- ── Header (shown once a video is loaded) ── -->
+    <div v-if="videoTitle" class="flex items-center justify-between gap-3">
       <div class="flex flex-col gap-0.5 min-w-0">
         <h2 class="font-semibold text-gray-100 text-base truncate">{{ videoTitle }}</h2>
         <span class="text-xs text-gray-500 uppercase tracking-wide">{{ LANGS[lang]?.name ?? lang }}</span>
@@ -160,8 +176,46 @@ const props = defineProps({
 
 // ── Video config ──────────────────────────────────────────────────────────────
 
-const videoId    = ref('arj7oStGLkU')
-const videoTitle = ref('Loading…')
+const videoId    = ref('')
+const videoTitle = ref('')
+const urlInput   = ref('')
+
+function extractVideoId(input) {
+  input = input.trim()
+  // Full URL: youtube.com/watch?v=ID or youtu.be/ID
+  const m = input.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+  if (m) return m[1]
+  // Bare 11-char ID
+  if (/^[a-zA-Z0-9_-]{11}$/.test(input)) return input
+  return null
+}
+
+async function loadVideo() {
+  const id = extractVideoId(urlInput.value)
+  if (!id) { captionsError.value = 'Could not find a YouTube video ID in that URL.'; return }
+
+  // Tear down existing player
+  if (player?.destroy) { player.destroy(); player = null }
+  playerReady.value = false
+  isPlaying.value   = false
+  segments.value    = []
+  segmentIdx.value  = 0
+  userInput.value   = ''
+  showTranscript.value = false
+  videoId.value     = id
+  videoTitle.value  = ''
+
+  await fetchCaptions(id)
+  if (captionsError.value) return  // captions required — don't load player
+
+  // Check resume
+  const saved = JSON.parse(localStorage.getItem('szol_video_progress') || '{}')
+  const vp    = saved[id]
+  resumeSegment.value = (vp && vp.segmentIndex > 0 && vp.segmentIndex < segments.value.length)
+    ? vp.segmentIndex : null
+
+  loadYTApi(id)
+}
 
 // ── Captions / segments (fetched dynamically) ─────────────────────────────────
 
@@ -242,13 +296,13 @@ const duration      = ref(0)
 let player      = null
 let pollTimer   = null
 
-function initPlayer() {
+function initPlayer(id) {
   if (!ytContainerEl.value) return
   try {
     player = new window.YT.Player(ytContainerEl.value, {
       width:    0,
       height:   0,
-      videoId:  videoId.value,
+      videoId:  id,
       playerVars: {
         controls:       0,
         rel:            0,
@@ -290,20 +344,16 @@ function initPlayer() {
   }
 }
 
-function loadYTApi() {
+function loadYTApi(id) {
   if (window.YT?.Player) {
-    initPlayer()
+    initPlayer(id)
     return
   }
-  const prev = window.onYouTubeIframeAPIReady
-  window.onYouTubeIframeAPIReady = () => {
-    if (prev) prev()
-    initPlayer()
-  }
+  window.onYouTubeIframeAPIReady = () => initPlayer(id)
   if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
-    const s  = document.createElement('script')
-    s.src    = 'https://www.youtube.com/iframe_api'
-    s.onerror = () => { playerError.value = 'Failed to load YouTube API. Check your connection.' }
+    const s   = document.createElement('script')
+    s.src     = 'https://www.youtube.com/iframe_api'
+    s.onerror = () => { playerError.value = 'Failed to load YouTube API.' }
     document.head.appendChild(s)
   }
 }
@@ -456,16 +506,13 @@ watch(segmentIdx, saveProgress)
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
-onMounted(async () => {
-  await fetchCaptions(videoId.value)
-
-  const saved = JSON.parse(localStorage.getItem('szol_video_progress') || '{}')
-  const vp    = saved[videoId.value]
-  if (vp && vp.segmentIndex > 0 && vp.segmentIndex < segments.value.length) {
-    resumeSegment.value = vp.segmentIndex
+onMounted(() => {
+  // Pre-load the YT API script so it's ready when the user submits a video.
+  if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+    const s = document.createElement('script')
+    s.src   = 'https://www.youtube.com/iframe_api'
+    document.head.appendChild(s)
   }
-
-  loadYTApi()
 })
 
 onUnmounted(() => {
