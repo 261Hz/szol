@@ -226,43 +226,6 @@
       </div>
     </div>
 
-    <!-- ─── 🗺️ TRAVEL ─── -->
-    <div class="border border-gray-700 rounded-lg overflow-hidden">
-      <button @click="toggle('travel')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>🗺️ {{ t(lang, 'travel') }}</span>
-        <span class="text-gray-500 text-xs">{{ open.travel ? '▲' : '▼' }}</span>
-      </button>
-      <div v-if="open.travel" class="px-4 pb-4 pt-1">
-        <div class="flex gap-2 mb-3">
-          <input v-model="travelQuery" type="text" :placeholder="t(lang, 'searchDest')" @keydown.enter="searchTravel" class="flex-1 border border-gray-700 rounded-md px-3 py-1.5 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
-          <button @click="searchTravel" :disabled="travelLoading" class="text-sm px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ travelLoading ? '…' : t(lang, 'search') }}</button>
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <div
-            v-for="r in travelResults"
-            :key="r.pageid"
-            class="border border-gray-800 rounded-md p-2.5 hover:border-green-700 transition-all"
-          >
-            <div class="flex items-start justify-between gap-2">
-              <div class="min-w-0">
-                <div class="text-sm font-medium text-gray-200">{{ r.title }}</div>
-                <div class="text-xs text-gray-500 mt-0.5 break-words">
-                  <ClickableText
-                    :text="r.snippet.replace(/<[^>]+>/g, '')"
-                    :lang="lang"
-                    :savedWords="savedWordsSet"
-                    @tap="({ word, sentence }) => saveFromLibrary(word, sentence)"
-                  />
-                </div>
-              </div>
-              <button @click="importWikivoyage(r)" :disabled="travelImporting === r.pageid" class="flex-shrink-0 text-xs px-2.5 py-1 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">{{ travelImporting === r.pageid ? '…' : t(lang, 'import') }}</button>
-            </div>
-          </div>
-          <div v-if="!travelResults.length && !travelLoading" class="text-xs text-gray-500 text-center py-2">{{ t(lang, 'noTravelResults') }}</div>
-        </div>
-      </div>
-    </div>
-
     <!-- ─── 🔗 IMPORT URL ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('import')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
@@ -322,21 +285,6 @@
       </div>
     </div>
 
-    <!-- ─── 🎬 SUBTITLES ─── -->
-    <div class="border border-gray-700 rounded-lg overflow-hidden">
-      <button @click="toggle('subtitles')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>🎬 {{ t(lang, 'subtitlesSec') }}</span>
-        <span class="text-gray-500 text-xs">{{ open.subtitles ? '▲' : '▼' }}</span>
-      </button>
-      <div v-if="open.subtitles" class="px-4 pb-4 pt-1 flex flex-col gap-3">
-        <p class="text-xs text-gray-400">{{ t(lang, 'subtitlesHelp') }}</p>
-        <input v-model="srtTitle" type="text" :placeholder="t(lang, 'srtTitle')" class="w-full border border-gray-700 rounded-md px-3 py-1.5 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
-        <textarea v-model="srtContent" rows="5" :placeholder="t(lang, 'srtPaste')" dir="ltr" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm font-mono outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600 resize-none" />
-        <div v-if="srtError" class="text-xs text-red-400">{{ srtError }}</div>
-        <button @click="importSRT" class="self-start text-sm px-4 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all">{{ t(lang, 'import') }}</button>
-      </div>
-    </div>
-
     <!-- ─── 👥 COMMUNITY ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('community')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
@@ -389,7 +337,6 @@ import { getAllProgress } from '../utils/api.js'
 // Wikipedia helpers for the Today and On This Day sections.
 import { fetchFeaturedArticle, fetchOnThisDay, fetchQuoteOfDay } from '../utils/wikipedia.js'
 // Wikivoyage helpers for the Travel section.
-import { searchWikivoyage, fetchWikivoyageArticle } from '../utils/wikivoyage.js'
 
 // ── Props / Emits ──────────────────────────────────────────────
 // lang    = active language code (e.g. 'fr') — used to filter stories and call APIs.
@@ -549,10 +496,8 @@ const open = ref({
   quote:      false,
   litclock:   false,
   onthisday:  false,
-  travel:     false,
   import:     false,
   topics:     false,
-  subtitles:  false,
   community:  false,
 })
 
@@ -643,32 +588,6 @@ function importOnThisDay() {
   // .map() transforms each event into "YEAR — text". .join('\n\n') puts a blank line between them.
   const text = onThisDay.value.map(ev => `${ev.year} — ${ev.text}`).join('\n\n')
   pushLocalStory({ title: `On This Day: ${date}`, content: text, source: 'Wikipedia / On This Day' })
-}
-
-// ── Travel (Wikivoyage) ────────────────────────────────────────
-const travelQuery     = ref('') // user's search input
-const travelResults   = ref([]) // array of { title, pageid, snippet } from Wikivoyage
-const travelLoading   = ref(false)
-// travelImporting = the pageid of the article currently being downloaded, or null.
-// Used to show "…" on the correct Import button while the fetch runs.
-const travelImporting = ref(null)
-
-async function searchTravel() {
-  if (!travelQuery.value.trim()) return
-  travelLoading.value = true
-  travelResults.value = await searchWikivoyage(travelQuery.value.trim(), props.lang)
-  travelLoading.value = false
-}
-
-// importWikivoyage() fetches the full article text for a search result and saves it as a story.
-// result.pageid is used as the "in-progress" key so each Import button shows its own spinner.
-async function importWikivoyage(result) {
-  travelImporting.value = result.pageid
-  const article = await fetchWikivoyageArticle(result.title, props.lang)
-  if (article?.text) {
-    pushLocalStory({ title: article.title, content: article.text, source: 'Wikivoyage' })
-  }
-  travelImporting.value = null
 }
 
 // ── Import URL ─────────────────────────────────────────────────
@@ -861,33 +780,6 @@ function importQuote() {
     content: quoteOfDay.value.quote,
     source:  'Wikiquote',
   })
-}
-
-// ── Subtitles (SRT paste) ───────────────────────────────────────
-const srtTitle   = ref('')
-const srtContent = ref('')
-const srtError   = ref('')
-
-function parseSRT(srt) {
-  return srt
-    .replace(/^\d+\s*$/gm, '')
-    .replace(/\d{2}:\d{2}:\d{2}[,.:]\d{2,3}\s*-->\s*\d{2}:\d{2}:\d{2}[,.:]\d{2,3}/g, '')
-    .replace(/<[^>]+>/g, '')
-    .replace(/\{[^}]+\}/g, '')
-    .split('\n').map(l => l.trim()).filter(Boolean).join(' ')
-    .replace(/\s{2,}/g, ' ').trim()
-}
-
-function importSRT() {
-  srtError.value = ''
-  const raw = srtContent.value.trim()
-  if (!raw) { srtError.value = 'Paste SRT content first.'; return }
-  const text = parseSRT(raw)
-  if (text.length < 20) { srtError.value = 'Could not extract dialogue from this SRT content.'; return }
-  const title = srtTitle.value.trim() || 'Subtitles'
-  pushLocalStory({ title, content: text, source: 'Subtitles' })
-  srtTitle.value   = ''
-  srtContent.value = ''
 }
 
 // ── Add story form ─────────────────────────────────────────────
