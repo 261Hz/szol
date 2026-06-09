@@ -114,7 +114,10 @@
             <input v-if="lang === 'arz'" v-model="customFranco" type="text" placeholder="Franco transliteration (optional)…" dir="ltr" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
             <div v-if="showShareForm" class="flex flex-col gap-2 border-t border-gray-800 pt-3">
               <div class="text-xs text-gray-400">{{ t(lang, 'shareRequired') }}</div>
-              <input v-model="customAuthor" type="text" :placeholder="t(lang, 'authorHere')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
+              <div class="flex flex-col gap-1">
+                <input v-model="customAuthor" type="text" :placeholder="t(lang, 'authorHere')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
+                <div class="text-xs text-gray-600">Shown publicly — use a pen name if you prefer.</div>
+              </div>
               <input v-model="customSource" type="text" :placeholder="t(lang, 'sourceHere')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
             </div>
             <div class="flex items-center justify-end gap-2">
@@ -864,28 +867,33 @@ function addLocal() {
   clearForm()
 }
 
-// shareGlobal() uploads the story to the community_stories table in Supabase.
-// Requires an author name — if not yet provided, shows the author/source fields first.
+// shareGlobal() is a two-step process:
+//   Step 1 (first click): reveal the author/source fields, pre-fill author with username.
+//   Step 2 (second click, form already open): validate and submit.
+// This ensures users always see what name will be published before it goes live.
 async function shareGlobal() {
   if (!customTitle.value.trim() || !customText.value.trim()) {
     alert('Please add a title and text first.')
     return
   }
+  if (!showShareForm.value) {
+    // Step 1: show the form, pre-fill author so the user can review/change it.
+    customAuthor.value = props.currentUser?.username ?? ''
+    showShareForm.value = true
+    return
+  }
+  // Step 2: submit.
   submitting.value = true
   try {
-    // author is auto-filled server-side from the logged-in user's username.
-    // source is optional — show the extra fields only if the user wants to add attribution.
     const story = await submitStory({
       title:    customTitle.value.trim(),
       content:  customText.value.trim(),
       franco:   customFranco.value.trim() || null,
       lang:     props.lang,
-      author:   customAuthor.value.trim() || null,   // backend fills from JWT if blank
+      author:   customAuthor.value.trim() || null,
       source:   customSource.value.trim() || null,
       reviewed: false,
     })
-    // .unshift() adds to the start of the array so the new story appears at the top.
-    // { ...story, community: true } spreads all story fields and adds the 'community' flag.
     communityStories.value.unshift({ ...story, community: true })
     clearForm()
     showShareForm.value = false
