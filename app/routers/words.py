@@ -4,8 +4,9 @@
 # ------
 #   GET  /words/lookup?word=&lang=    return cached dictionary entry or 404
 #   POST /words/cache                 insert or update a word cache entry
-#   GET  /words/frequency?word=&lang= corpus frequency rank
-#   GET  /words/examples?word=&lang=  Leipzig corpus example sentences
+#   GET  /words/frequency?word=&lang= corpus frequency rank (local → Leipzig API fallback)
+#   GET  /words/examples?word=&lang=  example sentences (local → Leipzig API fallback)
+#   GET  /words/similar?word=&lang=   contextually similar words via Leipzig cooccurrence API
 #   POST /words/user                  (auth) upsert a word into the user's seen-word log
 #   GET  /words/user?lang=            (auth) return user's word log for a language
 
@@ -20,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas, oauth2
 from ..database import get_db
+from ..leipzig_api import get_word_rank, get_sentences as leipzig_sentences, get_similar
 
 
 # ── Word normalization (mirrors frequency_import.py) ─────────────────────────
@@ -65,21 +67,28 @@ router = APIRouter(
 
 @router.get("/frequency")
 def word_frequency(word: str, lang: str, db: Session = Depends(get_db)):
-    """Return the corpus frequency rank for a single word. Always 200; rank is null if unknown."""
+    """
+    Return corpus frequency rank. Always 200; frequency_rank is null if unknown.
+    Fast path: local frequency_entries table.
+    Fallback: Leipzig API (covers inflected forms like 'bailed' independently).
+    """
     ranks = _rank_map(lang, [word], db)
-    return {"word": word, "lang": lang, "frequency_rank": ranks.get(_normalize(lang, word))}
+    rank  = ranks.get(_normalize(lang, word))
+
+    if rank is None:
+        rank = get_word_rank(word, lang)
+
+    return {"word": word, "lang": lang, "frequency_rank": rank}
 
 
 @router.get("/examples")
 def word_examples(word: str, lang: str, limit: int = 5, db: Session = Depends(get_db)):
     """
-    Return up to `limit` corpus example sentences containing `word`, scored best-first.
-    Uses trigram search so it works for all scripts (CJK, Arabic, Hebrew, Latin).
-    Falls back to a simple LIKE search if no trigram results found.
+    Return up to `limit` corpus example sentences, scored best-first.
+    Fast path: local corpus_sentences (ILIKE search).
+    Fallback: Leipzig API sentences when local corpus has no results.
     """
     norm = _normalize(lang, word)
-
-    # Trigram similarity search — fast with the GIN trgm index, script-agnostic.
     rows = db.execute(text("""
         SELECT sentence, score
         FROM   corpus_sentences
@@ -89,7 +98,22 @@ def word_examples(word: str, lang: str, limit: int = 5, db: Session = Depends(ge
         LIMIT  :lim
     """), {"lang": lang, "pattern": f"%{norm}%", "lim": limit}).fetchall()
 
-    return [{"sentence": r[0], "score": r[1]} for r in rows]
+    if rows:
+        return [{"sentence": r[0], "score": r[1]} for r in rows]
+
+    # Fallback: Leipzig API
+    sentences = leipzig_sentences(word, lang, limit)
+    return [{"sentence": s, "score": 70} for s in sentences]
+
+
+@router.get("/similar")
+def word_similar(word: str, lang: str):
+    """
+    Return contextually similar words from the Leipzig cooccurrence similarity API.
+    Only available for the 9 languages that have a Leipzig v3 corpus.
+    """
+    words = get_similar(word, lang)
+    return {"word": word, "lang": lang, "similar": words}
 
 
 @router.get("/lookup", response_model=schemas.WordLookupResponse)
