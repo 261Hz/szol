@@ -46,23 +46,29 @@
           />
         </div>
 
-        <!-- Word frequency row (shown only when logged in and data is available) -->
+        <!-- Corpus frequency rank — always visible, no login needed -->
+        <div v-if="frequencyMap[word.word.toLowerCase()] != null" class="flex items-center gap-1.5">
+          <span
+            :class="rankColor(frequencyMap[word.word.toLowerCase()])"
+            :title="rankLabel(frequencyMap[word.word.toLowerCase()])"
+            class="text-xs font-medium"
+          >#{{ frequencyMap[word.word.toLowerCase()].toLocaleString() }}</span>
+          <span class="text-xs text-gray-600">
+            {{ frequencyMap[word.word.toLowerCase()] <= 500 ? 'very common' : frequencyMap[word.word.toLowerCase()] <= 2000 ? 'common' : 'less common' }}
+          </span>
+        </div>
+
+        <!-- Personal seen count — only when logged in -->
         <div
           v-if="currentUser && userWordMap[word.word.toLowerCase()]"
-          class="text-xs flex gap-2 items-center flex-wrap"
+          class="text-xs flex gap-2 items-center text-gray-500"
         >
           <span class="text-green-400">Seen {{ userWordMap[word.word.toLowerCase()].seen_count }}×</span>
           <span class="text-gray-600">·</span>
-          <span class="text-gray-500">First {{ new Date(userWordMap[word.word.toLowerCase()].first_seen).toLocaleDateString() }}</span>
-          <template v-if="userWordMap[word.word.toLowerCase()].frequency_rank != null">
-            <span class="text-gray-600">·</span>
-            <span :class="rankColor(userWordMap[word.word.toLowerCase()].frequency_rank)" :title="rankLabel(userWordMap[word.word.toLowerCase()].frequency_rank)">
-              #{{ userWordMap[word.word.toLowerCase()].frequency_rank.toLocaleString() }}
-            </span>
-          </template>
+          <span>First {{ new Date(userWordMap[word.word.toLowerCase()].first_seen).toLocaleDateString() }}</span>
         </div>
 
-        <!-- Subtle login prompt when logged out -->
+        <!-- Login prompt when logged out -->
         <div v-else-if="!currentUser" class="text-xs text-gray-500">
           <button @click="emit('openAuth')" class="underline hover:text-green-400 transition-all">Login</button>
           to track how often you see each word
@@ -97,7 +103,7 @@ import { t }    from '../utils/i18n.js'
 import { LANGS } from '../data/stories.js'
 import ExamplesPanel  from '../components/ExamplesPanel.vue'
 import ClickableText  from '../components/ClickableText.vue'
-import { getUserWords } from '../utils/api.js'
+import { getUserWords, getWordFrequency } from '../utils/api.js'
 
 const props = defineProps({
   words:       Array,  // full vocabBank array (all languages)
@@ -107,9 +113,12 @@ const props = defineProps({
 
 const emit = defineEmits(['remove', 'saveWord', 'openAuth'])
 
-// userWordMap = { normalizedWord: { seen_count, first_seen, last_seen } }
+// userWordMap = { normalizedWord: { seen_count, first_seen, frequency_rank, ... } }
 // Fetched from the backend when the user is logged in and lang changes.
 const userWordMap = ref({})
+
+// frequencyMap = { word.toLowerCase(): rank } — public corpus data, no login required.
+const frequencyMap = ref({})
 
 watch(
   [() => props.currentUser, () => props.lang],
@@ -119,6 +128,20 @@ watch(
     userWordMap.value = Object.fromEntries(
       list.map(w => [w.word.toLowerCase(), w])
     )
+  },
+  { immediate: true }
+)
+
+// Fetch corpus frequency rank for every word in the active language whenever words or lang changes.
+watch(
+  [() => props.words, () => props.lang],
+  async ([words, lang]) => {
+    const langWords = words.filter(w => w.lang === lang)
+    if (!langWords.length) { frequencyMap.value = {}; return }
+    const results = await Promise.all(langWords.map(w => getWordFrequency(w.word, lang)))
+    const map = {}
+    results.forEach((r, i) => { if (r?.frequency_rank != null) map[langWords[i].word.toLowerCase()] = r.frequency_rank })
+    frequencyMap.value = map
   },
   { immediate: true }
 )

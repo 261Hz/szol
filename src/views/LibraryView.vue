@@ -225,7 +225,7 @@
         <div v-else-if="litClockQuote" class="flex flex-col gap-3">
           <p class="text-sm text-gray-200 italic leading-relaxed">
             <ClickableText :text="litClockQuote.quote_first" lang="en" :savedWords="savedWordsSet" @tap="({ word, sentence }) => saveFromLibrary(word, sentence)" /><!--
-            --><span class="text-emerald-400 font-semibold not-italic">{{ litClockQuote.quote_time_case }}</span><!--
+            --><span class="text-purple-400 font-semibold not-italic">{{ litClockQuote.quote_time_case }}</span><!--
             --><ClickableText :text="litClockQuote.quote_last" lang="en" :savedWords="savedWordsSet" @tap="({ word, sentence }) => saveFromLibrary(word, sentence)" />
           </p>
           <p class="text-xs text-gray-500">— <em>{{ litClockQuote.title }}</em> · {{ litClockQuote.author }}</p>
