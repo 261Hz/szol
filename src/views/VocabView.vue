@@ -63,8 +63,8 @@
             @click.stop
           >
             <div class="font-semibold text-gray-100">Corpus frequency rank</div>
-            <div>Rank <span :class="rankColor(frequencyMap[word.word.toLowerCase()])" class="font-medium">#{{ frequencyMap[word.word.toLowerCase()].toLocaleString() }}</span> out of the top 5,000 most common words in this language.</div>
-            <div class="text-gray-500">Source: <a href="https://wortschatz.uni-leipzig.de" target="_blank" class="underline hover:text-gray-300">Leipzig Wortschatz</a> — word counts from news and web text corpora.</div>
+            <div>This word ranks <span :class="rankColor(frequencyMap[word.word.toLowerCase()])" class="font-medium">#{{ frequencyMap[word.word.toLowerCase()].toLocaleString() }}</span> by frequency — lower means more common.</div>
+            <div class="text-gray-500">Data: <a href="https://wortschatz.uni-leipzig.de" target="_blank" class="underline hover:text-gray-300">Leipzig Wortschatz</a> news &amp; web corpora. Covers inflected forms (e.g. "bailed", "running") as well as base forms.</div>
             <button @click="freqPopup = null" class="self-end text-gray-600 hover:text-gray-400 mt-0.5">close ✕</button>
           </div>
         </div>
