@@ -83,11 +83,7 @@ def lookup_word(word: str, lang: str, db: Session = Depends(get_db)):
 
 
 @router.post("/cache", response_model=schemas.WordCacheResponse)
-def cache_word(
-    payload: schemas.WordCacheCreate,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(oauth2.get_current_user),
-):
+def cache_word(payload: schemas.WordCacheCreate, db: Session = Depends(get_db)):
     entry = (
         db.query(models.WordCache)
         .filter(models.WordCache.word == payload.word, models.WordCache.lang == payload.lang)
