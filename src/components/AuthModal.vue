@@ -137,23 +137,38 @@
             :class="confirmPassword === password ? 'text-green-400' : 'text-red-400'"
           >{{ confirmPassword === password ? '✓' : '✗' }}</span>
         </div>
-        <!-- Language you're learning — determines which proficiency scale to show -->
+        <!-- Native language (required) -->
+        <select
+          id="reg-native-lang"
+          name="native-lang"
+          v-model="nativeLang"
+          required
+          class="border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 focus:border-green-600 transition-all"
+          :class="nativeLang ? 'text-gray-100' : 'text-gray-400'"
+        >
+          <option value="">My native language *</option>
+          <option v-for="(l, code) in LANGS" :key="code" :value="code">{{ l.name }}</option>
+        </select>
+
+        <!-- Language you're learning (required) -->
         <select
           id="reg-target-lang"
           name="target-lang"
           v-model="targetLang"
-          class="border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600 text-gray-400 transition-all"
+          required
+          class="border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 focus:border-green-600 transition-all"
+          :class="targetLang ? 'text-gray-100' : 'text-gray-400'"
         >
-          <option value="">Language you're learning (optional)</option>
+          <option value="">Language I'm learning *</option>
           <option v-for="(l, code) in LANGS" :key="code" :value="code">{{ l.name }}</option>
         </select>
 
-        <!-- Proficiency — options adapt to the selected language's standard scale -->
+        <!-- Proficiency level (optional) -->
         <select
           id="reg-proficiency"
           name="proficiency"
           v-model="proficiency"
-          class="border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600 text-gray-400 transition-all"
+          class="border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 focus:border-green-600 text-gray-400 transition-all"
         >
           <option value="">{{ proficiencyPrompt }}</option>
           <option v-for="lvl in proficiencyOptions" :key="lvl.value" :value="lvl.value">{{ lvl.label }}</option>
@@ -183,7 +198,8 @@ const email           = ref('')
 const password        = ref('')
 const confirmPassword = ref('')
 const username        = ref('')
-const targetLang      = ref('')   // which language they're learning
+const nativeLang      = ref('')   // their native language
+const targetLang      = ref('')   // language they're learning
 const proficiency     = ref('')
 const showPassword    = ref(false)
 const error           = ref('')
@@ -258,7 +274,10 @@ const strengthColor = computed(() => {
 })
 
 const canSubmitRegister = computed(() =>
-  password.value.length >= 8 && password.value === confirmPassword.value
+  password.value.length >= 8 &&
+  password.value === confirmPassword.value &&
+  !!nativeLang.value &&
+  !!targetLang.value
 )
 
 // ── Error formatting ──────────────────────────────────────────────────────────
@@ -301,7 +320,7 @@ async function doRegister() {
   error.value   = ''
   loading.value = true
   try {
-    await register(username.value, email.value, password.value, proficiency.value || null, targetLang.value || null)
+    await register(username.value, email.value, password.value, proficiency.value || null, targetLang.value, nativeLang.value)
     await login(email.value, password.value)
     const user = await getMe()
     emit('logged-in', user)

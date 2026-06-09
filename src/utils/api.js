@@ -75,7 +75,7 @@ export async function login(email, password) {
   return access_token
 }
 
-export async function register(username, email, password, proficiency, native_lang) {
+export async function register(username, email, password, proficiency, target_lang, native_lang) {
   const res = await apiFetch(`${API_URL}/users/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -83,8 +83,9 @@ export async function register(username, email, password, proficiency, native_la
       username,
       email,
       password,
+      native_lang,
+      target_lang,
       ...(proficiency ? { proficiency } : {}),
-      ...(native_lang ? { native_lang } : {}),
     }),
   })
   if (!res.ok) {
@@ -114,6 +115,24 @@ export async function getMe() {
 
 export function logout() {
   localStorage.removeItem('szol_token')
+}
+
+export async function updateSettings(settings) {
+  const res = await apiFetch(`${API_URL}/users/me`, {
+    method:  'PATCH',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body:    JSON.stringify(settings),
+  })
+  if (!res.ok) throw new Error('Failed to update settings')
+  return await res.json()
+}
+
+export async function discoverUsers(nativeLang) {
+  const res = await apiFetch(`${API_URL}/users/discover?native_lang=${nativeLang}`, {
+    headers: authHeaders(),
+  }).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json()
 }
 
 // ── Word frequency tracking ───────────────────────────────────────────────────

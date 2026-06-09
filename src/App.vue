@@ -81,7 +81,19 @@
         :current-user="currentUser"
       />
 
-      <SettingsView v-if="activeTab === 'settings'" />
+      <SettingsView
+        v-if="activeTab === 'settings'"
+        :current-user="currentUser"
+        @open-auth="showAuth = true"
+        @user-updated="currentUser = $event"
+      />
+
+      <MessagesView
+        v-if="activeTab === 'messages'"
+        :current-user="currentUser"
+        :lang="activeLang"
+        @open-auth="showAuth = true"
+      />
 
     </main>
 
@@ -107,9 +119,10 @@ const RetypeView   = defineAsyncComponent(() => import('./views/RetypeView.vue')
 const VocabView    = defineAsyncComponent(() => import('./views/VocabView.vue'))
 const SpeakView    = defineAsyncComponent(() => import('./views/SpeakView.vue'))
 const WriteView    = defineAsyncComponent(() => import('./views/WriteView.vue'))
-const SettingsView = defineAsyncComponent(() => import('./views/SettingsView.vue'))
-const ChatView     = defineAsyncComponent(() => import('./views/ChatView.vue'))
-const ListenView   = defineAsyncComponent(() => import('./views/ListenView.vue'))
+const SettingsView  = defineAsyncComponent(() => import('./views/SettingsView.vue'))
+const ChatView      = defineAsyncComponent(() => import('./views/ChatView.vue'))
+const ListenView    = defineAsyncComponent(() => import('./views/ListenView.vue'))
+const MessagesView  = defineAsyncComponent(() => import('./views/MessagesView.vue'))
 
 import { LANGS } from './data/stories.js'
 import { getMe, logout, onUnauthorized, getAccountVocab, saveVocabWord, removeVocabWord } from './utils/api.js'

@@ -1,10 +1,42 @@
-<!-- SettingsView.vue: lets the user pick a preferred TTS voice for each language. -->
-<!-- Opened by clicking the ⚙ gear button in the NavBar. -->
+<!-- SettingsView.vue: voice settings and messaging preferences. -->
 <template>
-  <!-- Outer container stacks content vertically. -->
   <div class="flex flex-col gap-6">
 
-    <!-- Page header. -->
+    <!-- ── Messaging Settings ── -->
+    <div class="flex flex-col gap-3">
+      <div class="text-sm font-medium text-gray-200">Messaging</div>
+
+      <div v-if="!currentUser" class="text-xs text-gray-500">
+        <button @click="$emit('openAuth')" class="underline hover:text-green-400 transition-all">Log in</button>
+        to manage messaging settings.
+      </div>
+
+      <template v-else>
+        <!-- Open to messages toggle -->
+        <div class="flex items-start justify-between gap-4 py-3 border border-gray-700 rounded-lg px-4">
+          <div class="flex flex-col gap-0.5">
+            <div class="text-sm text-gray-200">Open to voice messages</div>
+            <div class="text-xs text-gray-500">
+              Allow learners of <strong class="text-gray-300">{{ LANGS[currentUser.native_lang]?.name ?? currentUser.native_lang }}</strong>
+              to send you short voice messages. You can turn this off at any time.
+            </div>
+          </div>
+          <button
+            @click="toggleMessages"
+            :class="[
+              'relative flex-shrink-0 w-11 h-6 rounded-full transition-all',
+              openToMessages ? 'bg-green-600' : 'bg-gray-700'
+            ]"
+          >
+            <span :class="['absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-all', openToMessages ? 'translate-x-5' : '']" />
+          </button>
+        </div>
+
+        <div v-if="settingsError" class="text-xs text-red-400">{{ settingsError }}</div>
+      </template>
+    </div>
+
+    <!-- ── Voice Settings ── -->
     <div class="text-sm font-medium text-gray-200">Voice Settings</div>
 
     <!-- Loop through every language in LANGS and show a voice selector row for each. -->
@@ -54,30 +86,34 @@
 </template>
 
 <script setup>
-// ref creates a reactive variable (changes cause Vue to re-render the template).
 import { ref } from 'vue'
-// Import the language configuration object.
 import { LANGS } from '../data/stories.js'
-// Import voice-related utilities:
-// useVoiceList = composable that loads available browser TTS voices
-// voicesForLang = filters voices by language code
-// getVoicePrefs = reads saved preferences from localStorage
-// setVoicePref  = saves a preference to localStorage
 import { useVoiceList, voicesForLang, getVoicePrefs, setVoicePref } from '../utils/voices.js'
+import { updateSettings } from '../utils/api.js'
 
-// Load the list of available voices. This updates automatically once the browser finishes
-// loading voices (via the 'voiceschanged' event handled inside useVoiceList).
+const props = defineProps({ currentUser: Object })
+const emit  = defineEmits(['openAuth', 'userUpdated'])
+
 const voices = useVoiceList()
+const prefs  = ref(getVoicePrefs())
 
-// prefs holds the current voice preferences object, e.g. { es: 'Google español', el: 'Microsoft Stefanos' }.
-// getVoicePrefs() reads this from localStorage on startup.
-const prefs = ref(getVoicePrefs())
+const openToMessages = ref(props.currentUser?.open_to_messages ?? false)
+const settingsError  = ref('')
 
-// save() is called when the user picks a voice from a dropdown.
-// langCode = the language being configured (e.g. 'el')
-// voiceName = the name of the chosen voice (e.g. 'Microsoft Stefanos Online (Greek)')
+async function toggleMessages() {
+  const next = !openToMessages.value
+  try {
+    const updated = await updateSettings({ open_to_messages: next })
+    openToMessages.value = updated.open_to_messages
+    emit('userUpdated', updated)
+    settingsError.value = ''
+  } catch {
+    settingsError.value = 'Could not save. Try again.'
+  }
+}
+
 function save(langCode, voiceName) {
-  setVoicePref(langCode, voiceName) // write the preference to localStorage
-  prefs.value = getVoicePrefs()     // re-read from localStorage so the UI reflects the change
+  setVoicePref(langCode, voiceName)
+  prefs.value = getVoicePrefs()
 }
 </script>
