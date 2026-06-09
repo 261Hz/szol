@@ -23,7 +23,6 @@ import sys
 import tarfile
 import tempfile
 import unicodedata
-from contextlib import contextmanager
 from pathlib import Path
 
 import psycopg2
@@ -233,17 +232,8 @@ def _extract(response, name: str, lang: str):
 
 # ── Database helpers ──────────────────────────────────────────────────────────
 
-@contextmanager
-def get_conn():
-    conn = psycopg2.connect(DB_URL)
-    try:
-        yield conn
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+def new_conn():
+    return psycopg2.connect(DB_URL)
 
 
 def ensure_tables(cur):
@@ -341,18 +331,26 @@ def import_sentences(conn, lang: str, sentences: list[str], limit: int):
             "DELETE FROM corpus_sentences WHERE language_code = %s AND source = %s",
             (lang, SOURCE_NAME)
         )
+    conn.commit()
 
-    with conn.cursor() as cur:
+    # Insert in batches of 5,000 to stay within Supabase's statement timeout
+    BATCH = 5_000
+    inserted = 0
+    for i in range(0, len(scored), BATCH):
+        batch = scored[i : i + BATCH]
         buf = io.StringIO()
-        for text, score in scored:
-            # Escape any tabs/newlines in the sentence text itself
+        for text, score in batch:
             safe = text.replace("\t", " ").replace("\n", " ").replace("\r", "")
             buf.write(f"{lang}\t{safe}\t{SOURCE_NAME}\t{score}\n")
         buf.seek(0)
-        cur.copy_from(buf, "corpus_sentences",
-                      columns=("language_code", "sentence", "source", "score"))
+        with conn.cursor() as cur:
+            cur.copy_from(buf, "corpus_sentences",
+                          columns=("language_code", "sentence", "source", "score"))
+        conn.commit()
+        inserted += len(batch)
+        print(f"  ... {inserted:,}/{len(scored):,}", end="\r", flush=True)
 
-    print(f"  Inserted {len(scored):,} sentences")
+    print(f"  Inserted {inserted:,} sentences          ")
 
 
 def import_word_freq(conn, lang: str, source_id: int,
@@ -435,29 +433,42 @@ def main():
     print(f"Importing {len(target_langs)} languages | sentences limit={args.limit:,} | freq limit={args.freq_limit:,}")
     print(f"DB: {environ['DATABASE_URL']}\n")
 
-    with get_conn() as conn:
-        with conn.cursor() as cur:
+    # Setup: ensure tables and get source id using a short-lived connection
+    setup_conn = new_conn()
+    try:
+        with setup_conn.cursor() as cur:
             ensure_tables(cur)
             source_id = upsert_source(cur)
-            print(f"Source id={source_id} ({SOURCE_NAME})\n")
-        conn.commit()
+        setup_conn.commit()
+        print(f"Source id={source_id} ({SOURCE_NAME})\n")
+    finally:
+        setup_conn.close()
 
-        for lang in target_langs:
-            print(f"[{lang}] {LANGUAGES[lang]}")
-            result = find_and_download(lang)
-            if result is None:
-                print(f"  SKIP — no corpus found\n")
-                continue
-            sentences, word_freq = result
+    for lang in target_langs:
+        print(f"[{lang}] {LANGUAGES[lang]}")
+        result = find_and_download(lang)
+        if result is None:
+            print(f"  SKIP — no corpus found\n")
+            continue
+        sentences, word_freq = result
+
+        # Fresh connection per language — a timeout on one language can't break others
+        conn = new_conn()
+        try:
+            import_sentences(conn, lang, sentences, args.limit)
+            import_word_freq(conn, lang, source_id, word_freq, args.freq_limit)
+        except Exception as e:
             try:
-                import_sentences(conn, lang, sentences, args.limit)
-                conn.commit()
-                import_word_freq(conn, lang, source_id, word_freq, args.freq_limit)
-                conn.commit()
-            except Exception as e:
                 conn.rollback()
-                print(f"  ERROR — {e}")
-            print()
+            except Exception:
+                pass
+            print(f"  ERROR — {e}")
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        print()
 
     print("Done.")
 
