@@ -104,19 +104,38 @@ def normalize(lang: str, word: str) -> str:
 
 # ── GDEX-inspired sentence scorer ────────────────────────────────────────────
 
+CJK_LANGS = {"ja", "zh"}
+
 def score_sentence(text: str, lang: str) -> int:
     """Return an integer quality score 0–100. 0 means knock-out (discard)."""
     text = text.strip()
     if not text:
         return 0
 
+    # CJK languages (Japanese, Chinese) don't use spaces between words, so
+    # wcount on split() gives ~1 for most sentences. Use character count instead.
+    if lang in CJK_LANGS:
+        clen = len(text)
+        if clen < 8 or clen > 120:
+            return 0
+        if not any(c.isalpha() for c in text):
+            return 0
+        score = 50
+        if 15 <= clen <= 60:
+            score += 20
+        if re.search(r"[。！？!?]$", text):
+            score += 15
+        if not re.match(r"^[\d\-\*\•「」【】]", text):
+            score += 15
+        return min(score, 100)
+
     words  = text.split()
     wcount = len(words)
 
-    # ── Knock-outs ────────────────────────────────────────────────────────────
+    # ── Knock-outs (Latin / Cyrillic / RTL scripts) ───────────────────────────
     if wcount < 4 or wcount > 35:
         return 0
-    letters = re.findall(r"\p{L}", text) if False else [c for c in text if c.isalpha()]
+    letters = [c for c in text if c.isalpha()]
     if not letters:
         return 0
     if len(letters) / len(text) < 0.45:
@@ -124,8 +143,7 @@ def score_sentence(text: str, lang: str) -> int:
     if re.match(r"^[A-Z\s\-–—]+$", text) and lang in ("en", "es", "fr", "de", "it"):
         return 0                                       # ALL CAPS headline
     if text.count('"') > 4 or text.count("'") > 4:
-        return 0                                       # excessive quoting (dialogue markup)
-    # Skip lines that look like list items or headers
+        return 0                                       # excessive quoting
     if re.match(r"^[\d\-\*\•]\s", text):
         return 0
 
@@ -142,9 +160,9 @@ def score_sentence(text: str, lang: str) -> int:
     if re.search(r"[.!?。！？؟।]$", text):
         score += 10
 
-    # No deictic expressions (reduces decontextualised usefulness)
+    # No deictic expressions
     deictics = {"this", "that", "here", "there", "now", "then", "today", "yesterday",
-                "هنا", "هناك", "الآن", "ここ", "そこ", "今"}
+                "هنا", "هناك", "الآن"}
     first_words = {w.lower().rstrip(".,") for w in words[:4]}
     if not first_words.intersection(deictics):
         score += 10
