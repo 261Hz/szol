@@ -49,11 +49,17 @@
         <!-- Word frequency row (shown only when logged in and data is available) -->
         <div
           v-if="currentUser && userWordMap[word.word.toLowerCase()]"
-          class="text-xs text-green-400 flex gap-2"
+          class="text-xs flex gap-2 items-center flex-wrap"
         >
-          <span>Seen {{ userWordMap[word.word.toLowerCase()].seen_count }}×</span>
+          <span class="text-green-400">Seen {{ userWordMap[word.word.toLowerCase()].seen_count }}×</span>
           <span class="text-gray-600">·</span>
-          <span>First {{ new Date(userWordMap[word.word.toLowerCase()].first_seen).toLocaleDateString() }}</span>
+          <span class="text-gray-500">First {{ new Date(userWordMap[word.word.toLowerCase()].first_seen).toLocaleDateString() }}</span>
+          <template v-if="userWordMap[word.word.toLowerCase()].frequency_rank != null">
+            <span class="text-gray-600">·</span>
+            <span :class="rankColor(userWordMap[word.word.toLowerCase()].frequency_rank)" :title="rankLabel(userWordMap[word.word.toLowerCase()].frequency_rank)">
+              #{{ userWordMap[word.word.toLowerCase()].frequency_rank.toLocaleString() }}
+            </span>
+          </template>
         </div>
 
         <!-- Subtle login prompt when logged out -->
@@ -138,6 +144,21 @@ const savedWordsSet = computed(() =>
       .map(w => w.word.toLowerCase().replace(/[^\p{L}\p{M}]/gu, ''))
   )
 )
+
+// rankColor returns a Tailwind text color class based on how common the word is.
+// Lower rank = more common = more important to know.
+function rankColor(rank) {
+  if (rank <= 500)  return 'text-green-400'
+  if (rank <= 2000) return 'text-yellow-400'
+  return 'text-gray-400'
+}
+
+// rankLabel returns a human-readable description shown as a tooltip on the rank badge.
+function rankLabel(rank) {
+  if (rank <= 500)  return `Top 500 — very common word (rank #${rank})`
+  if (rank <= 2000) return `Rank #${rank} — fairly common word`
+  return `Rank #${rank} — less common word`
+}
 
 // saveFromExample() is called when the user clicks a word in ExamplesPanel ('tap' event).
 // It cleans the word, checks for duplicates, then emits 'saveWord' so App.vue can add it.
