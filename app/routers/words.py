@@ -7,14 +7,51 @@
 #   POST /words/user                 (auth) upsert a word into the user's seen-word log
 #   GET  /words/user?lang=           (auth) return user's word log for a language
 
+import re
+import unicodedata
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .. import models, schemas, oauth2
 from ..database import get_db
+
+
+# ── Word normalization (mirrors frequency_import.py) ─────────────────────────
+
+_HEBREW_NIQQUD     = re.compile(r"[֑-ׇ]")
+_ARABIC_DIACRITICS = re.compile(r"[ؐ-ًؚ-ٰٟۖ-ۜ۟-۪ۤۧۨ-ۭ]")
+
+def _base(word: str) -> str:
+    return unicodedata.normalize("NFKC", word).strip().lower()
+
+_NORMALIZERS = {
+    "he":  lambda w: _HEBREW_NIQQUD.sub("", _base(w)),
+    "ar":  lambda w: _ARABIC_DIACRITICS.sub("", _base(w)),
+    "arz": lambda w: _ARABIC_DIACRITICS.sub("", _base(w)),
+}
+
+def _normalize(lang: str, word: str) -> str:
+    return _NORMALIZERS.get(lang, _base)(word)
+
+
+def _rank_map(lang: str, words: list[str], db: Session) -> dict[str, int]:
+    """Return {normalized_lemma: rank} for a batch of words in one query."""
+    if not words:
+        return {}
+    normed = list({_normalize(lang, w) for w in words})
+    rows = db.execute(text("""
+        SELECT fl.normalized_lemma, MIN(fe.rank) AS rank
+        FROM   frequency_lemmas fl
+        JOIN   frequency_entries fe ON fe.lemma_id = fl.id
+        WHERE  fl.language_code = :lang
+          AND  fl.normalized_lemma = ANY(:words)
+        GROUP  BY fl.normalized_lemma
+    """), {"lang": lang, "words": normed}).fetchall()
+    return {row[0]: row[1] for row in rows}
 
 router = APIRouter(
     prefix="/words",
@@ -24,7 +61,14 @@ router = APIRouter(
 
 # ── Public word cache ─────────────────────────────────────────────────────────
 
-@router.get("/lookup", response_model=schemas.WordCacheResponse)
+@router.get("/frequency")
+def word_frequency(word: str, lang: str, db: Session = Depends(get_db)):
+    """Return the corpus frequency rank for a single word. Always 200; rank is null if unknown."""
+    ranks = _rank_map(lang, [word], db)
+    return {"word": word, "lang": lang, "frequency_rank": ranks.get(_normalize(lang, word))}
+
+
+@router.get("/lookup", response_model=schemas.WordLookupResponse)
 def lookup_word(word: str, lang: str, db: Session = Depends(get_db)):
     entry = (
         db.query(models.WordCache)
@@ -33,7 +77,9 @@ def lookup_word(word: str, lang: str, db: Session = Depends(get_db)):
     )
     if not entry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Word not in cache")
-    return entry
+    ranks = _rank_map(lang, [word], db)
+    freq_rank = ranks.get(_normalize(lang, word))
+    return schemas.WordLookupResponse(**entry.__dict__, frequency_rank=freq_rank)
 
 
 @router.post("/cache", response_model=schemas.WordCacheResponse)
@@ -108,8 +154,9 @@ def get_user_words(
     current_user: models.User = Depends(oauth2.get_current_user),
 ):
     """Return all words the current user has seen for a given language,
-    ordered by seen_count descending so the most-encountered words appear first."""
-    return (
+    ordered by seen_count descending. Each entry includes frequency_rank
+    from the corpus (lower = more common; None = word not in frequency list)."""
+    rows = (
         db.query(models.UserWord)
         .filter(
             models.UserWord.user_id == current_user.id,
@@ -118,3 +165,11 @@ def get_user_words(
         .order_by(models.UserWord.seen_count.desc())
         .all()
     )
+    ranks = _rank_map(lang, [r.word for r in rows], db)
+    return [
+        schemas.UserWordResponse(
+            **{c.key: getattr(row, c.key) for c in models.UserWord.__table__.columns},
+            frequency_rank=ranks.get(_normalize(lang, row.word)),
+        )
+        for row in rows
+    ]

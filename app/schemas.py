@@ -87,14 +87,15 @@ class UserWordCreate(BaseModel):
     story_title: Optional[str] = None
 
 class UserWordResponse(BaseModel):
-    id:         UUID
-    user_id:    UUID
-    word:       str
-    lang:       str
-    seen_count: int
-    first_seen: datetime
-    last_seen:  datetime
-    stories:    Optional[List[str]] = None
+    id:             UUID
+    user_id:        UUID
+    word:           str
+    lang:           str
+    seen_count:     int
+    first_seen:     datetime
+    last_seen:      datetime
+    stories:        Optional[List[str]] = None
+    frequency_rank: Optional[int]       = None  # corpus rank from frequency_entries; None if word not in list
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -138,6 +139,9 @@ class WordCacheResponse(WordCacheBase):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+class WordLookupResponse(WordCacheResponse):
+    frequency_rank: Optional[int] = None
 
 
 # ── Video stories (Listen feature) ───────────────────────────────────────────

@@ -1,5 +1,5 @@
 from .database import Base
-from sqlalchemy import ARRAY, TIMESTAMP, Column, Integer, String, Boolean, Uuid, JSON
+from sqlalchemy import ARRAY, TIMESTAMP, BigInteger, Column, Integer, String, Boolean, Uuid, JSON, UniqueConstraint
 from sqlalchemy.sql.expression import text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.schema import ForeignKey
@@ -105,3 +105,33 @@ class CommunityStory(Base):
     source     = Column(String)
     reviewed   = Column(Boolean, server_default=text('false'))
     created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'))
+
+
+class FrequencySource(Base):
+    __tablename__ = "frequency_sources"
+
+    id   = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False, unique=True)
+    url  = Column(String)
+
+
+class FrequencyLemma(Base):
+    __tablename__ = "frequency_lemmas"
+
+    id               = Column(BigInteger, primary_key=True, autoincrement=True)
+    language_code    = Column(String(10), nullable=False, index=True)
+    normalized_lemma = Column(String, nullable=False)
+
+    __table_args__ = (UniqueConstraint("language_code", "normalized_lemma"),)
+
+
+class FrequencyEntry(Base):
+    __tablename__ = "frequency_entries"
+
+    id        = Column(BigInteger, primary_key=True, autoincrement=True)
+    lemma_id  = Column(BigInteger, ForeignKey("frequency_lemmas.id"), nullable=False, index=True)
+    source_id = Column(Integer, ForeignKey("frequency_sources.id"), nullable=False)
+    rank      = Column(Integer, index=True)
+    raw_count = Column(BigInteger)
+
+    __table_args__ = (UniqueConstraint("lemma_id", "source_id"),)
