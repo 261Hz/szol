@@ -185,6 +185,40 @@ export function removeVocabWord(word, lang) {
   }).catch(() => {})
 }
 
+// ── User stories (private, synced to account) ────────────────────────────────
+
+export async function saveUserStory(story) {
+  if (!getToken()) return null
+  const res = await apiFetch(`${API_URL}/user-stories/`, {
+    method:  'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body:    JSON.stringify({
+      title:   story.title,
+      content: story.content,
+      franco:  story.franco ?? null,
+      lang:    story.lang,
+    }),
+  }).catch(() => null)
+  if (!res?.ok) return null
+  return await res.json()
+}
+
+export async function getUserStories(lang) {
+  const res = await apiFetch(`${API_URL}/user-stories/?lang=${lang}`, {
+    headers: authHeaders(),
+  }).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json()
+}
+
+export async function deleteUserStory(id) {
+  if (!getToken()) return
+  fetch(`${API_URL}/user-stories/${id}`, {
+    method:  'DELETE',
+    headers: authHeaders(),
+  }).catch(() => {})
+}
+
 // ── Story progress ────────────────────────────────────────────────────────────
 
 export function saveProgress(storyId, storyTitle, lang, tab, sentenceIndex) {
