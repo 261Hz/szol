@@ -103,39 +103,6 @@
           </div>
         </div>
 
-        <!-- Add-story form -->
-        <div class="mt-3 border-t border-gray-800 pt-3">
-          <button @click="showAdd = !showAdd" class="text-xs text-green-300 hover:text-green-200 underline transition-all">
-            {{ showAdd ? t(lang, 'hideForm') : t(lang, 'addYourStory') }}
-          </button>
-          <div v-if="showAdd" class="mt-3 flex flex-col gap-3">
-            <input v-model="customTitle" type="text" :placeholder="t(lang, 'titleHere')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
-            <textarea v-model="customText" rows="4" :placeholder="t(lang, 'pasteStory')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600 resize-none" />
-            <input v-if="lang === 'arz'" v-model="customFranco" type="text" placeholder="Franco transliteration (optional)…" dir="ltr" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
-            <div v-if="showShareForm" class="flex flex-col gap-2 border-t border-gray-800 pt-3">
-              <div class="text-xs text-gray-400">{{ t(lang, 'shareRequired') }}</div>
-              <div class="flex flex-col gap-1">
-                <input v-model="customAuthor" type="text" :placeholder="t(lang, 'authorHere')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
-                <div class="text-xs text-gray-600">Shown publicly — use a pen name if you prefer.</div>
-              </div>
-              <input v-model="customSource" type="text" :placeholder="t(lang, 'sourceHere')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
-            </div>
-            <div class="flex items-center justify-end gap-2">
-              <button @click="addLocal" class="text-sm px-4 py-1.5 rounded-md border border-gray-700 hover:border-green-600 transition-all">{{ t(lang, 'saveLocal') }}</button>
-              <!-- Share Global requires login -->
-              <button
-                v-if="currentUser"
-                @click="shareGlobal"
-                :disabled="submitting"
-                class="text-sm px-4 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all"
-              >{{ submitting ? t(lang, 'sharing') : t(lang, 'shareGlobal') }}</button>
-              <span v-else class="text-xs text-gray-500">
-                <button @click="$emit('openAuth')" class="underline hover:text-green-400 transition-all">{{ t(lang, 'login') ?? 'Login' }}</button>
-                {{ t(lang, 'loginToShare') }}
-              </span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -326,7 +293,9 @@
         <span>👥 {{ t(lang, 'community') }}</span>
         <span class="text-gray-500 text-xs">{{ open.community ? '▲' : '▼' }}</span>
       </button>
-      <div v-if="open.community" class="px-4 pb-4 pt-1">
+      <div v-if="open.community" class="px-4 pb-4 pt-1 flex flex-col gap-3">
+
+        <!-- Community story list -->
         <div v-if="loading" class="text-xs text-gray-500 py-4 text-center">{{ t(lang, 'loading') }}</div>
         <div v-else-if="!filteredCommunity.length" class="text-xs text-gray-500 py-4 text-center">{{ t(lang, 'noCommunity') }}</div>
         <div v-else class="flex flex-col gap-2">
@@ -350,6 +319,36 @@
             </div>
           </div>
         </div>
+
+        <!-- Submit a story -->
+        <div class="border-t border-gray-800 pt-3 flex flex-col gap-3">
+          <div class="text-xs font-medium text-gray-400">Submit a story</div>
+          <input v-model="customTitle" type="text" :placeholder="t(lang, 'titleHere')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
+          <textarea v-model="customText" rows="4" :placeholder="t(lang, 'pasteStory')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600 resize-none" />
+          <input v-if="lang === 'arz'" v-model="customFranco" type="text" placeholder="Franco transliteration (optional)…" dir="ltr" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
+          <!-- Step 2: author + source fields revealed after first Share click -->
+          <div v-if="showShareForm" class="flex flex-col gap-2">
+            <div class="flex flex-col gap-1">
+              <input v-model="customAuthor" type="text" :placeholder="t(lang, 'authorHere')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
+              <div class="text-xs text-gray-600">Shown publicly — use a pen name if you prefer.</div>
+            </div>
+            <input v-model="customSource" type="text" :placeholder="t(lang, 'sourceHere')" :dir="isRTL(lang) ? 'rtl' : 'ltr'" class="w-full border border-gray-700 rounded-md px-3 py-2 text-sm outline-none bg-gray-900 text-gray-100 placeholder:text-gray-600 focus:border-green-600" />
+          </div>
+          <div class="flex items-center justify-end gap-2">
+            <button @click="addLocal" class="text-sm px-4 py-1.5 rounded-md border border-gray-700 hover:border-green-600 transition-all">{{ t(lang, 'saveLocal') }}</button>
+            <button
+              v-if="currentUser"
+              @click="shareGlobal"
+              :disabled="submitting"
+              class="text-sm px-4 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all"
+            >{{ submitting ? t(lang, 'sharing') : (showShareForm ? t(lang, 'shareGlobal') : 'Share →') }}</button>
+            <span v-else class="text-xs text-gray-500">
+              <button @click="$emit('openAuth')" class="underline hover:text-green-400 transition-all">{{ t(lang, 'login') ?? 'Login' }}</button>
+              {{ t(lang, 'loginToShare') }}
+            </span>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -847,7 +846,6 @@ function importQuote() {
 // ── Add story form ─────────────────────────────────────────────
 // These refs bind to the form inputs inside the Curated section via v-model.
 const expandedBook  = ref(null)    // bookTitle of the currently expanded book card
-const showAdd       = ref(false)  // controls whether the form is visible
 const customTitle   = ref('')
 const customText    = ref('')
 const customFranco  = ref('')  // Egyptian Arabic only (shown when lang === 'arz')
