@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # When using Alembic for migrations this line should be removed — Alembic owns the schema.
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
 # Allow requests from any origin.
 # allow_credentials must be False when allow_origins=["*"] — Starlette 1.x raises
