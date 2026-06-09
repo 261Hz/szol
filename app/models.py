@@ -12,8 +12,10 @@ class User(Base):
     email        = Column(String, nullable=False, unique=True, index=True)
     password     = Column(String, nullable=False)
     created_at   = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
-    proficiency  = Column(String)   # CEFR level: A1 A2 B1 B2 C1 C2
-    native_lang  = Column(String)   # e.g. 'en', 'es'
+    proficiency       = Column(String)                                          # CEFR level: A1 A2 B1 B2 C1 C2
+    native_lang       = Column(String)                                          # e.g. 'en', 'es'
+    target_lang       = Column(String)                                          # language they are learning
+    open_to_messages  = Column(Boolean, server_default=text('false'))           # opt-in to receive voice messages
 
 class UserWord(Base):
     __tablename__ = "user_words"
@@ -105,6 +107,21 @@ class CommunityStory(Base):
     source     = Column(String)
     reviewed   = Column(Boolean, server_default=text('false'))
     created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'))
+
+
+class VoiceMessage(Base):
+    __tablename__ = "voice_messages"
+
+    id             = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
+    sender_id      = Column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    recipient_id   = Column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    audio_url      = Column(String, nullable=False)
+    lang           = Column(String, nullable=False)
+    duration_ms    = Column(Integer)
+    allow_download = Column(Boolean, server_default=text('true'))   # sender can disable saving
+    read_at        = Column(TIMESTAMP(timezone=True))               # null = unread
+    expires_at     = Column(TIMESTAMP(timezone=True))               # auto-deleted after 7 days
+    created_at     = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
 
 
 class UserStory(Base):

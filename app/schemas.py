@@ -10,23 +10,40 @@ class UserCreate(BaseModel):
     username:    str
     email:       EmailStr
     password:    str
+    native_lang: str           # required — native language
+    target_lang: str           # required — language being learned
     proficiency: Optional[str] = None  # CEFR level e.g. 'B2'
-    native_lang: Optional[str] = None  # e.g. 'en'
+
+class UserUpdate(BaseModel):
+    proficiency:      Optional[str]  = None
+    native_lang:      Optional[str]  = None
+    target_lang:      Optional[str]  = None
+    open_to_messages: Optional[bool] = None
 
 class UserResponse(BaseModel):
-    id:          UUID
-    username:    str
-    email:       EmailStr
-    created_at:  datetime
-    proficiency: Optional[str] = None
-    native_lang: Optional[str] = None
+    id:               UUID
+    username:         str
+    email:            EmailStr
+    created_at:       datetime
+    proficiency:      Optional[str]  = None
+    native_lang:      Optional[str]  = None
+    target_lang:      Optional[str]  = None
+    open_to_messages: bool           = False
 
     model_config = ConfigDict(from_attributes=True)
 
 class PublicUserResponse(BaseModel):
     id:          UUID
     username:    str
+    native_lang: Optional[str] = None
     created_at:  datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+class DiscoverableUser(BaseModel):
+    id:          UUID
+    username:    str
+    native_lang: str
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -207,5 +224,23 @@ class UserStoryResponse(UserStoryCreate):
     id:         UUID
     user_id:    UUID
     created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ── Voice messages ────────────────────────────────────────────────────────────
+
+class VoiceMessageResponse(BaseModel):
+    id:              UUID
+    sender_id:       UUID
+    recipient_id:    UUID
+    audio_url:       str
+    lang:            str
+    duration_ms:     Optional[int]      = None
+    allow_download:  bool               = True
+    read_at:         Optional[datetime] = None
+    expires_at:      Optional[datetime] = None
+    created_at:      datetime
+    sender_username: Optional[str]      = None
 
     model_config = ConfigDict(from_attributes=True)

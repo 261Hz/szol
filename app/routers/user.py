@@ -2,9 +2,11 @@
 #
 # Routes
 # ------
-#   POST /users/          register a new account
-#   GET  /users/me        return the authenticated user's own profile
-#   GET  /users/{user_id} look up any user by UUID (requires auth)
+#   POST  /users/              register a new account
+#   GET   /users/me            return the authenticated user's own profile
+#   PATCH /users/me            update settings (open_to_messages, target_lang, etc.)
+#   GET   /users/discover      find users open to voice messages for a given native language
+#   GET   /users/{user_id}     look up any user by UUID (requires auth)
 
 from fastapi import Response, status, HTTPException, Depends, APIRouter
 from typing import List
@@ -14,6 +16,7 @@ from email_validator import validate_email, EmailNotValidError
 from .. import models, schemas, utils, oauth2
 from ..database import get_db
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 router = APIRouter(
     prefix="/users",
@@ -71,11 +74,39 @@ def get_current_user_me(current_user: models.User = Depends(oauth2.get_current_u
     # queries the database for the matching User row, so current_user is already
     # a fully populated ORM object — we just return it directly.
     #
-    # IMPORTANT: this route must be declared before /{user_id}.
-    # FastAPI matches routes in declaration order; if /{user_id} came first,
-    # the literal path "/me" would be captured as a UUID parameter and raise a
-    # 422 Unprocessable Entity error before this handler ever runs.
     return current_user
+
+
+@router.patch("/me", response_model=schemas.UserResponse)
+def update_settings(
+    payload: schemas.UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(oauth2.get_current_user),
+):
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(current_user, field, value)
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.get("/discover", response_model=List[schemas.DiscoverableUser])
+def discover_users(
+    native_lang: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(oauth2.get_current_user),
+):
+    """Return users whose native language matches native_lang and who accept voice messages."""
+    return (
+        db.query(models.User)
+        .filter(
+            models.User.native_lang      == native_lang,
+            models.User.open_to_messages == True,
+            models.User.id               != current_user.id,
+        )
+        .limit(50)
+        .all()
+    )
 
 
 @router.get("/{user_id}", response_model=schemas.PublicUserResponse)
