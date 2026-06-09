@@ -47,15 +47,26 @@
         </div>
 
         <!-- Corpus frequency rank — always visible, no login needed -->
-        <div v-if="frequencyMap[word.word.toLowerCase()] != null" class="flex items-center gap-1.5">
-          <span
+        <div v-if="frequencyMap[word.word.toLowerCase()] != null" class="flex items-center gap-1.5 relative">
+          <button
             :class="rankColor(frequencyMap[word.word.toLowerCase()])"
-            :title="rankLabel(frequencyMap[word.word.toLowerCase()])"
-            class="text-xs font-medium"
-          >#{{ frequencyMap[word.word.toLowerCase()].toLocaleString() }}</span>
+            class="text-xs font-medium hover:underline focus:outline-none"
+            @click.stop="freqPopup = freqPopup === word.word ? null : word.word"
+          >#{{ frequencyMap[word.word.toLowerCase()].toLocaleString() }}</button>
           <span class="text-xs text-gray-600">
             {{ frequencyMap[word.word.toLowerCase()] <= 500 ? 'very common' : frequencyMap[word.word.toLowerCase()] <= 2000 ? 'common' : 'less common' }}
           </span>
+          <!-- Frequency source popup -->
+          <div
+            v-if="freqPopup === word.word"
+            class="absolute bottom-full left-0 mb-2 z-10 w-64 bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-xl text-xs text-gray-300 flex flex-col gap-1.5"
+            @click.stop
+          >
+            <div class="font-semibold text-gray-100">Corpus frequency rank</div>
+            <div>Rank <span :class="rankColor(frequencyMap[word.word.toLowerCase()])" class="font-medium">#{{ frequencyMap[word.word.toLowerCase()].toLocaleString() }}</span> out of the top 5,000 most common words in this language.</div>
+            <div class="text-gray-500">Source: <a href="https://github.com/hermitdave/FrequencyWords" target="_blank" class="underline hover:text-gray-300">FrequencyWords</a> — word counts derived from OpenSubtitles movie and TV subtitles.</div>
+            <button @click="freqPopup = null" class="self-end text-gray-600 hover:text-gray-400 mt-0.5">close ✕</button>
+          </div>
         </div>
 
         <!-- Personal seen count — only when logged in -->
@@ -98,7 +109,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { t }    from '../utils/i18n.js'
 import { LANGS } from '../data/stories.js'
 import ExamplesPanel  from '../components/ExamplesPanel.vue'
@@ -112,6 +123,11 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['remove', 'saveWord', 'openAuth'])
+
+// freqPopup holds the word whose frequency popup is currently open, or null.
+const freqPopup = ref(null)
+onMounted(() => document.addEventListener('click', () => { freqPopup.value = null }))
+onUnmounted(() => document.removeEventListener('click', () => { freqPopup.value = null }))
 
 // userWordMap = { normalizedWord: { seen_count, first_seen, frequency_rank, ... } }
 // Fetched from the backend when the user is logged in and lang changes.
