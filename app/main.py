@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from . import models
 from .database import engine
-from .routers import user, auth, stories, words, vocab, progress, chat, transcript, listen, concept
+from .routers import user, auth, stories, words, vocab, progress, chat, transcript, listen, concept, user_stories
 from .config import settings
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,4 +36,5 @@ app.include_router(progress.router)  # /progress/*
 app.include_router(chat.router)       # /chat
 app.include_router(transcript.router) # /transcript
 app.include_router(listen.router)     # /listen-stories
-app.include_router(concept.router)    # /concept-of-day
+app.include_router(concept.router)       # /concept-of-day
+app.include_router(user_stories.router)  # /user-stories

@@ -107,6 +107,18 @@ class CommunityStory(Base):
     created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'))
 
 
+class UserStory(Base):
+    __tablename__ = "user_stories"
+
+    id         = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
+    user_id    = Column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    title      = Column(String, nullable=False)
+    content    = Column(String, nullable=False)
+    franco     = Column(String)
+    lang       = Column(String, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'))
+
+
 class FrequencySource(Base):
     __tablename__ = "frequency_sources"
 

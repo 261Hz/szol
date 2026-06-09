@@ -193,3 +193,19 @@ class CommunityStoryResponse(CommunityStoryBase):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ── User stories (private, saved to account) ──────────────────────────────────
+
+class UserStoryCreate(BaseModel):
+    title:   str
+    content: str
+    franco:  Optional[str] = None
+    lang:    str
+
+class UserStoryResponse(UserStoryCreate):
+    id:         UUID
+    user_id:    UUID
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
