@@ -72,11 +72,29 @@
         <!-- Personal seen count — only when logged in -->
         <div
           v-if="currentUser && userWordMap[word.word.toLowerCase()]"
-          class="text-xs flex gap-2 items-center text-gray-500"
+          class="flex flex-col gap-0.5"
         >
-          <span class="text-green-400">Seen {{ userWordMap[word.word.toLowerCase()].seen_count }}×</span>
-          <span class="text-gray-600">·</span>
-          <span>First {{ new Date(userWordMap[word.word.toLowerCase()].first_seen).toLocaleDateString() }}</span>
+          <div class="text-xs flex items-center gap-1.5 flex-wrap">
+            <!-- Exposure level badge -->
+            <span :class="exposureColor(userWordMap[word.word.toLowerCase()].seen_count)"
+                  class="font-medium">
+              {{ exposureLabel(userWordMap[word.word.toLowerCase()].seen_count) }}
+            </span>
+            <span class="text-gray-600">·</span>
+            <!-- Seen count -->
+            <span class="text-gray-400">seen {{ userWordMap[word.word.toLowerCase()].seen_count }}×</span>
+            <span class="text-gray-600">·</span>
+            <!-- Last seen relative time -->
+            <span class="text-gray-500">{{ timeAgo(userWordMap[word.word.toLowerCase()].last_seen) }}</span>
+          </div>
+          <!-- Stories this word appeared in -->
+          <div
+            v-if="userWordMap[word.word.toLowerCase()].stories?.length"
+            class="text-xs text-gray-600 truncate"
+            :title="userWordMap[word.word.toLowerCase()].stories.join(', ')"
+          >
+            from {{ userWordMap[word.word.toLowerCase()].stories.slice(0, 2).join(', ') }}{{ userWordMap[word.word.toLowerCase()].stories.length > 2 ? ` +${userWordMap[word.word.toLowerCase()].stories.length - 2} more` : '' }}
+          </div>
         </div>
 
         <!-- Login prompt when logged out -->
@@ -183,6 +201,38 @@ const savedWordsSet = computed(() =>
       .map(w => w.word.toLowerCase().replace(/[^\p{L}\p{M}]/gu, ''))
   )
 )
+
+// timeAgo converts a datetime string into a human-readable relative string.
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins  = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days  = Math.floor(diff / 86400000)
+  const weeks = Math.floor(days / 7)
+  if (mins  <  2)  return 'just now'
+  if (hours <  1)  return `${mins}m ago`
+  if (hours < 24)  return `${hours}h ago`
+  if (days  <  2)  return 'yesterday'
+  if (days  <  7)  return `${days} days ago`
+  if (weeks <  5)  return `${weeks} week${weeks > 1 ? 's' : ''} ago`
+  return new Date(dateStr).toLocaleDateString()
+}
+
+// exposureLabel returns a learning-stage label based on how many times a word has been seen.
+function exposureLabel(count) {
+  if (count >= 10) return 'Strong'
+  if (count >=  5) return 'Familiar'
+  if (count >=  2) return 'Learning'
+  return 'New'
+}
+
+// exposureColor returns a Tailwind text color matching the exposure level.
+function exposureColor(count) {
+  if (count >= 10) return 'text-green-400'
+  if (count >=  5) return 'text-yellow-400'
+  if (count >=  2) return 'text-blue-400'
+  return 'text-gray-400'
+}
 
 // rankColor returns a Tailwind text color class based on how common the word is.
 // Lower rank = more common = more important to know.
