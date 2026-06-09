@@ -366,7 +366,7 @@ import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import ClickableText from '../components/ClickableText.vue'
 // Supabase functions: fetch/submit stories from the remote database.
-import { fetchCommunityStories, submitStory, fetchCuratedStories, fetchConceptTranslations } from '../utils/api.js'
+import { fetchCommunityStories, submitStory, fetchCuratedStories, fetchConceptTranslations, saveUserStory, getUserStories, deleteUserStory } from '../utils/api.js'
 import { getAllProgress } from '../utils/api.js'
 import { getConceptOfDay } from '../data/concepts.js'
 // Wikipedia helpers for the Today and On This Day sections.
@@ -453,6 +453,19 @@ onMounted(async () => {
   // Load local stories from localStorage instantly (no network needed).
   const saved = localStorage.getItem('szol_local_stories')
   if (saved) localStories.value = JSON.parse(saved)
+
+  // If logged in, merge account stories — stories saved on another device show up here.
+  if (props.currentUser) {
+    const accountStories = await getUserStories(props.lang)
+    if (accountStories.length) {
+      const localIds = new Set(localStories.value.map(s => s.id))
+      const newFromAccount = accountStories
+        .filter(s => !localIds.has(s.id))
+        .map(s => ({ ...s, local: true }))
+      localStories.value.push(...newFromAccount)
+      localStorage.setItem('szol_local_stories', JSON.stringify(localStories.value))
+    }
+  }
 
   // Fetch curated and community stories in parallel (Promise.all waits for both).
   // Array destructuring: [curated, community] = each result goes to its own variable.
@@ -854,14 +867,27 @@ const customSource  = ref('')  // optional attribution URL / publication name
 const showShareForm = ref(false) // reveals the author + source fields when sharing
 const submitting    = ref(false) // disables the Share button during the Supabase upload
 
-// addLocal() saves the story to localStorage without uploading it anywhere.
-function addLocal() {
+// addLocal() saves the story locally and, if logged in, also syncs to the user's account.
+async function addLocal() {
   if (!customTitle.value.trim() || !customText.value.trim()) return
-  pushLocalStory({
+  const storyData = {
     title:   customTitle.value.trim(),
     content: customText.value.trim(),
-    franco:  customFranco.value.trim() || null, // null instead of '' keeps JSON tidy
-  })
+    franco:  customFranco.value.trim() || null,
+  }
+  if (props.currentUser) {
+    const saved = await saveUserStory({ ...storyData, lang: props.lang })
+    if (saved) {
+      // Use the server-assigned UUID as the id so progress tracking works across devices
+      const story = { ...saved, local: true }
+      localStories.value.push(story)
+      localStorage.setItem('szol_local_stories', JSON.stringify(localStories.value))
+      emitLoad(story)
+      clearForm()
+      return
+    }
+  }
+  pushLocalStory(storyData)
   clearForm()
 }
 
