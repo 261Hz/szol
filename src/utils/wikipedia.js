@@ -190,8 +190,11 @@ export async function searchWikipedia(word, lang) {
           )
           if (!r.ok) return null
           const s = await r.json()
-          // Only include articles that have a non-empty extract (some pages are redirect stubs).
-          return s.extract ? { title: s.title, extract: s.extract } : null
+          if (!s.extract) return null
+          // Truncate to 3 sentences so the panel stays readable.
+          const sentences = s.extract.match(/[^.!?]+[.!?]+(\s|$)/g) ?? [s.extract]
+          const extract   = sentences.slice(0, 3).join('').trim()
+          return { title: s.title, extract }
         } catch {
           return null // one article failing shouldn't break the whole result
         }
