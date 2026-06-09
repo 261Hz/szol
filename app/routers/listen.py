@@ -2,7 +2,7 @@ import re, json, requests
 import urllib.request
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from .. import models, schemas
+from .. import models, schemas, oauth2
 from ..database import get_db
 
 router = APIRouter()
@@ -163,7 +163,11 @@ def get_listen_stories(lang: str, db: Session = Depends(get_db)):
 
 
 @router.post("/listen-stories/from-url", response_model=schemas.VideoStoryResponse)
-def create_from_url(payload: schemas.ListenFromUrl, db: Session = Depends(get_db)):
+def create_from_url(
+    payload: schemas.ListenFromUrl,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(oauth2.get_current_user),
+):
     video_id = extract_video_id(payload.url)
     if not video_id:
         raise HTTPException(400, "Could not find a YouTube video ID in that URL.")

@@ -1,7 +1,8 @@
 import os
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from groq import Groq
+from .. import models, oauth2
 
 router = APIRouter(tags=["Concept"])
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
@@ -21,7 +22,7 @@ class ConceptRequest(BaseModel):
 
 
 @router.post("/concept-of-day")
-def concept_of_day(req: ConceptRequest):
+def concept_of_day(req: ConceptRequest, current_user: models.User = Depends(oauth2.get_current_user)):
     lang_name = _LANG_NAMES.get(req.lang, req.lang)
     prompt = (
         f'You are a multilingual language teacher.\n\n'

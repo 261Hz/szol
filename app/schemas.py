@@ -23,6 +23,13 @@ class UserResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class PublicUserResponse(BaseModel):
+    id:          UUID
+    username:    str
+    created_at:  datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
 class UserLogin(BaseModel):
     email:    EmailStr
     password: str

@@ -1,8 +1,9 @@
-from fastapi import APIRouter
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, field_validator
 from typing import List, Optional
 import os
 from groq import Groq
+from .. import models, oauth2
 
 router = APIRouter(tags=["Chat"])
 
@@ -17,8 +18,15 @@ _LANG_NAMES = {
 
 
 class Message(BaseModel):
-    role: str     # "user" | "assistant"
+    role: str
     content: str
+
+    @field_validator("role")
+    @classmethod
+    def role_must_be_safe(cls, v):
+        if v not in ("user", "assistant"):
+            raise ValueError("role must be 'user' or 'assistant'")
+        return v
 
 
 class ChatRequest(BaseModel):
@@ -31,7 +39,7 @@ class ChatRequest(BaseModel):
 
 
 @router.post("/chat")
-def chat(req: ChatRequest):
+def chat(req: ChatRequest, current_user: models.User = Depends(oauth2.get_current_user)):
     lang_name   = _LANG_NAMES.get(req.lang, req.lang)
     story_snip  = (req.story_content or "")[:1500].strip()
     vocab_str   = ", ".join(req.vocab[:20]) if req.vocab else "none yet"
