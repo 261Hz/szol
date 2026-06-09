@@ -2,10 +2,12 @@
 #
 # Routes
 # ------
-#   GET  /words/lookup?word=&lang=   return cached dictionary entry or 404
-#   POST /words/cache                insert or update a word cache entry
-#   POST /words/user                 (auth) upsert a word into the user's seen-word log
-#   GET  /words/user?lang=           (auth) return user's word log for a language
+#   GET  /words/lookup?word=&lang=    return cached dictionary entry or 404
+#   POST /words/cache                 insert or update a word cache entry
+#   GET  /words/frequency?word=&lang= corpus frequency rank
+#   GET  /words/examples?word=&lang=  Leipzig corpus example sentences
+#   POST /words/user                  (auth) upsert a word into the user's seen-word log
+#   GET  /words/user?lang=            (auth) return user's word log for a language
 
 import re
 import unicodedata
@@ -66,6 +68,28 @@ def word_frequency(word: str, lang: str, db: Session = Depends(get_db)):
     """Return the corpus frequency rank for a single word. Always 200; rank is null if unknown."""
     ranks = _rank_map(lang, [word], db)
     return {"word": word, "lang": lang, "frequency_rank": ranks.get(_normalize(lang, word))}
+
+
+@router.get("/examples")
+def word_examples(word: str, lang: str, limit: int = 5, db: Session = Depends(get_db)):
+    """
+    Return up to `limit` corpus example sentences containing `word`, scored best-first.
+    Uses trigram search so it works for all scripts (CJK, Arabic, Hebrew, Latin).
+    Falls back to a simple LIKE search if no trigram results found.
+    """
+    norm = _normalize(lang, word)
+
+    # Trigram similarity search — fast with the GIN trgm index, script-agnostic.
+    rows = db.execute(text("""
+        SELECT sentence, score
+        FROM   corpus_sentences
+        WHERE  language_code = :lang
+          AND  sentence ILIKE :pattern
+        ORDER  BY score DESC
+        LIMIT  :lim
+    """), {"lang": lang, "pattern": f"%{norm}%", "lim": limit}).fetchall()
+
+    return [{"sentence": r[0], "score": r[1]} for r in rows]
 
 
 @router.get("/lookup", response_model=schemas.WordLookupResponse)

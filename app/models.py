@@ -135,3 +135,13 @@ class FrequencyEntry(Base):
     raw_count = Column(BigInteger)
 
     __table_args__ = (UniqueConstraint("lemma_id", "source_id"),)
+
+
+class CorpusSentence(Base):
+    __tablename__ = "corpus_sentences"
+
+    id            = Column(BigInteger, primary_key=True, autoincrement=True)
+    language_code = Column(String(10), nullable=False, index=True)
+    sentence      = Column(String, nullable=False)
+    source        = Column(String(50), nullable=False, server_default="leipzig")
+    score         = Column(Integer, nullable=False, index=True)  # 0–100, higher = better example
