@@ -337,7 +337,7 @@ def import_sentences(conn, lang: str, sentences: list[str], limit: int):
 
     # Sort best-first, keep top N
     scored.sort(key=lambda x: -x[1])
-    scored = scored[:limit]
+    scored = scored[:limit] if limit else scored
     print(f"  Sentences: {len(sentences):,} raw → {len(scored):,} after scoring (limit {limit:,})")
 
     if not scored:
@@ -386,7 +386,7 @@ def import_word_freq(conn, lang: str, source_id: int,
         if norm not in seen or rank < seen[norm][1]:
             seen[norm] = (word, rank, count)
 
-    norm_keys = list(seen.keys())[:freq_limit]
+    norm_keys = list(seen.keys())[:freq_limit] if freq_limit else list(seen.keys())
 
     with conn.cursor() as cur:
         # Upsert lemmas
