@@ -128,6 +128,14 @@ export async function trackWord(word, lang, story_title = '') {
   }).catch(() => {})
 }
 
+export async function getWordExamples(word, lang, limit = 5) {
+  const res = await fetch(
+    `${API_URL}/words/examples?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}&limit=${limit}`
+  ).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json() // [{ sentence, score }, ...]
+}
+
 export async function getWordFrequency(word, lang) {
   const res = await fetch(`${API_URL}/words/frequency?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}`)
     .catch(() => null)
