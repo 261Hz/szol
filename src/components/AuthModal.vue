@@ -182,6 +182,15 @@
           <option v-for="lvl in proficiencyOptions" :key="lvl.value" :value="lvl.value">{{ lvl.label }}</option>
         </select>
 
+        <!-- Turnstile widget — only shown when CAPTCHA is configured -->
+        <div
+          v-if="turnstileSiteKey"
+          ref="turnstileEl"
+          class="cf-turnstile"
+          :data-sitekey="turnstileSiteKey"
+          data-callback="__turnstileCallback"
+        />
+
         <div v-if="error" class="text-xs text-red-500 leading-snug">{{ error }}</div>
         <!-- Post-registration state: show "check email" instead of the form button -->
         <div v-if="registered" class="text-xs text-green-400 leading-snug bg-green-950 border border-green-800 rounded-md px-3 py-2">
@@ -200,12 +209,13 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { login, register, getMe } from '../utils/api.js'
 import { LANGS } from '../data/stories.js'
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'https://szol.onrender.com'
-const token   = () => localStorage.getItem('szol_token')
+const API_URL          = import.meta.env.VITE_API_URL         ?? 'https://szol.onrender.com'
+const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY ?? ''
+const token            = () => localStorage.getItem('szol_token')
 
 const emit = defineEmits(['close', 'logged-in'])
 
@@ -224,6 +234,15 @@ const registered      = ref(false)   // true after successful registration
 const showResend      = ref(false)   // true when login blocked due to unverified email
 const resending       = ref(false)
 const resendSuccess   = ref(false)
+const turnstileToken  = ref('')
+const turnstileEl     = ref(null)
+
+onMounted(() => {
+  if (!turnstileSiteKey) return
+  // Turnstile renders itself when it finds .cf-turnstile elements, but we
+  // also expose a callback so we can capture the token reactively.
+  window.__turnstileCallback = (t) => { turnstileToken.value = t }
+})
 
 // Reset proficiency when language changes so stale values don't linger
 watch(targetLang, () => { proficiency.value = '' })
@@ -341,7 +360,7 @@ async function doRegister() {
   error.value   = ''
   loading.value = true
   try {
-    await register(username.value, email.value, password.value, proficiency.value || null, targetLang.value, nativeLang.value)
+    await register(username.value, email.value, password.value, proficiency.value || null, targetLang.value, nativeLang.value, turnstileToken.value || null)
     registered.value = true
   } catch (e) {
     error.value = formatError(e.detail ?? e.message)

@@ -75,8 +75,11 @@ export async function login(email, password) {
   return access_token
 }
 
-export async function register(username, email, password, proficiency, target_lang, native_lang) {
-  const res = await apiFetch(`${API_URL}/users/`, {
+export async function register(username, email, password, proficiency, target_lang, native_lang, cfTurnstileResponse = null) {
+  const url = cfTurnstileResponse
+    ? `${API_URL}/users/?cf_turnstile_response=${encodeURIComponent(cfTurnstileResponse)}`
+    : `${API_URL}/users/`
+  const res = await apiFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
