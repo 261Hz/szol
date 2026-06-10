@@ -15,7 +15,10 @@ class User(Base):
     proficiency       = Column(String)                                          # CEFR level: A1 A2 B1 B2 C1 C2
     native_lang       = Column(String)                                          # e.g. 'en', 'es'
     target_lang       = Column(String)                                          # language they are learning
-    open_to_messages  = Column(Boolean, server_default=text('false'))           # opt-in to receive voice messages
+    open_to_messages      = Column(Boolean, server_default=text('false'))        # opt-in to receive voice messages
+    email_verified        = Column(Boolean, nullable=False, server_default=text('false'))
+    email_verify_token    = Column(String)                                       # null once verified
+    email_verify_expires  = Column(TIMESTAMP(timezone=True))                    # null once verified
 
 class UserWord(Base):
     __tablename__ = "user_words"

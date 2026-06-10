@@ -2,13 +2,18 @@
 #
 # Routes
 # ------
-#   POST  /users/              register a new account
-#   GET   /users/me            return the authenticated user's own profile
-#   PATCH /users/me            update settings (open_to_messages, target_lang, etc.)
-#   GET   /users/discover      find users open to voice messages for a given native language
-#   GET   /users/{user_id}     look up any user by UUID (requires auth)
+#   POST  /users/                    register a new account
+#   GET   /users/verify-email        verify email token from the link in the email
+#   POST  /users/resend-verification resend the verification email
+#   GET   /users/me                  return the authenticated user's own profile
+#   PATCH /users/me                  update settings (open_to_messages, target_lang, etc.)
+#   GET   /users/discover            find users open to voice messages for a given native language
+#   GET   /users/{user_id}           look up any user by UUID (requires auth)
 
+import secrets
+from datetime import datetime, timedelta, timezone
 from fastapi import Request, Response, status, HTTPException, Depends, APIRouter
+from fastapi.responses import RedirectResponse
 from typing import List
 from uuid import UUID
 from sqlalchemy.exc import IntegrityError
@@ -17,6 +22,8 @@ from .. import models, schemas, utils, oauth2
 from ..database import get_db
 from ..limiter import limiter
 from ..disposable_domains import DISPOSABLE_DOMAINS
+from ..email import send_verification_email
+from ..config import settings
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -25,24 +32,17 @@ router = APIRouter(
     tags=["Users"],
 )
 
+VERIFY_TOKEN_EXPIRY_HOURS = 24
+
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.UserResponse)
 @limiter.limit("5/hour")
 def create_user(request: Request, user: schemas.UserCreate, db: Session = Depends(get_db)):
-    # Reject duplicate email early with a clean 409 so the frontend can show a
-    # readable message.  Without this check an IntegrityError from Postgres would
-    # propagate as an unhandled 500 whose response lacks CORS headers, causing the
-    # browser to report a CORS error instead of the real problem.
-    # Verify the email address has a live MX record (rejects typos and fake domains).
-    # check_deliverability does a DNS lookup; we catch any error and return 422.
     try:
         info = validate_email(user.email, check_deliverability=True)
-        user.email = info.normalized  # use canonical form (lowercased, etc.)
+        user.email = info.normalized
     except EmailNotValidError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
 
     domain = user.email.split("@")[1].lower()
     if domain in DISPOSABLE_DOMAINS:
@@ -52,38 +52,71 @@ def create_user(request: Request, user: schemas.UserCreate, db: Session = Depend
         )
 
     if db.query(models.User).filter(models.User.username == user.username).first():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="This username is already taken.",
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This username is already taken.")
 
     if db.query(models.User).filter(models.User.email == user.email).first():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email already exists.",
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An account with this email already exists.")
+
+    token    = secrets.token_urlsafe(32)
+    expires  = datetime.now(timezone.utc) + timedelta(hours=VERIFY_TOKEN_EXPIRY_HOURS)
 
     user.password = utils.hash_password(user.password)
-    new_user = models.User(**user.model_dump())
+    new_user = models.User(
+        **user.model_dump(),
+        email_verified       = False,
+        email_verify_token   = token,
+        email_verify_expires = expires,
+    )
     db.add(new_user)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email already exists.",
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An account with this email already exists.")
     db.refresh(new_user)
+
+    send_verification_email(new_user.email, new_user.username, token)
     return new_user
+
+
+@router.get("/verify-email")
+def verify_email(token: str, db: Session = Depends(get_db)):
+    """Click target from the verification email. Marks the account verified and
+    redirects the user back to the frontend."""
+    user = db.query(models.User).filter(models.User.email_verify_token == token).first()
+
+    if not user:
+        return RedirectResponse(f"{settings.FRONTEND_URL}?email_verify_error=invalid")
+
+    if user.email_verify_expires and user.email_verify_expires < datetime.now(timezone.utc):
+        return RedirectResponse(f"{settings.FRONTEND_URL}?email_verify_error=expired")
+
+    user.email_verified       = True
+    user.email_verify_token   = None
+    user.email_verify_expires = None
+    db.commit()
+    return RedirectResponse(f"{settings.FRONTEND_URL}?email_verified=1")
+
+
+@router.post("/resend-verification", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("3/hour")
+def resend_verification(request: Request, db: Session = Depends(get_db), current_user: models.User = Depends(oauth2.get_current_user)):
+    """Resend the verification email. No-ops silently if already verified."""
+    if current_user.email_verified:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    token   = secrets.token_urlsafe(32)
+    expires = datetime.now(timezone.utc) + timedelta(hours=VERIFY_TOKEN_EXPIRY_HOURS)
+    current_user.email_verify_token   = token
+    current_user.email_verify_expires = expires
+    db.commit()
+
+    send_verification_email(current_user.email, current_user.username, token)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/me", response_model=schemas.UserResponse)
 def get_current_user_me(current_user: models.User = Depends(oauth2.get_current_user)):
-    # oauth2.get_current_user decodes the JWT from the Authorization header and
-    # queries the database for the matching User row, so current_user is already
-    # a fully populated ORM object — we just return it directly.
-    #
     return current_user
 
 
