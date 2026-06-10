@@ -85,13 +85,14 @@ def create_user(
     if db.query(models.User).filter(models.User.email == user.email).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An account with this email already exists.")
 
-    token    = secrets.token_urlsafe(32)
-    expires  = datetime.now(timezone.utc) + timedelta(hours=VERIFY_TOKEN_EXPIRY_HOURS)
+    email_sender_active = bool(settings.RESEND_API_KEY)
+    token   = secrets.token_urlsafe(32) if email_sender_active else None
+    expires = datetime.now(timezone.utc) + timedelta(hours=VERIFY_TOKEN_EXPIRY_HOURS) if email_sender_active else None
 
     user.password = utils.hash_password(user.password)
     new_user = models.User(
         **user.model_dump(),
-        email_verified       = False,
+        email_verified       = not email_sender_active,  # auto-verify until email sender is configured
         email_verify_token   = token,
         email_verify_expires = expires,
     )
@@ -103,7 +104,8 @@ def create_user(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An account with this email already exists.")
     db.refresh(new_user)
 
-    send_verification_email(new_user.email, new_user.username, token)
+    if email_sender_active:
+        send_verification_email(new_user.email, new_user.username, token)
     return new_user
 
 
@@ -159,6 +161,12 @@ def update_settings(
     db.commit()
     db.refresh(current_user)
     return current_user
+
+
+@router.get("/check-username")
+def check_username(username: str, db: Session = Depends(get_db)):
+    taken = db.query(models.User).filter(models.User.username == username).first() is not None
+    return {"available": not taken}
 
 
 @router.get("/discover", response_model=List[schemas.DiscoverableUser])
