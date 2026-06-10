@@ -60,6 +60,14 @@
 
         <div v-if="error" class="text-xs text-red-500 leading-snug">{{ error }}</div>
         <button
+          v-if="showResend"
+          type="button"
+          :disabled="resending"
+          @click="doResend"
+          class="text-xs text-green-400 hover:text-green-300 underline text-left disabled:opacity-40 transition-all"
+        >{{ resending ? 'Sending…' : 'Resend verification email' }}</button>
+        <div v-if="resendSuccess" class="text-xs text-green-400">Verification email sent! Check your inbox.</div>
+        <button
           type="submit"
           :disabled="loading"
           class="px-4 py-2 rounded-md bg-green-700 text-white text-sm hover:bg-green-600 disabled:opacity-40 transition-all"
@@ -175,7 +183,12 @@
         </select>
 
         <div v-if="error" class="text-xs text-red-500 leading-snug">{{ error }}</div>
+        <!-- Post-registration state: show "check email" instead of the form button -->
+        <div v-if="registered" class="text-xs text-green-400 leading-snug bg-green-950 border border-green-800 rounded-md px-3 py-2">
+          Account created! Check your inbox for a verification link before logging in.
+        </div>
         <button
+          v-if="!registered"
           type="submit"
           :disabled="loading || !canSubmitRegister"
           class="px-4 py-2 rounded-md bg-green-700 text-white text-sm hover:bg-green-600 disabled:opacity-40 transition-all"
@@ -191,6 +204,9 @@ import { ref, computed, watch } from 'vue'
 import { login, register, getMe } from '../utils/api.js'
 import { LANGS } from '../data/stories.js'
 
+const API_URL = import.meta.env.VITE_API_URL ?? 'https://szol.onrender.com'
+const token   = () => localStorage.getItem('szol_token')
+
 const emit = defineEmits(['close', 'logged-in'])
 
 const activeTab       = ref('Login')
@@ -204,6 +220,10 @@ const proficiency     = ref('')
 const showPassword    = ref(false)
 const error           = ref('')
 const loading         = ref(false)
+const registered      = ref(false)   // true after successful registration
+const showResend      = ref(false)   // true when login blocked due to unverified email
+const resending       = ref(false)
+const resendSuccess   = ref(false)
 
 // Reset proficiency when language changes so stale values don't linger
 watch(targetLang, () => { proficiency.value = '' })
@@ -247,11 +267,14 @@ const proficiencyPrompt = computed(() => {
 })
 
 function switchTab(tab) {
-  activeTab.value = tab
-  error.value = ''
-  password.value = ''
+  activeTab.value  = tab
+  error.value      = ''
+  password.value   = ''
   confirmPassword.value = ''
-  showPassword.value = false
+  showPassword.value    = false
+  registered.value      = false
+  showResend.value      = false
+  resendSuccess.value   = false
 }
 
 // ── Password strength (0-4) ───────────────────────────────────────────────────
@@ -294,14 +317,18 @@ function formatError(detail) {
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 async function doLogin() {
-  error.value   = ''
-  loading.value = true
+  error.value       = ''
+  showResend.value  = false
+  resendSuccess.value = false
+  loading.value     = true
   try {
     await login(email.value, password.value)
     const user = await getMe()
     emit('logged-in', user)
   } catch (e) {
-    error.value = formatError(e.detail ?? e.message)
+    const msg = formatError(e.detail ?? e.message)
+    error.value = msg
+    if (msg.toLowerCase().includes('verify your email')) showResend.value = true
   } finally {
     loading.value = false
   }
@@ -309,25 +336,33 @@ async function doLogin() {
 
 // ── Register ──────────────────────────────────────────────────────────────────
 async function doRegister() {
-  if (password.value.length < 8) {
-    error.value = 'Password must be at least 8 characters.'
-    return
-  }
-  if (password.value !== confirmPassword.value) {
-    error.value = 'Passwords do not match.'
-    return
-  }
+  if (password.value.length < 8) { error.value = 'Password must be at least 8 characters.'; return }
+  if (password.value !== confirmPassword.value) { error.value = 'Passwords do not match.'; return }
   error.value   = ''
   loading.value = true
   try {
     await register(username.value, email.value, password.value, proficiency.value || null, targetLang.value, nativeLang.value)
-    await login(email.value, password.value)
-    const user = await getMe()
-    emit('logged-in', user)
+    registered.value = true
   } catch (e) {
     error.value = formatError(e.detail ?? e.message)
   } finally {
     loading.value = false
+  }
+}
+
+// ── Resend verification ───────────────────────────────────────────────────────
+async function doResend() {
+  resending.value     = true
+  resendSuccess.value = false
+  try {
+    await fetch(`${API_URL}/users/resend-verification`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token()}` },
+    })
+    resendSuccess.value = true
+    showResend.value    = false
+  } finally {
+    resending.value = false
   }
 }
 </script>

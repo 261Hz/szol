@@ -167,6 +167,24 @@ onUnauthorized(() => {
 })
 
 onMounted(async () => {
+  // Handle email verification redirect from the backend
+  const params = new URLSearchParams(window.location.search)
+  if (params.get('email_verified')) {
+    showAuth.value = true
+    // small delay so the modal is mounted before we set the toast
+    setTimeout(() => {
+      window.__emailVerifiedToast = 'Email verified! You can now log in.'
+    }, 50)
+    history.replaceState(null, '', window.location.pathname)
+  }
+  if (params.get('email_verify_error') === 'expired') {
+    showAuth.value = true
+    setTimeout(() => {
+      window.__emailVerifiedToast = 'That verification link has expired. Log in and request a new one.'
+    }, 50)
+    history.replaceState(null, '', window.location.pathname)
+  }
+
   const user = await getMe()
   if (user) {
     currentUser.value = user
