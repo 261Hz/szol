@@ -1,19 +1,23 @@
 """
 Voice messages between users.
 
-Design:
-  - Audio is stored temporarily in Supabase Storage and expires after 7 days.
-  - Senders can disable the recipient's ability to save/download the clip.
-  - Only users with open_to_messages=True are reachable.
-  - Sender must be learning the recipient's native language.
+Security model:
+  - Audio stored in a PRIVATE Supabase bucket — no public URLs ever exposed.
+  - All audio is served through GET /messages/{id}/audio which verifies the
+    requester is the sender or recipient before proxying the bytes.
+  - allow_download is enforced server-side: if false, Content-Disposition is
+    not set, preventing browser save prompts.
+  - File type validated to audio/* on upload; size capped at 10 MB.
+  - Messages expire after 7 days; expired rows and files are cleaned up on delete.
 
 Routes
 ------
   POST   /messages                  (auth) send a voice message
+  GET    /messages/{id}/audio       (auth) stream audio — only sender/recipient
   GET    /messages/inbox            (auth) received messages
   GET    /messages/sent             (auth) sent messages
   PATCH  /messages/{id}/read        (auth) mark as read
-  DELETE /messages/{id}             (auth) delete + remove audio from storage
+  DELETE /messages/{id}             (auth) delete + remove from storage
 """
 import os
 import uuid
@@ -22,7 +26,8 @@ from typing import List
 
 import requests as http
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from sqlalchemy import text
+from fastapi.responses import StreamingResponse
+from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
 from .. import models, schemas, oauth2
@@ -32,14 +37,18 @@ router = APIRouter(prefix="/messages", tags=["Messages"])
 
 SUPABASE_URL    = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY    = os.environ.get("SUPABASE_SERVICE_KEY", "")
-STORAGE_BUCKET  = "voice-messages"
-MAX_DURATION_MS = 90_000   # 90-second hard limit
-EXPIRY_DAYS     = 7        # audio deleted after 7 days
+STORAGE_BUCKET  = "voice-messages"   # must be a PRIVATE bucket in Supabase
+MAX_DURATION_MS = 90_000             # 90 seconds
+MAX_BYTES       = 10 * 1024 * 1024   # 10 MB
+EXPIRY_DAYS     = 7
+AUDIO_TYPES     = {"audio/webm", "audio/ogg", "audio/mpeg", "audio/mp4",
+                   "audio/wav", "audio/aac", "application/octet-stream"}
 
 
-def _storage_upload(data: bytes, path: str, content_type: str) -> str:
+def _upload(data: bytes, path: str, content_type: str) -> str:
+    """Upload to private Supabase bucket. Returns the storage path (not a public URL)."""
     if not SUPABASE_URL or not SUPABASE_KEY:
-        raise HTTPException(500, "Storage not configured — set SUPABASE_URL and SUPABASE_SERVICE_KEY")
+        raise HTTPException(500, "Storage not configured")
     resp = http.post(
         f"{SUPABASE_URL}/storage/v1/object/{STORAGE_BUCKET}/{path}",
         headers={"Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": content_type},
@@ -48,24 +57,17 @@ def _storage_upload(data: bytes, path: str, content_type: str) -> str:
     )
     if resp.status_code not in (200, 201):
         raise HTTPException(500, "Audio upload failed")
-    return f"{SUPABASE_URL}/storage/v1/object/public/{STORAGE_BUCKET}/{path}"
+    return path   # store path only, never the public URL
 
 
-def _storage_delete(path: str):
-    if not SUPABASE_URL or not SUPABASE_KEY:
+def _delete_from_storage(path: str):
+    if not SUPABASE_URL or not SUPABASE_KEY or not path:
         return
     http.delete(
         f"{SUPABASE_URL}/storage/v1/object/{STORAGE_BUCKET}/{path}",
         headers={"Authorization": f"Bearer {SUPABASE_KEY}"},
         timeout=10,
     )
-
-
-def _audio_path_from_url(url: str) -> str:
-    """Extract the storage object path from a public URL."""
-    marker = f"/object/public/{STORAGE_BUCKET}/"
-    idx = url.find(marker)
-    return url[idx + len(marker):] if idx != -1 else ""
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.VoiceMessageResponse)
@@ -78,9 +80,21 @@ async def send_voice_message(
     db:             Session    = Depends(get_db),
     current_user:   models.User = Depends(oauth2.get_current_user),
 ):
+    # Validate duration
     if duration_ms > MAX_DURATION_MS:
-        raise HTTPException(400, f"Voice messages must be under {MAX_DURATION_MS // 1000} seconds")
+        raise HTTPException(400, f"Max {MAX_DURATION_MS // 1000} seconds")
 
+    # Validate content type
+    ct = (audio.content_type or "").split(";")[0].strip().lower()
+    if ct not in AUDIO_TYPES:
+        raise HTTPException(400, "File must be an audio recording")
+
+    # Read with size cap
+    audio_bytes = await audio.read(MAX_BYTES + 1)
+    if len(audio_bytes) > MAX_BYTES:
+        raise HTTPException(400, f"Audio must be under {MAX_BYTES // 1024 // 1024} MB")
+
+    # Validate recipient
     recipient = db.query(models.User).filter(
         models.User.id == recipient_id,
         models.User.open_to_messages == True,
@@ -94,16 +108,15 @@ async def send_voice_message(
     if str(current_user.id) == str(recipient_id):
         raise HTTPException(400, "Cannot send a message to yourself")
 
-    audio_bytes  = await audio.read()
-    content_type = audio.content_type or "audio/webm"
-    path         = f"{current_user.id}/{uuid.uuid4()}.webm"
-    audio_url    = _storage_upload(audio_bytes, path, content_type)
-    expires_at   = datetime.now(timezone.utc) + timedelta(days=EXPIRY_DAYS)
+    # Upload to private bucket — store path only, never expose a public URL
+    path      = f"{current_user.id}/{uuid.uuid4()}.webm"
+    _upload(audio_bytes, path, ct or "audio/webm")
+    expires_at = datetime.now(timezone.utc) + timedelta(days=EXPIRY_DAYS)
 
     msg = models.VoiceMessage(
         sender_id      = current_user.id,
         recipient_id   = recipient_id,
-        audio_url      = audio_url,
+        audio_url      = path,          # store path, not public URL
         lang           = lang,
         duration_ms    = duration_ms,
         allow_download = allow_download,
@@ -116,6 +129,51 @@ async def send_voice_message(
     return schemas.VoiceMessageResponse(
         **{c.key: getattr(msg, c.key) for c in models.VoiceMessage.__table__.columns},
         sender_username=current_user.username,
+    )
+
+
+@router.get("/{msg_id}/audio")
+def stream_audio(
+    msg_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(oauth2.get_current_user),
+):
+    """
+    Proxy audio from private storage. Only sender or recipient may access.
+    Respects allow_download: if False, no Content-Disposition header is set
+    so browsers won't offer a save prompt.
+    """
+    msg = db.query(models.VoiceMessage).filter(
+        models.VoiceMessage.id == msg_id,
+        or_(
+            models.VoiceMessage.recipient_id == current_user.id,
+            models.VoiceMessage.sender_id    == current_user.id,
+        ),
+    ).first()
+    if not msg:
+        raise HTTPException(404, "Message not found")
+
+    if msg.expires_at and msg.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(410, "This message has expired")
+
+    # Fetch from private bucket using service key
+    r = http.get(
+        f"{SUPABASE_URL}/storage/v1/object/authenticated/{STORAGE_BUCKET}/{msg.audio_url}",
+        headers={"Authorization": f"Bearer {SUPABASE_KEY}"},
+        stream=True,
+        timeout=15,
+    )
+    if r.status_code != 200:
+        raise HTTPException(404, "Audio not found")
+
+    headers = {"Cache-Control": "no-store"}
+    if msg.allow_download and str(current_user.id) == str(msg.recipient_id):
+        headers["Content-Disposition"] = "attachment; filename=voice-message.webm"
+
+    return StreamingResponse(
+        r.iter_content(chunk_size=8192),
+        media_type="audio/webm",
+        headers=headers,
     )
 
 
@@ -157,7 +215,7 @@ def mark_read(
     current_user: models.User = Depends(oauth2.get_current_user),
 ):
     msg = db.query(models.VoiceMessage).filter(
-        models.VoiceMessage.id == msg_id,
+        models.VoiceMessage.id           == msg_id,
         models.VoiceMessage.recipient_id == current_user.id,
     ).first()
     if not msg:
@@ -177,12 +235,11 @@ def delete_message(
     current_user: models.User = Depends(oauth2.get_current_user),
 ):
     msg = db.query(models.VoiceMessage).filter(
-        models.VoiceMessage.id == msg_id,
+        models.VoiceMessage.id           == msg_id,
         models.VoiceMessage.recipient_id == current_user.id,
     ).first()
     if not msg:
         raise HTTPException(404, "Message not found")
-    # Remove audio from Supabase Storage
-    _storage_delete(_audio_path_from_url(msg.audio_url))
+    _delete_from_storage(msg.audio_url)   # audio_url is now a path, not a URL
     db.delete(msg)
     db.commit()
