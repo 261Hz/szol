@@ -8,13 +8,15 @@
 #   GET   /users/discover      find users open to voice messages for a given native language
 #   GET   /users/{user_id}     look up any user by UUID (requires auth)
 
-from fastapi import Response, status, HTTPException, Depends, APIRouter
+from fastapi import Request, Response, status, HTTPException, Depends, APIRouter
 from typing import List
 from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from email_validator import validate_email, EmailNotValidError
 from .. import models, schemas, utils, oauth2
 from ..database import get_db
+from ..limiter import limiter
+from ..disposable_domains import DISPOSABLE_DOMAINS
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -25,7 +27,8 @@ router = APIRouter(
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.UserResponse)
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("5/hour")
+def create_user(request: Request, user: schemas.UserCreate, db: Session = Depends(get_db)):
     # Reject duplicate email early with a clean 409 so the frontend can show a
     # readable message.  Without this check an IntegrityError from Postgres would
     # propagate as an unhandled 500 whose response lacks CORS headers, causing the
@@ -39,6 +42,13 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
+        )
+
+    domain = user.email.split("@")[1].lower()
+    if domain in DISPOSABLE_DOMAINS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Disposable email addresses are not allowed. Please use a real email.",
         )
 
     if db.query(models.User).filter(models.User.username == user.username).first():

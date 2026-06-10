@@ -3,14 +3,22 @@ from . import models
 from .database import engine
 from .routers import user, auth, stories, words, vocab, progress, chat, transcript, listen, concept, user_stories, messages
 from .config import settings
+from .limiter import limiter
 
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 # Create all tables from the ORM models if they don't already exist.
 # When using Alembic for migrations this line should be removed — Alembic owns the schema.
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(docs_url="/docs-szol", redoc_url=None)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # Allow requests from any origin.
 # allow_credentials must be False when allow_origins=["*"] — Starlette 1.x raises
