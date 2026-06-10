@@ -13,9 +13,10 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
 
     RESEND_API_KEY:  str = ""
-    RESEND_FROM:     str = "Szol <noreply@szol.app>"
-    FRONTEND_URL:    str = "https://szol.app"
+    RESEND_FROM:     str = "Szol <noreply@yourdomain.com>"
+    FRONTEND_URL:    str = "https://szol.vercel.app"
     BACKEND_URL:     str = "https://szol.onrender.com"
+    TURNSTILE_SECRET: str = ""   # Cloudflare Turnstile secret key
 
     class Config:
         env_file = ".env"

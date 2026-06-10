@@ -10,14 +10,16 @@
 #   GET   /users/discover            find users open to voice messages for a given native language
 #   GET   /users/{user_id}           look up any user by UUID (requires auth)
 
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from fastapi import Request, Response, status, HTTPException, Depends, APIRouter
 from fastapi.responses import RedirectResponse
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from email_validator import validate_email, EmailNotValidError
+import requests as http
 from .. import models, schemas, utils, oauth2
 from ..database import get_db
 from ..limiter import limiter
@@ -26,6 +28,24 @@ from ..email import send_verification_email
 from ..config import settings
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+
+log = logging.getLogger(__name__)
+
+
+def _verify_turnstile(token: str) -> bool:
+    """Returns True if the Turnstile token is valid. Fails open on any error."""
+    if not settings.TURNSTILE_SECRET or not token:
+        return True  # not configured or not provided — fail open
+    try:
+        r = http.post(
+            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+            data={"secret": settings.TURNSTILE_SECRET, "response": token},
+            timeout=5,
+        )
+        return r.json().get("success", False)
+    except Exception as exc:
+        log.warning("Turnstile verification failed (fail open): %s", exc)
+        return True  # Cloudflare unreachable — let the request through
 
 router = APIRouter(
     prefix="/users",
@@ -37,7 +57,15 @@ VERIFY_TOKEN_EXPIRY_HOURS = 24
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.UserResponse)
 @limiter.limit("5/hour")
-def create_user(request: Request, user: schemas.UserCreate, db: Session = Depends(get_db)):
+def create_user(
+    request: Request,
+    user: schemas.UserCreate,
+    db: Session = Depends(get_db),
+    cf_turnstile_response: Optional[str] = None,
+):
+    if not _verify_turnstile(cf_turnstile_response or ""):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="CAPTCHA verification failed. Please try again.")
+
     try:
         info = validate_email(user.email, check_deliverability=True)
         user.email = info.normalized
