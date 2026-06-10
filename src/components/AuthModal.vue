@@ -89,10 +89,17 @@
           <template v-if="registerStep === 1">
             <div class="flex flex-col gap-1.5">
               <label class="text-xs font-medium text-gray-400">Username</label>
-              <input v-model="username" type="text" required minlength="2" maxlength="40" autocomplete="username"
-                placeholder="your_username"
-                class="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-100 placeholder:text-gray-600 outline-none focus:border-green-600 transition-all"
-              />
+              <div class="relative">
+                <input v-model="username" type="text" required minlength="2" maxlength="40" autocomplete="username"
+                  placeholder="your_username"
+                  class="w-full bg-gray-900 border rounded-lg px-3 py-2.5 pr-8 text-sm text-gray-100 placeholder:text-gray-600 outline-none transition-all"
+                  :class="usernameBorderClass"
+                />
+                <span v-if="checkingUsername" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">…</span>
+                <span v-else-if="usernameAvailable === true"  class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-green-400">✓</span>
+                <span v-else-if="usernameAvailable === false" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-red-400">✗</span>
+              </div>
+              <p v-if="usernameAvailable === false" class="text-xs text-red-400">Username is already taken.</p>
             </div>
             <div class="flex flex-col gap-1.5">
               <label class="text-xs font-medium text-gray-400">Email</label>
@@ -171,11 +178,7 @@
 
           <div v-if="error" class="text-xs text-red-400 leading-snug bg-red-950/50 border border-red-900 rounded-lg px-3 py-2">{{ error }}</div>
 
-          <div v-if="registered" class="text-xs text-green-400 leading-snug bg-green-950 border border-green-800 rounded-lg px-3 py-2">
-            Account created! Check your inbox for a verification link before logging in.
-          </div>
-
-          <div v-if="!registered" class="flex gap-2">
+          <div class="flex gap-2">
             <button v-if="registerStep === 2" type="button" @click="registerStep = 1"
               class="px-4 py-2.5 rounded-lg border border-gray-700 text-gray-400 text-sm hover:border-gray-500 hover:text-gray-200 transition-all"
             >Back</button>
@@ -218,15 +221,40 @@ const proficiency     = ref('')
 const showPassword    = ref(false)
 const error           = ref('')
 const loading         = ref(false)
-const registered      = ref(false)
-const showResend      = ref(false)
-const resending       = ref(false)
-const resendSuccess   = ref(false)
-const turnstileToken  = ref('')
-const turnstileEl     = ref(null)
+const showResend        = ref(false)
+const resending         = ref(false)
+const resendSuccess     = ref(false)
+const turnstileToken    = ref('')
+const turnstileEl       = ref(null)
 let   turnstileWidgetId = null
 
+const usernameAvailable  = ref(null)   // null=unchecked, true=free, false=taken
+const checkingUsername   = ref(false)
+let   usernameDebounce   = null
+
+const usernameBorderClass = computed(() => {
+  if (usernameAvailable.value === false) return 'border-red-700 focus:border-red-500'
+  if (usernameAvailable.value === true)  return 'border-green-700 focus:border-green-500'
+  return 'border-gray-700 focus:border-green-600'
+})
+
 watch(targetLang, () => { proficiency.value = '' })
+
+watch(username, (val) => {
+  usernameAvailable.value = null
+  clearTimeout(usernameDebounce)
+  if (val.length < 2) return
+  checkingUsername.value = true
+  usernameDebounce = setTimeout(async () => {
+    try {
+      const res = await fetch(`${API_URL}/users/check-username?username=${encodeURIComponent(val)}`)
+      const data = await res.json()
+      usernameAvailable.value = data.available
+    } finally {
+      checkingUsername.value = false
+    }
+  }, 500)
+})
 
 // ── Turnstile explicit render ─────────────────────────────────────────────────
 // Auto-render won't work because the div mounts after Turnstile has already
@@ -312,7 +340,11 @@ const strengthColor = computed(() => {
 
 const canSubmitStep = computed(() => {
   if (registerStep.value === 1)
-    return username.value.length >= 2 && email.value && password.value.length >= 8 && password.value === confirmPassword.value
+    return username.value.length >= 2 &&
+           usernameAvailable.value !== false &&
+           email.value &&
+           password.value.length >= 8 &&
+           password.value === confirmPassword.value
   return !!nativeLang.value && !!targetLang.value
 })
 
@@ -323,9 +355,9 @@ function switchTab(tab) {
   password.value        = ''
   confirmPassword.value = ''
   showPassword.value    = false
-  registered.value      = false
   showResend.value      = false
   resendSuccess.value   = false
+  usernameAvailable.value = null
   turnstileWidgetId     = null
 }
 
@@ -373,7 +405,9 @@ async function doRegister() {
   loading.value = true
   try {
     await register(username.value, email.value, password.value, proficiency.value || null, targetLang.value, nativeLang.value, turnstileToken.value || null)
-    registered.value = true
+    await login(email.value, password.value)
+    const user = await getMe()
+    emit('logged-in', user)
   } catch (e) {
     error.value = formatError(e.detail ?? e.message)
   } finally {
