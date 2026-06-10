@@ -119,8 +119,9 @@ class VoiceMessage(Base):
     lang           = Column(String, nullable=False)
     duration_ms    = Column(Integer)
     allow_download = Column(Boolean, server_default=text('true'))   # sender can disable saving
-    read_at        = Column(TIMESTAMP(timezone=True))               # null = unread
-    expires_at     = Column(TIMESTAMP(timezone=True))               # auto-deleted after 7 days
+    read_at              = Column(TIMESTAMP(timezone=True))          # null = unread
+    recipient_deleted_at = Column(TIMESTAMP(timezone=True))          # set when recipient dismisses; row kept for sender
+    expires_at           = Column(TIMESTAMP(timezone=True))          # auto-deleted after 1 day
     created_at     = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
 
 

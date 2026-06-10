@@ -187,6 +187,7 @@ def get_inbox(
         FROM   voice_messages vm
         JOIN   users u ON u.id = vm.sender_id
         WHERE  vm.recipient_id = :uid
+          AND  vm.recipient_deleted_at IS NULL
           AND  (vm.expires_at IS NULL OR vm.expires_at > now())
         ORDER  BY vm.created_at DESC
     """), {"uid": current_user.id}).fetchall()
@@ -235,11 +236,20 @@ def delete_message(
     current_user: models.User = Depends(oauth2.get_current_user),
 ):
     msg = db.query(models.VoiceMessage).filter(
-        models.VoiceMessage.id           == msg_id,
-        models.VoiceMessage.recipient_id == current_user.id,
+        models.VoiceMessage.id == msg_id,
+        or_(
+            models.VoiceMessage.recipient_id == current_user.id,
+            models.VoiceMessage.sender_id    == current_user.id,
+        ),
     ).first()
     if not msg:
         raise HTTPException(404, "Message not found")
-    _delete_from_storage(msg.audio_url)   # audio_url is now a path, not a URL
-    db.delete(msg)
+
+    if str(current_user.id) == str(msg.sender_id):
+        # Sender hard-deletes: remove from storage and drop the row
+        _delete_from_storage(msg.audio_url)
+        db.delete(msg)
+    else:
+        # Recipient soft-deletes: hide from their inbox, leave storage intact for sender
+        msg.recipient_deleted_at = datetime.now(timezone.utc)
     db.commit()
