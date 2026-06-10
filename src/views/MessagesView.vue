@@ -16,7 +16,7 @@
         <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-800">
           <button @click="activePartner = null" class="text-gray-500 hover:text-gray-200 transition-all text-sm">←</button>
           <div class="font-medium text-sm text-gray-100">{{ activePartner.username }}</div>
-          <div class="text-xs text-gray-600 ml-auto">{{ LANGS[currentUser.target_lang]?.name }} practice</div>
+          <div class="text-xs text-gray-600 ml-auto">{{ LANGS[studyLang]?.name }} practice</div>
         </div>
 
         <!-- Thread messages -->
@@ -36,7 +36,7 @@
                 'rounded-2xl px-3 py-2 max-w-[85%] flex flex-col gap-1.5',
                 msg.sender_id === currentUser.id
                   ? 'bg-green-800 rounded-tr-sm'
-                  : 'bg-gray-800 rounded-tl-sm'
+                  : 'bg-purple-900 rounded-tl-sm'
               ]"
             >
               <!-- Audio player (uses blob URL loaded via authenticated fetch) -->
@@ -62,7 +62,14 @@
                 <span class="text-xs text-gray-500">{{ timeAgo(msg.created_at) }}</span>
                 <div class="flex items-center gap-1.5">
                   <span v-if="msg.expires_at" class="text-xs text-amber-600" :title="`Expires ${new Date(msg.expires_at).toLocaleDateString()}`">⏱</span>
-                  <span v-if="msg.sender_id === currentUser.id && msg.read_at" class="text-xs text-green-500" title="Listened">✓</span>
+                  <!-- Sent/Played status for outgoing messages -->
+                  <span
+                    v-if="msg.sender_id === currentUser.id"
+                    class="text-xs"
+                    :class="msg.read_at ? 'text-green-400' : 'text-gray-600'"
+                  >{{ msg.read_at ? 'Played' : 'Sent' }}</span>
+                  <!-- Played indicator for received messages -->
+                  <span v-if="msg.sender_id !== currentUser.id && msg.read_at" class="text-xs text-purple-400">Played</span>
                   <!-- Save button — only if sender allowed it and it's a received message -->
                   <a
                     v-if="msg.allow_download && msg.sender_id !== currentUser.id && audioBlobUrls[msg.id]"
@@ -71,12 +78,6 @@
                     class="text-xs text-gray-600 hover:text-green-400 transition-all"
                     title="Save recording"
                   >⬇</a>
-                  <button
-                    v-if="msg.sender_id !== currentUser.id"
-                    @click="startReplyTo(msg)"
-                    class="text-xs text-gray-500 hover:text-green-400 transition-all"
-                    title="Reply"
-                  >↩</button>
                   <button
                     v-if="msg.sender_id !== currentUser.id"
                     @click="deleteMsg(msg)"
@@ -137,6 +138,18 @@
       <!-- ── Conversation list ── -->
       <div v-else class="flex flex-col gap-3 px-4 py-3">
 
+        <!-- Language switcher -->
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-500">Studying:</span>
+          <select
+            v-model="studyLang"
+            @change="changeLang"
+            class="text-xs bg-gray-900 text-gray-200 border border-gray-700 rounded px-1.5 py-0.5 focus:outline-none focus:border-green-700"
+          >
+            <option v-for="(l, code) in LANGS" :key="code" :value="code">{{ l.name }}</option>
+          </select>
+        </div>
+
         <!-- Tabs: Inbox / Find -->
         <div class="flex gap-3 text-xs border-b border-gray-800 pb-2">
           <button @click="listTab = 'inbox'" :class="listTab === 'inbox' ? 'text-green-400' : 'text-gray-500 hover:text-gray-300'" class="transition-all">Inbox</button>
@@ -170,7 +183,7 @@
         <!-- Find people -->
         <div v-else class="flex flex-col gap-2">
           <div class="text-xs text-gray-500">
-            Native <strong class="text-gray-300">{{ LANGS[currentUser.target_lang]?.name }}</strong> speakers open to messages:
+            Native <strong class="text-gray-300">{{ LANGS[studyLang]?.name }}</strong> speakers open to messages:
           </div>
           <div v-if="loadingUsers" class="text-xs text-gray-500 text-center py-4">Looking…</div>
           <div v-else-if="!discoverableUsers.length" class="text-xs text-gray-500 text-center py-4">None available right now.</div>
@@ -198,7 +211,7 @@ import { LANGS } from '../data/stories.js'
 import { discoverUsers } from '../utils/api.js'
 
 const props = defineProps({ currentUser: Object, lang: String })
-const emit  = defineEmits(['openAuth'])
+const emit  = defineEmits(['openAuth', 'updateLang'])
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'https://szol.onrender.com'
 const token   = () => localStorage.getItem('szol_token')
@@ -208,6 +221,7 @@ const authH   = () => ({ Authorization: `Bearer ${token()}` })
 
 const listTab       = ref('inbox')
 const activePartner = ref(null)   // { id, username }
+const studyLang     = ref(props.currentUser?.target_lang ?? '')
 
 const inbox        = ref([])
 const sent         = ref([])
@@ -282,10 +296,21 @@ async function loadSent() {
 }
 
 async function loadDiscoverable() {
-  if (!props.currentUser?.target_lang) return
+  if (!studyLang.value) return
   loadingUsers.value = true
-  discoverableUsers.value = await discoverUsers(props.currentUser.target_lang)
+  discoverableUsers.value = await discoverUsers(studyLang.value)
   loadingUsers.value = false
+}
+
+async function changeLang(e) {
+  studyLang.value = e.target.value
+  await fetch(`${API_URL}/users/me`, {
+    method: 'PATCH',
+    headers: { ...authH(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_lang: studyLang.value }),
+  })
+  emit('updateLang', studyLang.value)
+  if (listTab.value === 'find') loadDiscoverable()
 }
 
 function openConversation(partner) {
@@ -323,12 +348,6 @@ async function deleteMsg(msg) {
 }
 
 // ── Recording ─────────────────────────────────────────────────────────────────
-
-function startReplyTo(msg) {
-  // scroll to bottom / just ensure recorder is visible
-  audioBlob.value = null
-  audioPreviewUrl.value = null
-}
 
 async function startRecording() {
   sendSuccess.value = false
@@ -369,7 +388,7 @@ async function sendMessage() {
   try {
     const form = new FormData()
     form.append('recipient_id',   activePartner.value.id)
-    form.append('lang',           props.currentUser.target_lang)
+    form.append('lang',           studyLang.value)
     form.append('duration_ms',    String(recordingSeconds.value * 1000))
     form.append('allow_download', String(allowDownload.value))
     form.append('audio',          audioBlob.value, 'message.webm')
