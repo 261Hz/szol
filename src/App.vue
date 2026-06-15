@@ -84,15 +84,6 @@
         @open-auth="showAuth = true"
       />
 
-      <ChatView
-        v-if="activeTab === 'chat'"
-        :story="currentStory"
-        :lang="activeLang"
-        :current-user="currentUser"
-        :vocab-bank="vocabBank"
-        @open-auth="showAuth = true"
-      />
-
       <ListenView
         v-if="activeTab === 'listen'"
         :story="currentStory"
@@ -141,7 +132,6 @@ const VocabView    = defineAsyncComponent(() => import('./views/VocabView.vue'))
 const SpeakView    = defineAsyncComponent(() => import('./views/SpeakView.vue'))
 const WriteView    = defineAsyncComponent(() => import('./views/WriteView.vue'))
 const SettingsView  = defineAsyncComponent(() => import('./views/SettingsView.vue'))
-const ChatView      = defineAsyncComponent(() => import('./views/ChatView.vue'))
 const ListenView    = defineAsyncComponent(() => import('./views/ListenView.vue'))
 const MessagesView  = defineAsyncComponent(() => import('./views/MessagesView.vue'))
 
