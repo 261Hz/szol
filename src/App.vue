@@ -137,6 +137,7 @@ const MessagesView  = defineAsyncComponent(() => import('./views/MessagesView.vu
 
 import { LANGS } from './data/stories.js'
 import { getMe, logout, onUnauthorized, getAccountVocab, saveVocabWord, removeVocabWord } from './utils/api.js'
+import { updateSEO } from './utils/seo.js'
 
 const activeTab    = ref('library')
 // null = first visit → show WelcomeView; otherwise restore saved language
@@ -147,6 +148,9 @@ const showAuth     = ref(false)
 
 const vocabBank = ref(JSON.parse(localStorage.getItem('szol_vocab') || '[]'))
 watch(vocabBank, val => localStorage.setItem('szol_vocab', JSON.stringify(val)), { deep: true })
+
+// Update <title>, <meta description>, html[lang], and OG tags whenever language changes
+watch(activeLang, lang => { if (lang) updateSEO(lang) }, { immediate: true })
 
 // ── Language helpers ──────────────────────────────────────────────────────────
 
@@ -178,8 +182,17 @@ onUnauthorized(() => {
 })
 
 onMounted(async () => {
-  // Handle email verification redirect from the backend
+  // Honor ?lang= query param (from hreflang links / shared URLs) — override stored lang
   const params = new URLSearchParams(window.location.search)
+  const langParam = params.get('lang')
+  if (langParam && LANGS[langParam]) {
+    _setLang(langParam)
+    params.delete('lang')
+    const newSearch = params.toString()
+    history.replaceState(null, '', newSearch ? `?${newSearch}` : window.location.pathname)
+  }
+
+  // Handle email verification redirect from the backend
   if (params.get('email_verified')) {
     showAuth.value = true
     setTimeout(() => { window.__emailVerifiedToast = 'Email verified! You can now log in.' }, 50)

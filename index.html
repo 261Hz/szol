@@ -6,8 +6,79 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://szol.onrender.com" />
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-    <meta name="description" content="Szól — Learn languages through reading stories, vocabulary building, and AI-powered conversation practice." />
-    <title>Szól — Language Learning</title>
+
+    <!-- Default SEO (English) — overwritten dynamically per language in App.vue -->
+    <title>Szól — Read, retype &amp; speak in a new language</title>
+    <meta name="description" content="Improve your language skills by reading real articles, retyping sentences, and practicing pronunciation. New content every day." />
+    <meta name="keywords" content="language learning, learn Japanese, learn Chinese, learn Spanish, learn French, learn Arabic, learn Russian, read in Japanese, read in Chinese, 日本語学習, 学中文, تعلم اللغة, изучение языков" />
+
+    <!-- Canonical -->
+    <link rel="canonical" href="https://szol.app/" />
+
+    <!-- hreflang — tells Google which language version to show each user -->
+    <link rel="alternate" hreflang="en"       href="https://szol.app/?lang=en" />
+    <link rel="alternate" hreflang="es"       href="https://szol.app/?lang=es" />
+    <link rel="alternate" hreflang="fr"       href="https://szol.app/?lang=fr" />
+    <link rel="alternate" hreflang="de"       href="https://szol.app/?lang=de" />
+    <link rel="alternate" hreflang="it"       href="https://szol.app/?lang=it" />
+    <link rel="alternate" hreflang="ru"       href="https://szol.app/?lang=ru" />
+    <link rel="alternate" hreflang="he"       href="https://szol.app/?lang=he" />
+    <link rel="alternate" hreflang="ar"       href="https://szol.app/?lang=ar" />
+    <link rel="alternate" hreflang="ar-EG"    href="https://szol.app/?lang=arz" />
+    <link rel="alternate" hreflang="ja"       href="https://szol.app/?lang=ja" />
+    <link rel="alternate" hreflang="zh"       href="https://szol.app/?lang=zh" />
+    <link rel="alternate" hreflang="hu"       href="https://szol.app/?lang=hu" />
+    <link rel="alternate" hreflang="el"       href="https://szol.app/?lang=el" />
+    <link rel="alternate" hreflang="x-default" href="https://szol.app/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type"        content="website" />
+    <meta property="og:site_name"   content="Szól" />
+    <meta property="og:url"         content="https://szol.app/" />
+    <meta property="og:title"       content="Szól — Read, retype &amp; speak in a new language" />
+    <meta property="og:description" content="Improve your language skills by reading real articles, retyping sentences, and practicing pronunciation. New content every day." />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card"        content="summary" />
+    <meta name="twitter:title"       content="Szól — Read, retype &amp; speak in a new language" />
+    <meta name="twitter:description" content="Improve your language skills by reading real articles, retyping sentences, and practicing pronunciation. New content every day." />
+
+    <!-- Schema.org LearningResource -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "LearningResource",
+      "name": "Szól",
+      "url": "https://szol.app",
+      "description": "A language learning app for reading real articles, retyping sentences, and practicing pronunciation across 13 languages.",
+      "inLanguage": ["en", "es", "fr", "de", "it", "ru", "he", "ar", "ja", "zh", "hu", "el"],
+      "learningResourceType": "Language Learning Application",
+      "teaches": "Foreign Language Proficiency",
+      "educationalLevel": "Beginner to Advanced",
+      "isAccessibleForFree": true,
+      "availableLanguage": [
+        { "@type": "Language", "name": "English",    "alternateName": "en" },
+        { "@type": "Language", "name": "Español",    "alternateName": "es" },
+        { "@type": "Language", "name": "Français",   "alternateName": "fr" },
+        { "@type": "Language", "name": "Deutsch",    "alternateName": "de" },
+        { "@type": "Language", "name": "Italiano",   "alternateName": "it" },
+        { "@type": "Language", "name": "Русский",    "alternateName": "ru" },
+        { "@type": "Language", "name": "עברית",      "alternateName": "he" },
+        { "@type": "Language", "name": "العربية",    "alternateName": "ar" },
+        { "@type": "Language", "name": "مصري",       "alternateName": "ar-EG" },
+        { "@type": "Language", "name": "日本語",      "alternateName": "ja" },
+        { "@type": "Language", "name": "中文",        "alternateName": "zh" },
+        { "@type": "Language", "name": "Magyar",     "alternateName": "hu" },
+        { "@type": "Language", "name": "Ελληνικά",   "alternateName": "el" }
+      ],
+      "provider": {
+        "@type": "Organization",
+        "name": "Szól",
+        "url": "https://szol.app"
+      }
+    }
+    </script>
+
   <!-- Microsoft Clarity Analytics -->
   <script type="text/javascript">
     (function(c,l,a,r,i,t,y){
