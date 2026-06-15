@@ -23,7 +23,7 @@
         <div class="text-2xl leading-none">{{ FLAGS[code] }}</div>
         <div class="text-xs font-medium leading-tight">{{ cfg.name }}</div>
         <div v-if="learnerCounts[code]" class="text-[10px] leading-none opacity-50">
-          {{ fmtCount(learnerCounts[code]) }} learners
+          {{ fmtCount(learnerCounts[code]) }} {{ t(code, 'learners') }}
         </div>
       </button>
     </div>
@@ -55,6 +55,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { LANGS } from '../data/stories.js'
 import { fetchLearnerCounts } from '../utils/api.js'
+import { t } from '../utils/i18n.js'
 
 defineEmits(['pick', 'sign-in'])
 

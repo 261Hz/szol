@@ -94,6 +94,7 @@
       <SettingsView
         v-if="activeTab === 'settings'"
         :current-user="currentUser"
+        :lang="activeLang"
         @open-auth="showAuth = true"
         @user-updated="currentUser = $event"
         @logout="handleLogout"

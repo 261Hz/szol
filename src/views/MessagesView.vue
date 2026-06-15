@@ -22,7 +22,7 @@
         <!-- Thread messages -->
         <div class="flex flex-col gap-3 px-4 py-3 overflow-y-auto" style="max-height: 55vh">
           <div v-if="!threadMessages.length" class="text-xs text-gray-600 text-center py-8">
-            No messages yet. Record one below.
+            {{ t(props.lang, 'noMessages') }}
           </div>
 
           <div
@@ -78,7 +78,7 @@
                   <button
                     @click="deleteMsg(msg)"
                     class="text-xs text-gray-400 hover:text-red-300 transition-all"
-                    :title="msg.sender_id === currentUser.id ? 'Delete for everyone' : 'Delete for me'"
+                    :title="msg.sender_id === currentUser.id ? t(props.lang, 'deleteForAll') : t(props.lang, 'deleteForMe')"
                   >✕</button>
                 </div>
               </div>
@@ -102,7 +102,7 @@
               v-if="!recording && !audioBlob"
               @click="startRecording"
               class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-700 text-white text-xs hover:bg-red-600 transition-all"
-            >⏺ Record</button>
+            >⏺ {{ t(props.lang, 'record') }}</button>
             <button
               v-else-if="recording"
               @click="stopRecording"
@@ -205,6 +205,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { LANGS } from '../data/stories.js'
 import { discoverUsers } from '../utils/api.js'
+import { t } from '../utils/i18n.js'
 
 const props = defineProps({ currentUser: Object, lang: String })
 const emit  = defineEmits(['openAuth', 'updateLang'])
