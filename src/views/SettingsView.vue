@@ -1,25 +1,22 @@
-<!-- SettingsView.vue: voice settings and messaging preferences. -->
 <template>
   <div class="flex flex-col gap-6">
 
     <!-- ── Messaging Settings ── -->
     <div class="flex flex-col gap-3">
-      <div class="text-sm font-medium text-gray-200">Messaging</div>
+      <div class="text-sm font-medium text-gray-200">{{ t(lang, 'messaging') }}</div>
 
       <div v-if="!currentUser" class="text-xs text-gray-500">
-        <button @click="$emit('openAuth')" class="underline hover:text-green-400 transition-all">Log in</button>
-        to manage messaging settings.
+        <button @click="$emit('openAuth')" class="underline hover:text-green-400 transition-all">
+          {{ t(lang, 'loginToManageMsg') }}
+        </button>
       </div>
 
       <template v-else>
         <!-- Open to messages toggle -->
         <div class="flex items-start justify-between gap-4 py-3 border border-gray-700 rounded-lg px-4">
           <div class="flex flex-col gap-0.5">
-            <div class="text-sm text-gray-200">Open to voice messages</div>
-            <div class="text-xs text-gray-500">
-              Allow learners of <strong class="text-gray-300">{{ LANGS[currentUser.native_lang]?.name ?? currentUser.native_lang }}</strong>
-              to send you short voice messages. You can turn this off at any time.
-            </div>
+            <div class="text-sm text-gray-200">{{ t(lang, 'openToVoice') }}</div>
+            <div class="text-xs text-gray-500" v-html="voiceDescHtml" />
           </div>
           <button
             @click="toggleMessages"
@@ -38,67 +35,53 @@
 
     <!-- ── Danger Zone ── -->
     <div v-if="currentUser" class="flex flex-col gap-3 border border-red-900 rounded-lg p-4">
-      <div class="text-sm font-medium text-red-400">Danger Zone</div>
-      <p class="text-xs text-gray-500">Permanently deletes your account and all your data — progress, vocab, messages. This cannot be undone.</p>
+      <div class="text-sm font-medium text-red-400">{{ t(lang, 'dangerZone') }}</div>
+      <p class="text-xs text-gray-500">{{ t(lang, 'deleteAccountDesc') }}</p>
       <button
         v-if="!confirmDelete"
         @click="confirmDelete = true"
         class="self-start text-sm px-4 py-1.5 rounded-md border border-red-800 text-red-400 hover:bg-red-950 transition-all"
-      >Delete account</button>
+      >{{ t(lang, 'deleteAccount') }}</button>
       <div v-else class="flex flex-col gap-2">
-        <p class="text-xs text-red-400 font-medium">Are you sure? This is permanent.</p>
+        <p class="text-xs text-red-400 font-medium">{{ t(lang, 'areYouSure') }}</p>
         <div class="flex gap-2">
           <button
             @click="doDelete"
             :disabled="deleting"
             class="text-sm px-4 py-1.5 rounded-md bg-red-700 text-white hover:bg-red-600 disabled:opacity-40 transition-all"
-          >{{ deleting ? 'Deleting…' : 'Yes, delete my account' }}</button>
+          >{{ deleting ? t(lang, 'deleting') : t(lang, 'yesDelete') }}</button>
           <button
             @click="confirmDelete = false"
             class="text-sm px-4 py-1.5 rounded-md border border-gray-700 text-gray-400 hover:text-gray-200 transition-all"
-          >Cancel</button>
+          >{{ t(lang, 'cancel') }}</button>
         </div>
         <div v-if="deleteError" class="text-xs text-red-400">{{ deleteError }}</div>
       </div>
     </div>
 
     <!-- ── Voice Settings ── -->
-    <div class="text-sm font-medium text-gray-200">Voice Settings</div>
+    <div class="text-sm font-medium text-gray-200">{{ t(lang, 'voiceSettings') }}</div>
 
-    <!-- Loop through every language in LANGS and show a voice selector row for each. -->
     <div class="flex flex-col gap-4">
-      <!-- v-for on an object: "langConfig" = the value (e.g. { name: 'Ελληνικά', bcp47: 'el-GR', ... }) -->
-      <!--                     "code"       = the key   (e.g. 'el') -->
       <div
         v-for="(langConfig, code) in LANGS"
         :key="code"
         class="flex items-center justify-between gap-4 py-2 border-b border-gray-800 last:border-0"
       >
-        <!-- Language name label on the left (e.g. "Ελληνικά", "Español"). -->
         <div class="text-sm text-gray-200 min-w-[90px]">{{ langConfig.name }}</div>
 
-        <!-- No-voice warning: shown when zero voices are available for this language. -->
-        <!-- voicesForLang(voices, langConfig.bcp47) returns the list of matching voices. -->
-        <!-- .length is 0 means no voices found. !0 = true = show this message. -->
         <div v-if="!voicesForLang(voices, langConfig.bcp47).length" class="text-xs text-amber-600 flex items-center gap-1 flex-1">
-          No voice installed.
-          <!-- This link opens Windows language settings directly (ms-settings: is a Windows URL scheme). -->
+          {{ t(lang, 'noVoice') }}
           <a href="ms-settings:regionlanguage" class="underline hover:text-amber-800">Install →</a>
         </div>
 
-        <!-- Voice dropdown: shown when at least one voice is available. -->
-        <!-- v-else = shown only when v-if above is false (voices ARE available). -->
         <select
           v-else
           :value="prefs[code] || ''"
           @change="save(code, $event.target.value)"
           class="flex-1 text-sm border border-gray-700 rounded-md px-2 py-1 bg-gray-900 text-gray-200"
         >
-          <!-- First option: "Auto-select" means no preference saved, use the default logic. -->
-          <!-- value="" = empty string, which save() will interpret as "clear this preference". -->
-          <option value="">Auto-select</option>
-          <!-- One option for each available voice for this language. -->
-          <!-- v.name = e.g. "Microsoft Stefanos Online (Greek)" or "Google ελληνικά". -->
+          <option value="">{{ t(lang, 'autoSelect') }}</option>
           <option
             v-for="v in voicesForLang(voices, langConfig.bcp47)"
             :key="v.name"
@@ -112,13 +95,14 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { LANGS } from '../data/stories.js'
 import { useVoiceList, voicesForLang, getVoicePrefs, setVoicePref } from '../utils/voices.js'
 import { updateSettings, deleteAccount } from '../utils/api.js'
 import { logout } from '../utils/api.js'
+import { t } from '../utils/i18n.js'
 
-const props = defineProps({ currentUser: Object })
+const props = defineProps({ currentUser: Object, lang: String })
 const emit  = defineEmits(['openAuth', 'userUpdated', 'logout'])
 
 const voices = useVoiceList()
@@ -130,6 +114,14 @@ const confirmDelete  = ref(false)
 const deleting       = ref(false)
 const deleteError    = ref('')
 
+const voiceDescHtml = computed(() => {
+  const langName = LANGS[props.currentUser?.native_lang]?.name ?? props.currentUser?.native_lang ?? ''
+  return t(props.lang, 'voiceDesc').replace(
+    '[language]',
+    `<strong class="text-gray-300">${langName}</strong>`
+  )
+})
+
 async function toggleMessages() {
   const next = !openToMessages.value
   try {
@@ -138,7 +130,7 @@ async function toggleMessages() {
     emit('userUpdated', updated)
     settingsError.value = ''
   } catch {
-    settingsError.value = 'Could not save. Try again.'
+    settingsError.value = t(props.lang, 'errorTryAgain')
   }
 }
 
@@ -150,7 +142,7 @@ async function doDelete() {
     logout()
     emit('logout')
   } catch {
-    deleteError.value = 'Something went wrong. Please try again.'
+    deleteError.value = t(props.lang, 'errorTryAgain')
     deleting.value = false
   }
 }
