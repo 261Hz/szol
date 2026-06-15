@@ -96,6 +96,7 @@
         :current-user="currentUser"
         @open-auth="showAuth = true"
         @user-updated="currentUser = $event"
+        @logout="handleLogout"
       />
 
       <MessagesView
