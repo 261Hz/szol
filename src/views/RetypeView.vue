@@ -277,7 +277,7 @@ const historyEl          = ref(null)
 const hiddenInput        = ref(null)
 
 // Rebuild the exercise whenever the story or mode changes, then restore saved progress.
-watch([() => props.story, mode, activeText, ignorePunct], async () => {
+watch([() => props.story, mode, activeText], async () => {
   sentences.value          = splitSentences(activeText.value)
   sentenceIdx.value        = 0
   completedSentences.value = []
@@ -298,6 +298,9 @@ watch([() => props.story, mode, activeText, ignorePunct], async () => {
     }
   }
 }, { immediate: true })
+
+// Toggling ignorePunct only rebuilds the current sentence — no progress reset.
+watch(ignorePunct, () => loadSentence(sentenceIdx.value))
 
 // loadSentence() prepares the word/char structure for a given sentence index.
 function loadSentence(idx) {
