@@ -94,7 +94,7 @@
               :class="savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-green-500 decoration-dotted underline-offset-2' : ''"
               @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
             ><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span></button>
-            <span v-if="wi < words.length - 1" :class="spaceClass(wi)">{{ ' ' }}</span>
+            <span v-if="wi < words.length - 1 && !isCJK" :class="spaceClass(wi)">{{ ' ' }}</span>
           </template>
         </template>
       </div>
@@ -175,19 +175,32 @@ const activeText = computed(() => {
   return props.story?.content ?? ''
 })
 
+// ── CJK detection ─────────────────────────────────────────────────────────────
+
+const CJK_LANGS = new Set(['ja', 'zh', 'cmn', 'yue', 'ko'])
+const isCJK = computed(() => CJK_LANGS.has(props.lang))
+
 // ── Sentence splitting ────────────────────────────────────────────────────────
 
-// splitSentences() breaks a text into sentence-sized chunks for the practice loop.
-// Splits after sentence-ending punctuation (covering Latin, Arabic, CJK, Indic scripts).
-// Falls back to fixed 10-word chunks when the text has no sentence punctuation.
 function splitSentences(text) {
-  // Lookbehind (?<=...) splits AFTER the punctuation mark, keeping it with its sentence.
+  if (isCJK.value) {
+    // CJK sentences end with 。！？ with no space before the next character
+    const parts = text.split(/(?<=[。！？…\n])/).map(s => s.trim()).filter(Boolean)
+    if (parts.length > 1) return parts
+    // Fallback: 30-character chunks
+    const chunks = []
+    for (let i = 0; i < text.length; i += 30) {
+      const c = text.slice(i, i + 30).trim()
+      if (c) chunks.push(c)
+    }
+    return chunks.length ? chunks : [text.trim()]
+  }
+
   const parts = text
     .split(/(?<=[.!?؟।。！？…])\s+/)
     .map(s => s.trim())
     .filter(Boolean)
 
-  // If only one chunk came out but the text is long, split it into ~10-word pieces.
   if (parts.length <= 1) {
     const wordArr = text.trim().split(/\s+/).filter(Boolean)
     if (wordArr.length <= 10) return [text.trim()]
@@ -203,11 +216,14 @@ function splitSentences(text) {
 
 // ── Per-word / per-character data structure ───────────────────────────────────
 
-// buildWords() converts a sentence string into a structured array for rendering.
-// Returns: [ [{char:'H', state:'untouched'}, ...], [...], ... ]
-// ignorePunct mode strips ALL non-letter/non-digit chars so punctuation is never required to type.
-// Normal mode strips only leading/trailing punctuation from each token.
 function buildWords(text) {
+  if (isCJK.value) {
+    // Each character is its own "word" — no spaces in CJK
+    return [...text]
+      .filter(c => !(/\s/.test(c)))
+      .filter(c => !ignorePunct.value || /[\p{L}\p{N}]/u.test(c))
+      .map(char => [{ char, state: 'untouched' }])
+  }
   return text.split(/\s+/)
     .map(w => ignorePunct.value
       ? w.replace(/[^\p{L}\p{N}]/gu, '')
@@ -382,8 +398,16 @@ function onKey(e) {
       // Reset word — user must retype it from scratch.
       words.value[wi].forEach(c => c.state = 'untouched')
       currentCharIndex.value = 0
+    } else if (isCJK.value) {
+      // CJK: no spaces between characters — auto-advance immediately
+      if (!isLastWord) {
+        currentWordIndex.value++
+        currentCharIndex.value = 0
+      } else {
+        advanceSentence()
+      }
     } else {
-      // Word typed correctly: wait for Space before advancing.
+      // Latin/etc: wait for Space before advancing to next word
       awaitingSpace.value = true
     }
   }
