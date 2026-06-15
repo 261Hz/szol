@@ -1,7 +1,20 @@
-# Known disposable / throwaway email domains.
-# MX checks (already done by email-validator) don't catch these because many
-# have valid DNS records. Extend this list as new services appear.
-DISPOSABLE_DOMAINS: frozenset[str] = frozenset({
+# Disposable / throwaway email domain blocklist.
+#
+# On startup we fetch the community-maintained list from GitHub (~3,000 domains).
+# If that fetch fails we fall back to the hardcoded set below (~50 domains).
+# The result is stored in DISPOSABLE_DOMAINS and used at registration time.
+
+import logging
+
+log = logging.getLogger(__name__)
+
+_GITHUB_URL = (
+    "https://raw.githubusercontent.com/"
+    "disposable-email-domains/disposable-email-domains/master/"
+    "disposable_email_blocklist.conf"
+)
+
+_FALLBACK: frozenset[str] = frozenset({
     # Guerrilla Mail family
     "guerrillamail.com", "guerrillamail.net", "guerrillamail.org",
     "guerrillamail.biz", "guerrillamail.de", "guerrillamail.info",
@@ -14,41 +27,40 @@ DISPOSABLE_DOMAINS: frozenset[str] = frozenset({
     # Yopmail
     "yopmail.com", "yopmail.fr", "cool.fr.nf", "jetable.fr.nf",
     "nospam.ze.tc", "nomail.xl.cx", "mega.zik.dj", "speed.1s.fr",
-    "courriel.fr.nf", "moncourrier.fr.nf", "monemail.fr.nf", "monmail.fr.nf",
     # 10 Minute Mail
     "10minutemail.com", "10minutemail.net", "10minutemail.org",
-    "10minutemail.be", "10minutemail.cf", "10minutemail.de",
-    "10minutemail.ga", "10minutemail.gq", "10minutemail.ml",
+    "10minutemail.com", "10minutemail.de",
     # Temp-mail / Nada
     "tempmail.com", "temp-mail.org", "temp-mail.de", "tempinbox.com",
-    "tempinbox.co.uk", "tempr.email", "temporaryemail.net",
-    "temporaryemail.us", "temporaryinbox.com", "tempemail.net",
-    "mytempemail.com", "nada.email", "throwaway.email", "throwam.com",
+    "tempr.email", "temporaryemail.net", "nada.email",
+    "throwaway.email", "throwam.com",
     # Discard / Drop
     "discard.email", "dispostable.com", "maildrop.cc", "mailnull.com",
-    "mailscrap.com", "mailnesia.com", "mailexpire.com",
     "fakeinbox.com", "fakemail.net",
     # Spam services
-    "spamspot.com", "spamgourmet.com", "spamgourmet.net", "spamgourmet.org",
-    "spamfree24.org", "spamfree24.de", "spamfree24.eu",
-    "spamfree24.info", "spamfree24.net",
-    "spamfree.eu", "spamthisplease.com", "spamtrail.com",
-    "spamherelots.com", "spamhereplease.com", "spamgoes.in",
+    "spamgourmet.com", "spamfree24.org", "spamfree.eu",
     "spam.la", "spamoff.de",
     # Self-destructing / one-time
-    "selfdestructingmail.com", "oneoffemail.com", "onewaymail.com",
-    "rcpt.at", "objectmail.com", "pookmail.com",
-    # Misc well-known disposables
-    "filzmail.com", "mailzilla.com", "mailpick.biz", "mailrock.biz",
-    "mailseal.de", "mailshell.com", "mailtemporal.com",
-    "megaintl.com", "mt2009.com", "mt2014.com",
-    "sneakemail.com", "snakemail.com", "shortmail.net",
-    "sendspamhere.com", "saynotospams.com", "safetymail.info",
-    "safe-mail.gq", "s0ny.net", "proxymail.eu.org",
-    "thisisnotmyrealemail.com", "thanksnospam.info",
-    "tilien.com", "tittbit.in", "tmi.me", "tmailinator.com",
-    "toiea.com", "topranklist.de", "tradermail.info",
-    "sibmail.com", "skeefmail.com",
-    "obobbo.com", "nwldx.com", "online.ms",
-    "objectmail.com",
+    "selfdestructingmail.com", "oneoffemail.com", "rcpt.at",
+    "mailzilla.com", "sneakemail.com",
 })
+
+
+def _load() -> frozenset[str]:
+    try:
+        import requests
+        resp = requests.get(_GITHUB_URL, timeout=10)
+        resp.raise_for_status()
+        domains = frozenset(
+            line.strip().lower()
+            for line in resp.text.splitlines()
+            if line.strip() and not line.startswith("#")
+        )
+        log.info("Loaded %d disposable domains from GitHub", len(domains))
+        return domains
+    except Exception as exc:
+        log.warning("Could not fetch disposable domain list (%s) — using fallback (%d domains)", exc, len(_FALLBACK))
+        return _FALLBACK
+
+
+DISPOSABLE_DOMAINS: frozenset[str] = _load()
