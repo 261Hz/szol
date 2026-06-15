@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://szol.app/sitemap.xml
+Sitemap: https://szol.vercel.app/sitemap.xml

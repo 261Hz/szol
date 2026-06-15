@@ -1,7 +1,7 @@
 // Per-language SEO metadata — title, meta description, and html[lang] value.
 // Call updateSEO(lang) whenever the active language changes.
 
-const BASE_URL = 'https://szol.app'
+const BASE_URL = 'https://szol.vercel.app'
 
 export const SEO = {
   en: {
