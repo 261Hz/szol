@@ -106,6 +106,40 @@
       </div>
     </div>
 
+    <!-- ─── 📰 FEED ARTICLES ─── -->
+    <div class="border border-gray-700 rounded-lg overflow-hidden">
+      <button @click="toggle('feed')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
+        <span>📰 Articles</span>
+        <span class="text-gray-500 text-xs">{{ open.feed ? '▲' : '▼' }}</span>
+      </button>
+      <div v-if="open.feed" class="px-4 pb-4 pt-1 flex flex-col gap-2">
+        <div v-if="feedLoading && !feedStories.length" class="text-gray-500 text-sm text-center py-6">{{ t(lang, 'loading') }}</div>
+        <div v-else-if="!feedStories.length" class="text-xs text-gray-500 py-4 text-center">No articles yet for this language.</div>
+        <div v-else class="flex flex-col gap-1.5">
+          <div
+            v-for="article in feedStories"
+            :key="article.id"
+            @click="emitLoad({ id: article.id, title: article.title, content: article.text, lang: article.lang, source: article.source_name })"
+            :class="['p-3 rounded-lg border cursor-pointer transition-all',
+              current?.id === article.id ? 'border-green-600 bg-green-950' : 'border-gray-700 hover:border-green-700']"
+          >
+            <div class="font-medium text-sm text-gray-100 leading-snug mb-1">{{ article.title }}</div>
+            <div class="flex gap-2 flex-wrap">
+              <span class="text-xs text-gray-500">{{ article.source_name }}</span>
+              <span v-if="article.author" class="text-xs text-gray-500">· {{ article.author }}</span>
+              <span class="text-xs text-gray-600">· {{ wordCount({ content: article.text, lang: article.lang }) }} words</span>
+            </div>
+          </div>
+          <button
+            v-if="!feedExhausted"
+            @click="loadFeed()"
+            :disabled="feedLoading"
+            class="mt-1 text-xs text-gray-400 hover:text-gray-200 disabled:opacity-40 text-center py-2 border border-gray-700 rounded-lg hover:border-gray-500 transition-all"
+          >{{ feedLoading ? 'Loading…' : 'Load more' }}</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ─── 💡 CONCEPT OF THE DAY ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('concept')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
@@ -366,7 +400,7 @@ import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import ClickableText from '../components/ClickableText.vue'
 // Supabase functions: fetch/submit stories from the remote database.
-import { fetchCommunityStories, submitStory, fetchCuratedStories, fetchConceptTranslations, saveUserStory, getUserStories, deleteUserStory } from '../utils/api.js'
+import { fetchCommunityStories, submitStory, fetchCuratedStories, fetchConceptTranslations, saveUserStory, getUserStories, deleteUserStory, fetchFeed } from '../utils/api.js'
 import { getAllProgress } from '../utils/api.js'
 import { getConceptOfDay } from '../data/concepts.js'
 // Wikipedia helpers for the Today and On This Day sections.
@@ -533,6 +567,26 @@ const filteredCommunity = computed(() =>
   communityStories.value.filter(s => s.lang === props.lang)
 )
 
+// ── Feed stories (ingested RSS articles) ──────────────────────────────────────
+const feedStories   = ref([])
+const feedLoading   = ref(false)
+const feedPage      = ref(0)
+const feedExhausted = ref(false)
+const FEED_PAGE     = 20
+
+async function loadFeed(reset = false) {
+  if (feedLoading.value || (!reset && feedExhausted.value)) return
+  feedLoading.value = true
+  if (reset) { feedPage.value = 0; feedExhausted.value = false; feedStories.value = [] }
+  const items = await fetchFeed(props.lang, feedPage.value * FEED_PAGE, FEED_PAGE)
+  if (items.length < FEED_PAGE) feedExhausted.value = true
+  feedStories.value.push(...items)
+  feedPage.value++
+  feedLoading.value = false
+}
+
+watch(() => props.lang, () => { if (open.value.feed) loadFeed(true) })
+
 // ── Section open/close ─────────────────────────────────────────
 // open = tracks which accordion sections are expanded (true) or collapsed (false).
 // Curated starts open so users see their stories immediately without clicking.
@@ -540,6 +594,7 @@ const filteredCommunity = computed(() =>
 const open = ref({
   inprogress: true,
   curated:    true,
+  feed:       false,
   concept:    false,
   today:      false,
   quote:      false,
@@ -557,6 +612,7 @@ async function toggle(section) {
   open.value[section] = !open.value[section]
   if (open.value[section]) {
     // Only fetch if: the section just opened AND we don't already have data AND not currently loading.
+    if (section === 'feed'      && !feedStories.value.length && !feedLoading.value)  await loadFeed(true)
     if (section === 'concept'   && !conceptSentence.value && !conceptLoading.value) await loadConcept()
     if (section === 'today'     && !todayArticle.value && !todayLoading.value) await loadToday()
     if (section === 'quote'     && !quoteOfDay.value   && !quoteLoading.value) await loadQuote()
