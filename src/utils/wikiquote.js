@@ -30,38 +30,55 @@ function wl(lang) {
 // lang = the app language code (e.g. 'fr')
 // Returns array of { title, extract } or [] on any error.
 export async function searchWikiquote(word, lang) {
-  const code = wl(lang) // e.g. 'fr' → fr.wikiquote.org
+  const code = wl(lang)
 
   try {
-    // Step 1: OpenSearch on Wikiquote.
-    // The response format is identical to Wikipedia's: [query, [titles], [descriptions], [urls]].
-    // origin=* = CORS open-access header required for browser requests to MediaWiki APIs.
+    // Step 1: find matching page titles via opensearch.
     const searchRes = await fetch(
       `https://${code}.wikiquote.org/w/api.php?action=opensearch&search=${encodeURIComponent(word)}&limit=2&format=json&origin=*`
     )
     if (!searchRes.ok) return []
-
     const searchData = await searchRes.json()
-    const titles = searchData[1] ?? [] // index [1] = the array of matching page titles
+    const titles = searchData[1] ?? []
     if (!titles.length) return []
 
-    // Step 2: Fetch the REST summary for each matching page title, in parallel.
+    // Step 2: fetch plain-text extracts using the action API (not REST summary, which
+    // returns page descriptions rather than actual quotes).
     const results = await Promise.all(
       titles.slice(0, 2).map(async title => {
         try {
           const r = await fetch(
-            `https://${code}.wikiquote.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`
+            `https://${code}.wikiquote.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=extracts&explaintext=1&exchars=3000&format=json&origin=*`
           )
           if (!r.ok) return null
-          const s = await r.json()
-          // Only include pages that have an extract — some Wikiquote pages are stubs or disambiguation pages.
-          return s.extract ? { title: s.title, extract: s.extract } : null
+          const data  = await r.json()
+          const pages = data.query?.pages
+          const raw   = pages?.[Object.keys(pages)[0]]?.extract?.trim()
+          if (!raw) return null
+
+          // Parse actual quote lines: long enough to be a sentence, not a section header.
+          const lines = raw.split('\n').map(l => l.trim()).filter(Boolean)
+          const quotes = lines.filter(l =>
+            l.length >= 30 &&
+            l.length <= 300 &&
+            !l.startsWith('==') &&
+            !l.startsWith('*') === false || l.startsWith('*')
+          )
+          // Prefer lines starting with * (wiki quote bullets), fall back to any sentence-like line.
+          const bulleted  = lines.filter(l => l.startsWith('*') && l.length >= 30 && l.length <= 300)
+          const sentenced = lines.filter(l => !l.startsWith('==') && l.length >= 40 && l.length <= 300)
+          const picks = (bulleted.length ? bulleted : sentenced).slice(0, 3)
+          if (!picks.length) return null
+
+          // Strip leading bullet/asterisk markup.
+          const extract = picks.map(l => l.replace(/^\*+\s*/, '').trim()).join('\n')
+          return { title, extract }
         } catch {
           return null
         }
       })
     )
-    return results.filter(Boolean) // remove null entries from failed fetches
+    return results.filter(Boolean)
   } catch {
     return []
   }

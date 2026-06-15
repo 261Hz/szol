@@ -46,17 +46,58 @@
           />
         </div>
 
-        <!-- Word frequency row (shown only when logged in and data is available) -->
-        <div
-          v-if="currentUser && userWordMap[word.word.toLowerCase()]"
-          class="text-xs text-green-400 flex gap-2"
-        >
-          <span>Seen {{ userWordMap[word.word.toLowerCase()].seen_count }}×</span>
-          <span class="text-gray-600">·</span>
-          <span>First {{ new Date(userWordMap[word.word.toLowerCase()].first_seen).toLocaleDateString() }}</span>
+        <!-- Corpus frequency rank — always visible, no login needed -->
+        <div v-if="frequencyMap[word.word.toLowerCase()] != null" class="flex items-center gap-1.5 relative">
+          <button
+            :class="rankColor(frequencyMap[word.word.toLowerCase()])"
+            class="text-xs font-medium hover:underline focus:outline-none"
+            @click.stop="freqPopup = freqPopup === word.word ? null : word.word"
+          >#{{ frequencyMap[word.word.toLowerCase()].toLocaleString() }}</button>
+          <span class="text-xs text-gray-600">
+            {{ frequencyMap[word.word.toLowerCase()] <= 500 ? 'very common' : frequencyMap[word.word.toLowerCase()] <= 2000 ? 'common' : 'less common' }}
+          </span>
+          <!-- Frequency source popup -->
+          <div
+            v-if="freqPopup === word.word"
+            class="absolute bottom-full left-0 mb-2 z-10 w-64 bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-xl text-xs text-gray-300 flex flex-col gap-1.5"
+            @click.stop
+          >
+            <div class="font-semibold text-gray-100">Corpus frequency rank</div>
+            <div>This word ranks <span :class="rankColor(frequencyMap[word.word.toLowerCase()])" class="font-medium">#{{ frequencyMap[word.word.toLowerCase()].toLocaleString() }}</span> by frequency — lower means more common.</div>
+            <div class="text-gray-500">Data: <a href="https://wortschatz.uni-leipzig.de" target="_blank" class="underline hover:text-gray-300">Leipzig Wortschatz</a> news &amp; web corpora.</div>
+            <button @click="freqPopup = null" class="self-end text-gray-600 hover:text-gray-400 mt-0.5">close ✕</button>
+          </div>
         </div>
 
-        <!-- Subtle login prompt when logged out -->
+        <!-- Personal seen count — only when logged in -->
+        <div
+          v-if="currentUser && userWordMap[word.word.toLowerCase()]"
+          class="flex flex-col gap-0.5"
+        >
+          <div class="text-xs flex items-center gap-1.5 flex-wrap">
+            <!-- Exposure level badge -->
+            <span :class="exposureColor(userWordMap[word.word.toLowerCase()].seen_count)"
+                  class="font-medium">
+              {{ exposureLabel(userWordMap[word.word.toLowerCase()].seen_count) }}
+            </span>
+            <span class="text-gray-600">·</span>
+            <!-- Seen count -->
+            <span class="text-gray-400">seen {{ userWordMap[word.word.toLowerCase()].seen_count }}×</span>
+            <span class="text-gray-600">·</span>
+            <!-- Last seen relative time -->
+            <span class="text-gray-500">{{ timeAgo(userWordMap[word.word.toLowerCase()].last_seen) }}</span>
+          </div>
+          <!-- Stories this word appeared in -->
+          <div
+            v-if="userWordMap[word.word.toLowerCase()].stories?.length"
+            class="text-xs text-gray-600 truncate"
+            :title="userWordMap[word.word.toLowerCase()].stories.join(', ')"
+          >
+            from {{ userWordMap[word.word.toLowerCase()].stories.slice(0, 2).join(', ') }}{{ userWordMap[word.word.toLowerCase()].stories.length > 2 ? ` +${userWordMap[word.word.toLowerCase()].stories.length - 2} more` : '' }}
+          </div>
+        </div>
+
+        <!-- Login prompt when logged out -->
         <div v-else-if="!currentUser" class="text-xs text-gray-500">
           <button @click="emit('openAuth')" class="underline hover:text-green-400 transition-all">Login</button>
           to track how often you see each word
@@ -86,12 +127,12 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { t }    from '../utils/i18n.js'
 import { LANGS } from '../data/stories.js'
 import ExamplesPanel  from '../components/ExamplesPanel.vue'
 import ClickableText  from '../components/ClickableText.vue'
-import { getUserWords } from '../utils/api.js'
+import { getUserWords, getWordFrequency } from '../utils/api.js'
 
 const props = defineProps({
   words:       Array,  // full vocabBank array (all languages)
@@ -101,9 +142,17 @@ const props = defineProps({
 
 const emit = defineEmits(['remove', 'saveWord', 'openAuth'])
 
-// userWordMap = { normalizedWord: { seen_count, first_seen, last_seen } }
+// freqPopup holds the word whose frequency popup is currently open, or null.
+const freqPopup = ref(null)
+onMounted(() => document.addEventListener('click', () => { freqPopup.value = null }))
+onUnmounted(() => document.removeEventListener('click', () => { freqPopup.value = null }))
+
+// userWordMap = { normalizedWord: { seen_count, first_seen, frequency_rank, ... } }
 // Fetched from the backend when the user is logged in and lang changes.
 const userWordMap = ref({})
+
+// frequencyMap = { word.toLowerCase(): rank } — public corpus data, no login required.
+const frequencyMap = ref({})
 
 watch(
   [() => props.currentUser, () => props.lang],
@@ -113,6 +162,20 @@ watch(
     userWordMap.value = Object.fromEntries(
       list.map(w => [w.word.toLowerCase(), w])
     )
+  },
+  { immediate: true }
+)
+
+// Fetch corpus frequency rank for every word in the active language whenever words or lang changes.
+watch(
+  [() => props.words, () => props.lang],
+  async ([words, lang]) => {
+    const langWords = words.filter(w => w.lang === lang)
+    if (!langWords.length) { frequencyMap.value = {}; return }
+    const results = await Promise.all(langWords.map(w => getWordFrequency(w.word, lang)))
+    const map = {}
+    results.forEach((r, i) => { if (r?.frequency_rank != null) map[langWords[i].word.toLowerCase()] = r.frequency_rank })
+    frequencyMap.value = map
   },
   { immediate: true }
 )
@@ -138,6 +201,53 @@ const savedWordsSet = computed(() =>
       .map(w => w.word.toLowerCase().replace(/[^\p{L}\p{M}]/gu, ''))
   )
 )
+
+// timeAgo converts a datetime string into a human-readable relative string.
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins  = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days  = Math.floor(diff / 86400000)
+  const weeks = Math.floor(days / 7)
+  if (mins  <  2)  return 'just now'
+  if (hours <  1)  return `${mins}m ago`
+  if (hours < 24)  return `${hours}h ago`
+  if (days  <  2)  return 'yesterday'
+  if (days  <  7)  return `${days} days ago`
+  if (weeks <  5)  return `${weeks} week${weeks > 1 ? 's' : ''} ago`
+  return new Date(dateStr).toLocaleDateString()
+}
+
+// exposureLabel returns a learning-stage label based on how many times a word has been seen.
+function exposureLabel(count) {
+  if (count >= 10) return 'Strong'
+  if (count >=  5) return 'Familiar'
+  if (count >=  2) return 'Learning'
+  return 'New'
+}
+
+// exposureColor returns a Tailwind text color matching the exposure level.
+function exposureColor(count) {
+  if (count >= 10) return 'text-green-400'
+  if (count >=  5) return 'text-yellow-400'
+  if (count >=  2) return 'text-blue-400'
+  return 'text-gray-400'
+}
+
+// rankColor returns a Tailwind text color class based on how common the word is.
+// Lower rank = more common = more important to know.
+function rankColor(rank) {
+  if (rank <= 500)  return 'text-green-400'
+  if (rank <= 2000) return 'text-yellow-400'
+  return 'text-gray-400'
+}
+
+// rankLabel returns a human-readable description shown as a tooltip on the rank badge.
+function rankLabel(rank) {
+  if (rank <= 500)  return `Top 500 — very common word (rank #${rank})`
+  if (rank <= 2000) return `Rank #${rank} — fairly common word`
+  return `Rank #${rank} — less common word`
+}
 
 // saveFromExample() is called when the user clicks a word in ExamplesPanel ('tap' event).
 // It cleans the word, checks for duplicates, then emits 'saveWord' so App.vue can add it.

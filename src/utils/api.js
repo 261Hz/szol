@@ -75,16 +75,20 @@ export async function login(email, password) {
   return access_token
 }
 
-export async function register(username, email, password, proficiency, native_lang) {
-  const res = await apiFetch(`${API_URL}/users/`, {
+export async function register(username, email, password, proficiency, target_lang, native_lang, cfTurnstileResponse = null) {
+  const url = cfTurnstileResponse
+    ? `${API_URL}/users/?cf_turnstile_response=${encodeURIComponent(cfTurnstileResponse)}`
+    : `${API_URL}/users/`
+  const res = await apiFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       username,
       email,
       password,
+      native_lang,
+      target_lang,
       ...(proficiency ? { proficiency } : {}),
-      ...(native_lang ? { native_lang } : {}),
     }),
   })
   if (!res.ok) {
@@ -116,6 +120,24 @@ export function logout() {
   localStorage.removeItem('szol_token')
 }
 
+export async function updateSettings(settings) {
+  const res = await apiFetch(`${API_URL}/users/me`, {
+    method:  'PATCH',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body:    JSON.stringify(settings),
+  })
+  if (!res.ok) throw new Error('Failed to update settings')
+  return await res.json()
+}
+
+export async function discoverUsers(nativeLang) {
+  const res = await apiFetch(`${API_URL}/users/discover?native_lang=${nativeLang}`, {
+    headers: authHeaders(),
+  }).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json()
+}
+
 // ── Word frequency tracking ───────────────────────────────────────────────────
 
 export async function trackWord(word, lang, story_title = '') {
@@ -126,6 +148,21 @@ export async function trackWord(word, lang, story_title = '') {
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ word, lang, story_title }),
   }).catch(() => {})
+}
+
+export async function getWordExamples(word, lang, limit = 5) {
+  const res = await fetch(
+    `${API_URL}/words/examples?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}&limit=${limit}`
+  ).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json() // [{ sentence, score }, ...]
+}
+
+export async function getWordFrequency(word, lang) {
+  const res = await fetch(`${API_URL}/words/frequency?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}`)
+    .catch(() => null)
+  if (!res?.ok) return null
+  return await res.json() // { word, lang, frequency_rank: number | null }
 }
 
 export async function getUserWords(lang) {
@@ -166,6 +203,40 @@ export function removeVocabWord(word, lang) {
   if (!getToken()) return
   fetch(`${API_URL}/vocab/user?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}`, {
     method: 'DELETE',
+    headers: authHeaders(),
+  }).catch(() => {})
+}
+
+// ── User stories (private, synced to account) ────────────────────────────────
+
+export async function saveUserStory(story) {
+  if (!getToken()) return null
+  const res = await apiFetch(`${API_URL}/user-stories/`, {
+    method:  'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body:    JSON.stringify({
+      title:   story.title,
+      content: story.content,
+      franco:  story.franco ?? null,
+      lang:    story.lang,
+    }),
+  }).catch(() => null)
+  if (!res?.ok) return null
+  return await res.json()
+}
+
+export async function getUserStories(lang) {
+  const res = await apiFetch(`${API_URL}/user-stories/?lang=${lang}`, {
+    headers: authHeaders(),
+  }).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json()
+}
+
+export async function deleteUserStory(id) {
+  if (!getToken()) return
+  fetch(`${API_URL}/user-stories/${id}`, {
+    method:  'DELETE',
     headers: authHeaders(),
   }).catch(() => {})
 }
