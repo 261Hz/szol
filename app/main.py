@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from . import models
 from .database import engine
-from .routers import user, auth, stories, words, vocab, progress, chat, transcript, listen, concept, user_stories, messages, feed
+from .routers import user, auth, stories, words, vocab, progress, chat, transcript, listen, concept, user_stories, messages, feed, stats
 from .config import settings
 from .limiter import limiter
 
@@ -48,3 +48,4 @@ app.include_router(concept.router)       # /concept-of-day
 app.include_router(user_stories.router)  # /user-stories
 app.include_router(messages.router)      # /messages
 app.include_router(feed.router)          # /feed
+app.include_router(stats.router)         # /stats
