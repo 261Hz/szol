@@ -130,6 +130,14 @@ export async function updateSettings(settings) {
   return await res.json()
 }
 
+export async function deleteAccount() {
+  const res = await apiFetch(`${API_URL}/users/me`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  })
+  if (!res.ok) throw new Error('Failed to delete account')
+}
+
 export async function discoverUsers(nativeLang) {
   const res = await apiFetch(`${API_URL}/users/discover?native_lang=${nativeLang}`, {
     headers: authHeaders(),
