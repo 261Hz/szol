@@ -188,6 +188,17 @@ def discover_users(
     )
 
 
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_account(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(oauth2.get_current_user),
+):
+    """Permanently delete the authenticated user and all their data (cascade)."""
+    db.delete(current_user)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get("/{user_id}", response_model=schemas.PublicUserResponse)
 def get_user(user_id: UUID, db: Session = Depends(get_db), current_user: models.User = Depends(oauth2.get_current_user)):
     user = db.query(models.User).filter(models.User.id == user_id).first()
