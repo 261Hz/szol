@@ -52,35 +52,32 @@
                 <button
                   @click="loadAudio(msg)"
                   :disabled="loadingAudio[msg.id]"
-                  class="text-xs text-green-400 hover:text-green-300 transition-all disabled:opacity-40"
+                  class="text-xs text-green-300 hover:text-white font-medium transition-all disabled:opacity-40"
                 >{{ loadingAudio[msg.id] ? 'Loading…' : '▶ Play' }}</button>
                 <span v-if="!msg.read_at && msg.sender_id !== currentUser.id" class="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
               </div>
 
               <!-- Footer row -->
               <div class="flex items-center gap-2 justify-between">
-                <span class="text-xs text-gray-500">{{ timeAgo(msg.created_at) }}</span>
+                <span class="text-xs text-gray-400">{{ timeAgo(msg.created_at) }}</span>
                 <div class="flex items-center gap-1.5">
-                  <span v-if="msg.expires_at" class="text-xs text-amber-600" :title="`Expires ${new Date(msg.expires_at).toLocaleDateString()}`">⏱</span>
-                  <!-- Sent/Played status for outgoing messages -->
+                  <span v-if="msg.expires_at" class="text-xs text-amber-400" :title="`Expires ${new Date(msg.expires_at).toLocaleDateString()}`">⏱</span>
                   <span
                     v-if="msg.sender_id === currentUser.id"
                     class="text-xs"
-                    :class="msg.read_at ? 'text-green-400' : 'text-gray-600'"
+                    :class="msg.read_at ? 'text-green-300' : 'text-gray-400'"
                   >{{ msg.read_at ? 'Played' : 'Sent' }}</span>
-                  <!-- Played indicator for received messages -->
-                  <span v-if="msg.sender_id !== currentUser.id && msg.read_at" class="text-xs text-purple-400">Played</span>
-                  <!-- Save button — only if sender allowed it and it's a received message -->
+                  <span v-if="msg.sender_id !== currentUser.id && msg.read_at" class="text-xs text-purple-300">Played</span>
                   <a
                     v-if="msg.allow_download && msg.sender_id !== currentUser.id && audioBlobUrls[msg.id]"
                     :href="audioBlobUrls[msg.id]"
                     download="voice-message.webm"
-                    class="text-xs text-gray-600 hover:text-green-400 transition-all"
+                    class="text-xs text-gray-300 hover:text-green-300 transition-all"
                     title="Save recording"
                   >⬇</a>
                   <button
                     @click="deleteMsg(msg)"
-                    class="text-xs text-gray-600 hover:text-red-400 transition-all"
+                    class="text-xs text-gray-400 hover:text-red-300 transition-all"
                     :title="msg.sender_id === currentUser.id ? 'Delete for everyone' : 'Delete for me'"
                   >✕</button>
                 </div>
