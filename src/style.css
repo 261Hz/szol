@@ -26,3 +26,12 @@ span[class*="cursor-pointer"] {
 [tabindex="0"] span[class*="cursor-pointer"] {
   touch-action: auto;
 }
+
+/* Number pronunciation annotations */
+ruby.szol-num { ruby-align: center; }
+ruby.szol-num rt {
+  font-size: 0.6em;
+  color: #6b7280;
+  font-style: normal;
+  font-weight: normal;
+}
