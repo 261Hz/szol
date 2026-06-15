@@ -79,10 +79,9 @@
                     title="Save recording"
                   >⬇</a>
                   <button
-                    v-if="msg.sender_id !== currentUser.id"
                     @click="deleteMsg(msg)"
                     class="text-xs text-gray-600 hover:text-red-400 transition-all"
-                    title="Delete"
+                    :title="msg.sender_id === currentUser.id ? 'Delete for everyone' : 'Delete for me'"
                   >✕</button>
                 </div>
               </div>
@@ -344,7 +343,13 @@ async function markRead(msg) {
 async function deleteMsg(msg) {
   await fetch(`${API_URL}/messages/${msg.id}`, { method: 'DELETE', headers: authH() })
   inbox.value = inbox.value.filter(m => m.id !== msg.id)
-  if (audioBlobUrls.value[msg.id]) URL.revokeObjectURL(audioBlobUrls.value[msg.id])
+  sent.value  = sent.value.filter(m => m.id !== msg.id)
+  if (audioBlobUrls.value[msg.id]) {
+    URL.revokeObjectURL(audioBlobUrls.value[msg.id])
+    const updated = { ...audioBlobUrls.value }
+    delete updated[msg.id]
+    audioBlobUrls.value = updated
+  }
 }
 
 // ── Recording ─────────────────────────────────────────────────────────────────
