@@ -73,9 +73,8 @@ const tabs = computed(() => [
   { key: 'listen',   label: t(props.lang, 'listen') },
   { key: 'speak',    label: t(props.lang, 'speak') },
   { key: 'write',    label: t(props.lang, 'write') },
-  { key: 'chat',     label: '💬 Tutor' },
   { key: 'vocab',    label: t(props.lang, 'vocab') },
   { key: 'library',  label: t(props.lang, 'library') },
-  { key: 'messages', label: '🎙' },
+  { key: 'messages', label: '🎙 Voice' },
 ])
 </script>
