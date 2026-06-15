@@ -140,38 +140,6 @@
       </div>
     </div>
 
-    <!-- ─── 💡 CONCEPT OF THE DAY ─── -->
-    <div class="border border-gray-700 rounded-lg overflow-hidden">
-      <button @click="toggle('concept')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>💡 Concept of the Day</span>
-        <span class="text-gray-500 text-xs">{{ open.concept ? '▲' : '▼' }}</span>
-      </button>
-      <div v-if="open.concept" class="px-4 pb-4 pt-2 flex flex-col gap-3">
-        <!-- Category + concept label -->
-        <div>
-          <div class="text-xs text-gray-500 uppercase tracking-wide mb-0.5">
-            {{ conceptDay.categoryEmoji }} {{ conceptDay.category }}
-          </div>
-          <div class="text-base font-semibold text-gray-100">{{ conceptDay.concept }}</div>
-        </div>
-
-        <div v-if="conceptLoading" class="text-xs text-gray-500 py-2">{{ t(lang, 'loading') }}</div>
-        <div v-else-if="conceptError" class="text-xs text-red-400 py-2">{{ conceptError }}</div>
-        <div
-          v-else-if="conceptSentence"
-          class="bg-slate-900 rounded-lg px-4 py-3 text-base leading-relaxed"
-          :dir="['he','ar','arz'].includes(lang) ? 'rtl' : 'ltr'"
-        >
-          <ClickableText
-            :text="conceptSentence"
-            :lang="lang"
-            :savedWords="savedWordsSet"
-            @tap="({ word, sentence }) => saveFromLibrary(word, sentence)"
-          />
-        </div>
-      </div>
-    </div>
-
     <!-- ─── 🌍 TODAY ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('today')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
@@ -400,9 +368,8 @@ import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import ClickableText from '../components/ClickableText.vue'
 // Supabase functions: fetch/submit stories from the remote database.
-import { fetchCommunityStories, submitStory, fetchCuratedStories, fetchConceptTranslations, saveUserStory, getUserStories, deleteUserStory, fetchFeed } from '../utils/api.js'
+import { fetchCommunityStories, submitStory, fetchCuratedStories, saveUserStory, getUserStories, deleteUserStory, fetchFeed } from '../utils/api.js'
 import { getAllProgress } from '../utils/api.js'
-import { getConceptOfDay } from '../data/concepts.js'
 // Wikipedia helpers for the Today and On This Day sections.
 import { fetchFeaturedArticle, fetchOnThisDay, fetchQuoteOfDay } from '../utils/wikipedia.js'
 // Wikivoyage helpers for the Travel section.
@@ -595,7 +562,6 @@ const open = ref({
   inprogress: true,
   curated:    true,
   feed:       false,
-  concept:    false,
   today:      false,
   quote:      false,
   litclock:   false,
@@ -612,38 +578,13 @@ async function toggle(section) {
   open.value[section] = !open.value[section]
   if (open.value[section]) {
     // Only fetch if: the section just opened AND we don't already have data AND not currently loading.
-    if (section === 'feed'      && !feedStories.value.length && !feedLoading.value)  await loadFeed(true)
-    if (section === 'concept'   && !conceptSentence.value && !conceptLoading.value) await loadConcept()
+    if (section === 'feed'      && !feedStories.value.length && !feedLoading.value) await loadFeed(true)
     if (section === 'today'     && !todayArticle.value && !todayLoading.value) await loadToday()
     if (section === 'quote'     && !quoteOfDay.value   && !quoteLoading.value) await loadQuote()
     if (section === 'litclock'  && !litClockQuote.value && !litClockLoading.value) await fetchLitClock()
     if (section === 'onthisday' && !onThisDay.value.length && !otdLoading.value) await loadOnThisDay()
   }
 }
-
-// ── Concept of the Day ────────────────────────────────────────────────────────
-const conceptDay      = getConceptOfDay()
-const conceptSentence = ref('')
-const conceptLoading  = ref(false)
-const conceptError    = ref('')
-
-async function loadConcept() {
-  conceptLoading.value = true
-  conceptError.value   = ''
-  conceptSentence.value = ''
-  try {
-    conceptSentence.value = await fetchConceptTranslations(conceptDay.concept, conceptDay.category, props.lang)
-  } catch (e) {
-    conceptError.value = e.message || 'Could not load concept.'
-  } finally {
-    conceptLoading.value = false
-  }
-}
-
-// Reload when language changes (different sentence needed)
-watch(() => props.lang, () => {
-  if (open.value.concept) loadConcept()
-})
 
 // ── Today (Wikipedia Featured Article) ────────────────────────
 const todayArticle = ref(null) // { title, extract, thumbnail, url } or null
