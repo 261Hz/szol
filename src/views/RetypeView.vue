@@ -277,6 +277,26 @@ const overlayEl          = ref(null)
 const historyEl          = ref(null)
 const hiddenInput        = ref(null)
 
+// ── Local progress helpers ────────────────────────────────────────────────────
+
+function localKey() {
+  return props.story?.id ? `szol_retype_${props.story.id}_${mode.value}` : null
+}
+
+function saveLocalProgress() {
+  const key = localKey()
+  if (!key) return
+  localStorage.setItem(key, JSON.stringify({
+    s: sentenceIdx.value,
+    w: currentWordIndex.value,
+  }))
+}
+
+function clearLocalProgress() {
+  const key = localKey()
+  if (key) localStorage.removeItem(key)
+}
+
 // Rebuild the exercise whenever the story or mode changes, then restore saved progress.
 watch([() => props.story, mode, activeText], async () => {
   sentences.value          = splitSentences(activeText.value)
@@ -289,19 +309,47 @@ watch([() => props.story, mode, activeText], async () => {
   // On mobile, also focus the hidden input to open the keyboard
   hiddenInput.value?.focus()
 
+  // Sentence-level restore from backend (logged-in users, cross-device).
+  let restoredSentence = 0
   if (props.currentUser && props.story?.id) {
     const saved = await getProgress(props.story.id, 'retype')
     if (saved && saved.sentence_index > 0) {
-      const idx = Math.min(saved.sentence_index, sentences.value.length - 1)
-      completedSentences.value = sentences.value.slice(0, idx)
-      sentenceIdx.value        = idx
-      loadSentence(idx)
+      restoredSentence = Math.min(saved.sentence_index, sentences.value.length - 1)
+      completedSentences.value = sentences.value.slice(0, restoredSentence)
+      sentenceIdx.value        = restoredSentence
+      loadSentence(restoredSentence)
     }
+  }
+
+  // Word-level restore from localStorage (all users, same device).
+  const raw = props.story?.id ? localStorage.getItem(localKey()) : null
+  if (raw) {
+    try {
+      const local = JSON.parse(raw)
+      const localS = local.s ?? 0
+      const localW = local.w ?? 0
+      if (localS >= restoredSentence && (localS > restoredSentence || localW > 0)) {
+        const targetS = Math.min(localS, sentences.value.length - 1)
+        completedSentences.value = sentences.value.slice(0, targetS)
+        sentenceIdx.value        = targetS
+        loadSentence(targetS)
+        // Restore word position: mark all completed words green, place cursor at start of current word.
+        if (localW > 0 && localW < words.value.length) {
+          for (let wi = 0; wi < localW; wi++) {
+            words.value[wi].forEach(c => { c.state = 'correct' })
+          }
+          currentWordIndex.value = localW
+        }
+      }
+    } catch {}
   }
 }, { immediate: true })
 
 // Toggling ignorePunct only rebuilds the current sentence — no progress reset.
-watch(ignorePunct, () => loadSentence(sentenceIdx.value))
+watch(ignorePunct, () => {
+  loadSentence(sentenceIdx.value)
+  saveLocalProgress()
+})
 
 // loadSentence() prepares the word/char structure for a given sentence index.
 function loadSentence(idx) {
@@ -323,11 +371,13 @@ async function advanceSentence() {
 
   if (sentenceIdx.value >= sentences.value.length) {
     done.value = true
+    clearLocalProgress()
     window.clarity?.('event', 'retype_completed')
     return
   }
 
   loadSentence(sentenceIdx.value)
+  saveLocalProgress()
 
   // Scroll the history panel to the bottom so the latest completed sentence is visible.
   await nextTick()
@@ -360,6 +410,7 @@ function onKey(e) {
       // Move to the next word within the same sentence.
       currentWordIndex.value++
       currentCharIndex.value = 0
+      saveLocalProgress()
     } else {
       // Last word of the sentence done — advance to the next sentence.
       advanceSentence()
@@ -407,6 +458,7 @@ function onKey(e) {
       if (!isLastWord) {
         currentWordIndex.value++
         currentCharIndex.value = 0
+        saveLocalProgress()
       } else {
         advanceSentence()
       }
