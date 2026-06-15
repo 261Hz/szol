@@ -178,3 +178,18 @@ class CorpusSentence(Base):
     sentence      = Column(String, nullable=False)
     source        = Column(String(50), nullable=False, server_default="leipzig")
     score         = Column(Integer, nullable=False, index=True)  # 0–100, higher = better example
+
+
+class FeedStory(Base):
+    __tablename__ = "feed_stories"
+
+    id           = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
+    title        = Column(String, nullable=False)
+    text         = Column(String, nullable=False)
+    lang         = Column(String, nullable=False, index=True)
+    source_name  = Column(String, nullable=False)
+    source_url   = Column(String, nullable=False, unique=True)
+    license      = Column(String, nullable=False)
+    author       = Column(String)
+    published_at = Column(TIMESTAMP(timezone=True))
+    fetched_at   = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))

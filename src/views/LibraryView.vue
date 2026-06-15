@@ -34,6 +34,15 @@
           <span v-if="story.community" class="text-xs text-blue-400">{{ t(lang, 'community') }}</span>
           <span v-if="story.local" class="text-xs text-gray-400">{{ t(lang, 'local') }}</span>
           <span v-if="story.franco" class="text-xs text-orange-400">franco</span>
+          <span v-if="story.feed" class="text-xs text-violet-400">{{ story.source_name }}</span>
+          <a
+            v-if="story.feed && story.source_url"
+            :href="story.source_url"
+            target="_blank"
+            rel="noopener noreferrer"
+            @click.stop
+            class="text-xs text-gray-300 hover:text-gray-500 underline"
+          >↗</a>
         </div>
       </div>
     </div>
@@ -106,6 +115,7 @@ import { LANGS } from '../data/stories.js'
 import { isRTL } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
 import { fetchCommunityStories, submitStory, fetchCuratedStories } from '../utils/supabase.js'
+import { fetchFeed } from '../utils/api.js'
 
 const props = defineProps({
   lang: String,
@@ -118,6 +128,7 @@ const loading = ref(true)
 const curatedStories = ref([])
 const localStories = ref([])
 const communityStories = ref([])
+const feedStories = ref([])
 const customTitle = ref('')
 const customText = ref('')
 const customFranco = ref('')
@@ -129,17 +140,24 @@ const submitting = ref(false)
 onMounted(async () => {
   const saved = localStorage.getItem('szol_local_stories')
   if (saved) localStories.value = JSON.parse(saved)
-  const [curated, community] = await Promise.all([
+  const [curated, community, feed] = await Promise.all([
     fetchCuratedStories(),
     fetchCommunityStories(),
+    fetchFeed(props.lang),
   ])
   curatedStories.value = curated
   communityStories.value = community
+  feedStories.value = feed.map(s => ({ ...s, feed: true, source: s.source_name }))
   loading.value = false
 })
 
 const filtered = computed(() => {
-  const all = [...curatedStories.value, ...localStories.value, ...communityStories.value]
+  const all = [
+    ...curatedStories.value,
+    ...localStories.value,
+    ...communityStories.value,
+    ...feedStories.value,
+  ]
   return all.filter(s => s.lang === props.lang)
 })
 

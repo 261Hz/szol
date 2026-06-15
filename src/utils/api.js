@@ -160,6 +160,18 @@ export async function getProgress(storyId, tab) {
 
 // ── AI tutor chat ─────────────────────────────────────────────────────────────
 
+// ── Feed stories (ingested from external sources) ─────────────────────────────
+
+export async function fetchFeed(lang, skip = 0, limit = 40) {
+  const res = await apiFetch(
+    `${API_URL}/feed/?lang=${encodeURIComponent(lang)}&skip=${skip}&limit=${limit}`
+  ).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json()
+}
+
+// ── AI tutor chat ─────────────────────────────────────────────────────────────
+
 export async function sendChat({ message, storyContent, lang, history, vocab, proficiency }) {
   const res = await apiFetch(`${API_URL}/chat`, {
     method: 'POST',

@@ -244,3 +244,20 @@ class VoiceMessageResponse(BaseModel):
     sender_username: Optional[str]      = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ── Feed stories (ingested from external sources) ─────────────────────────────
+
+class FeedStoryResponse(BaseModel):
+    id:           UUID
+    title:        str
+    text:         str
+    lang:         str
+    source_name:  str
+    source_url:   str
+    license:      str
+    author:       Optional[str]      = None
+    published_at: Optional[datetime] = None
+    fetched_at:   datetime
+
+    model_config = ConfigDict(from_attributes=True)
