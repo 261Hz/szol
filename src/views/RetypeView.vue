@@ -93,7 +93,7 @@
               class="inline whitespace-nowrap rounded transition-colors hover:bg-green-950 active:bg-green-950 select-none bg-transparent border-0 p-0 m-0 font-[inherit] leading-[inherit] cursor-pointer"
               :class="savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-green-500 decoration-dotted underline-offset-2' : ''"
               @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
-            ><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span></button>
+            ><ruby v-if="wordNum(word)" class="szol-num"><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span><rt>{{ wordNum(word) }}</rt></ruby><template v-else><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span></template></button>
             <span v-if="wi < words.length - 1 && !isCJK" :class="spaceClass(wi)">{{ ' ' }}</span>
           </template>
         </template>
@@ -143,6 +143,7 @@ import { LANGS } from '../data/stories.js'
 import { useVoiceList, voicesForLang, pickVoice } from '../utils/voices.js'
 import { trackWord, saveProgress, getProgress } from '../utils/api.js'
 import ClickableText from '../components/ClickableText.vue'
+import { numToWords } from '../utils/numWords.js'
 
 const props = defineProps({
   story:       Object,
@@ -492,6 +493,14 @@ const barColor = computed(() => {
   if (pct.value >= 60) return '#f59e0b' // amber
   return '#ef4444'                       // red (just starting)
 })
+
+// ── Number pronunciation ──────────────────────────────────────────────────────
+
+function wordNum(word) {
+  const text = word.map(c => c.char).join('')
+  if (!/^\d+$/.test(text)) return null
+  return numToWords(parseInt(text, 10), props.lang)
+}
 
 // ── Mobile keyboard helper ────────────────────────────────────────────────────
 

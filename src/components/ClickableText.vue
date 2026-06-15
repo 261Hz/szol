@@ -2,7 +2,7 @@
   <span :dir="isRTL(lang) ? 'rtl' : 'ltr'">
     <span v-for="(tok, i) in tokens" :key="i">
       <button
-        v-if="tok.type === 'word'"
+        v-if="tok.type === 'word' && !tok.numWord"
         type="button"
         @click="handleClick(tok.text)"
         @touchstart.passive="handleTouchStart($event, tok.text)"
@@ -13,6 +13,7 @@
           savedWords && savedWords.has(normalize(tok.text)) ? 'bg-green-900 text-green-300' : '',
         ]"
       >{{ tok.text }}</button>
+      <ruby v-else-if="tok.type === 'word' && tok.numWord" class="szol-num">{{ tok.text }}<rt>{{ tok.numWord }}</rt></ruby>
       <span v-else>{{ tok.text }}</span>
     </span>
   </span>
@@ -39,6 +40,7 @@
 import { ref, computed } from 'vue'
 import { isRTL } from '../utils/rtl.js'
 import { normalize } from '../utils/scoring.js'
+import { numToWords } from '../utils/numWords.js'
 
 const props = defineProps({
   text:       String,
@@ -56,12 +58,14 @@ const tokens = computed(() => {
     return [...text].map(char => ({
       type: /\s/.test(char) ? 'space' : 'word',
       text: char,
+      numWord: null,
     }))
   }
-  return text.split(/(\s+)/).map(tok => ({
-    type: /^\s+$/.test(tok) ? 'space' : 'word',
-    text: tok,
-  }))
+  return text.split(/(\s+)/).map(tok => {
+    if (/^\s+$/.test(tok)) return { type: 'space', text: tok, numWord: null }
+    const numWord = /^\d+$/.test(tok) ? numToWords(parseInt(tok, 10), props.lang) : null
+    return { type: 'word', text: tok, numWord }
+  })
 })
 
 // ── Desktop: direct click ─────────────────────────────────────────────────────
