@@ -14,6 +14,11 @@ class Settings(BaseSettings):
 
     RESEND_API_KEY:  str = ""
     RESEND_FROM:     str = "Szol <noreply@yourdomain.com>"
+
+    # Alternative: Gmail SMTP (free). Set both to use Gmail instead of Resend.
+    GMAIL_USER:         str = ""   # your.address@gmail.com
+    GMAIL_APP_PASSWORD: str = ""   # 16-char app password from myaccount.google.com
+
     FRONTEND_URL:    str = "https://szol.vercel.app"
     BACKEND_URL:     str = "https://szol.onrender.com"
     TURNSTILE_SECRET: str = ""   # Cloudflare Turnstile secret key
