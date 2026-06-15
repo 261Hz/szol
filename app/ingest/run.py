@@ -28,10 +28,13 @@ def run(
     dry_run: bool = False,
 ) -> int:
     from sqlalchemy.orm import Session
-    from ..database import SessionLocal
+    from ..database import SessionLocal, engine
+    from .. import models
     from ..models import FeedStory
     from .fetch import fetch_source
     from .sources import SOURCES
+
+    models.Base.metadata.create_all(bind=engine)
 
     sources = SOURCES
     if lang_filter:

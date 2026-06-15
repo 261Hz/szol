@@ -13,13 +13,17 @@
         :key="tab.key"
         @click="$emit('tab', tab.key)"
         :class="[
-          'px-4 py-1.5 rounded-md text-sm transition-all',
+          'px-4 py-1.5 rounded-md text-sm transition-all relative',
           active === tab.key
             ? 'bg-gray-100 text-gray-900 font-medium'
             : 'text-gray-500 hover:text-gray-900'
         ]"
       >
         {{ tab.label }}
+        <span v-if="tab.key === 'messages' && unreadMessages > 0"
+          class="absolute -top-1 -right-1 bg-blue-500 text-white text-[9px] leading-none rounded-full w-3.5 h-3.5 flex items-center justify-center">
+          {{ unreadMessages > 9 ? '9+' : unreadMessages }}
+        </span>
       </button>
     </div>
 
@@ -57,18 +61,20 @@ import { LANGS } from '../data/stories.js'
 import { t } from '../utils/i18n.js'
 
 const props = defineProps({
-  active:      String,
-  lang:        String,
-  currentUser: Object,
+  active:         String,
+  lang:           String,
+  currentUser:    Object,
+  unreadMessages: { type: Number, default: 0 },
 })
 
 defineEmits(['tab', 'lang', 'auth', 'logout'])
 
 const tabs = computed(() => [
-  { key: 'read',    label: t(props.lang, 'read') },
-  { key: 'retype',  label: t(props.lang, 'retype') },
-  { key: 'speak',   label: t(props.lang, 'speak') },
-  { key: 'vocab',   label: t(props.lang, 'vocab') },
-  { key: 'library', label: t(props.lang, 'library') },
+  { key: 'read',     label: t(props.lang, 'read') },
+  { key: 'retype',   label: t(props.lang, 'retype') },
+  { key: 'speak',    label: t(props.lang, 'speak') },
+  { key: 'vocab',    label: t(props.lang, 'vocab') },
+  { key: 'library',  label: t(props.lang, 'library') },
+  { key: 'messages', label: 'Voice' },
 ])
 </script>

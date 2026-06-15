@@ -31,10 +31,21 @@ function normalize(word) {
   return word.toLowerCase().replace(/[^\p{L}\p{M}]/gu, '')
 }
 
-const tokens = computed(() =>
-  (props.text || '').split(/(\s+)/).map(tok => ({
+const CJK_LANGS = new Set(['ja', 'zh', 'cmn', 'yue', 'ko'])
+
+const tokens = computed(() => {
+  const text = props.text || ''
+  if (CJK_LANGS.has(props.lang)) {
+    // CJK has no spaces between words — each character is an independently
+    // tappable unit so learners can look up individual kanji/hanzi
+    return [...text].map(char => ({
+      type: /\s/.test(char) ? 'space' : 'word',
+      text: char,
+    }))
+  }
+  return text.split(/(\s+)/).map(tok => ({
     type: /^\s+$/.test(tok) ? 'space' : 'word',
     text: tok,
   }))
-)
+})
 </script>

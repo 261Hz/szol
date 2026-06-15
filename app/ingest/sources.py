@@ -58,6 +58,8 @@ SOURCES = [
         "feed_url": "https://aeon.co/feed.rss",
         "lang": "en",
         "license": "CC BY-ND 4.0",
+        "fetch_full_text": False,  # aeon.co returns 429 on direct page fetches
+        "min_words": 60,           # RSS entries are excerpts, not full essays
     },
     {
         "name": "NASA",
@@ -91,6 +93,54 @@ SOURCES = [
         "lang": "en",
         "license": "attribution",
     },
+    {
+        "name": "Why Is This Interesting",
+        "feed_url": "https://whyisthisinteresting.substack.com/feed",
+        "lang": "en",
+        "license": "attribution",
+    },
+    {
+        "name": "Culture Study",
+        "feed_url": "https://annehelen.substack.com/feed",
+        "lang": "en",
+        "license": "attribution",
+    },
+    {
+        "name": "Damn Interesting",
+        "feed_url": "https://www.damninteresting.com/?feed=rss2",
+        "lang": "en",
+        "license": "CC BY-NC-SA 3.0",
+    },
+    {
+        "name": "Atlas Obscura",
+        "feed_url": "https://www.atlasobscura.com/feeds/latest",
+        "lang": "en",
+        "license": "attribution",
+    },
+    {
+        "name": "Wait But Why",
+        "feed_url": "https://waitbutwhy.com/feed",
+        "lang": "en",
+        "license": "attribution",
+    },
+    {
+        "name": "Quanta Magazine",
+        "feed_url": "https://www.quantamagazine.org/feed/",
+        "lang": "en",
+        "license": "attribution",
+    },
+    {
+        "name": "Nautilus",
+        "feed_url": "https://nautil.us/feed/",
+        "lang": "en",
+        "license": "attribution",
+    },
+    {
+        "name": "Works in Progress",
+        "feed_url": "https://worksinprogress.co/rss/",
+        "lang": "en",
+        "license": "attribution",
+    },
 
     # ── French ──────────────────────────────────────────────────────────────
     {
@@ -99,6 +149,12 @@ SOURCES = [
         "lang": "fr",
         "license": "CC BY-ND 4.0",
     },
+    {
+        "name": "Sciences et Avenir",
+        "feed_url": "https://www.sciencesetavenir.fr/rss.xml",
+        "lang": "fr",
+        "license": "attribution",
+    },
 
     # ── Spanish ─────────────────────────────────────────────────────────────
     {
@@ -106,6 +162,12 @@ SOURCES = [
         "feed_url": "https://theconversation.com/es/articles.atom",
         "lang": "es",
         "license": "CC BY-ND 4.0",
+    },
+    {
+        "name": "Muy Interesante",
+        "feed_url": "https://www.muyinteresante.es/rss/",
+        "lang": "es",
+        "license": "attribution",
     },
 
     # ── Portuguese ──────────────────────────────────────────────────────────
@@ -132,12 +194,16 @@ SOURCES = [
 
     # ── Japanese ────────────────────────────────────────────────────────────
     {
-        "name": "NHK Easy News",
-        "feed_url": "https://www3.nhk.or.jp/news/easy/feed/news-easy.xml",
+        "name": "Gigazine",
+        "feed_url": "https://gigazine.net/news/rss_atom/",
         "lang": "ja",
         "license": "attribution",
-        "fetch_full_text": False,  # feed includes full simplified text + furigana
-        "min_words": 30,           # Japanese articles are shorter by word count
+    },
+    {
+        "name": "Rocket News 24",
+        "feed_url": "https://rocketnews24.com/feed/",
+        "lang": "ja",
+        "license": "attribution",
     },
 
     # ── German ──────────────────────────────────────────────────────────────
@@ -150,10 +216,22 @@ SOURCES = [
 
     # ── Italian ─────────────────────────────────────────────────────────────
     {
-        "name": "The Conversation Italy",
-        "feed_url": "https://theconversation.com/it/articles.atom",
+        "name": "Il Post",
+        "feed_url": "https://www.ilpost.it/?feed=rss2",
         "lang": "it",
-        "license": "CC BY-ND 4.0",
+        "license": "attribution",
+    },
+    {
+        "name": "Le Scienze",
+        "feed_url": "https://www.lescienze.it/rss/",
+        "lang": "it",
+        "license": "attribution",
+    },
+    {
+        "name": "Internazionale",
+        "feed_url": "https://www.internazionale.it/rss/tutto",
+        "lang": "it",
+        "license": "attribution",
     },
 
     # ── Add more sources here ────────────────────────────────────────────────

@@ -49,4 +49,11 @@ def extract_article(html_content: str) -> str | None:
 
 
 def is_usable(text: str, min_words: int = 120) -> bool:
-    return bool(text) and len(text.split()) >= min_words
+    if not text:
+        return False
+    if len(text.split()) >= min_words:
+        return True
+    # Japanese/Chinese/Korean don't use spaces between words — count CJK
+    # characters instead (≈3 chars per English-equivalent word)
+    cjk = sum(1 for c in text if '぀' <= c <= '鿿' or '가' <= c <= '힯')
+    return cjk >= min_words * 3

@@ -231,17 +231,18 @@ class UserStoryResponse(UserStoryCreate):
 # ── Voice messages ────────────────────────────────────────────────────────────
 
 class VoiceMessageResponse(BaseModel):
-    id:              UUID
-    sender_id:       UUID
-    recipient_id:    UUID
-    audio_url:       str
-    lang:            str
-    duration_ms:     Optional[int]      = None
-    allow_download:  bool               = True
-    read_at:         Optional[datetime] = None
-    expires_at:      Optional[datetime] = None
-    created_at:      datetime
-    sender_username: Optional[str]      = None
+    id:                 UUID
+    sender_id:          UUID
+    recipient_id:       UUID
+    audio_url:          str
+    lang:               str
+    duration_ms:        Optional[int]      = None
+    allow_download:     bool               = True
+    read_at:            Optional[datetime] = None
+    expires_at:         Optional[datetime] = None
+    created_at:         datetime
+    sender_username:    Optional[str]      = None
+    recipient_username: Optional[str]      = None
 
     model_config = ConfigDict(from_attributes=True)
 

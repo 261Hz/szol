@@ -108,6 +108,14 @@ async def send_voice_message(
     if str(current_user.id) == str(recipient_id):
         raise HTTPException(400, "Cannot send a message to yourself")
 
+    # Silently enforce blocks (blocked users get a generic 404 so they don't know)
+    blocked = db.query(models.UserBlock).filter(
+        models.UserBlock.blocker_id == recipient_id,
+        models.UserBlock.blocked_id == current_user.id,
+    ).first()
+    if blocked:
+        raise HTTPException(404, "This user is not accepting voice messages")
+
     # Upload to private bucket — store path only, never expose a public URL
     path      = f"{current_user.id}/{uuid.uuid4()}.webm"
     _upload(audio_bytes, path, ct or "audio/webm")
@@ -183,12 +191,17 @@ def get_inbox(
     current_user: models.User = Depends(oauth2.get_current_user),
 ):
     rows = db.execute(text("""
-        SELECT vm.*, u.username AS sender_username
+        SELECT vm.*, s.username AS sender_username, r.username AS recipient_username
         FROM   voice_messages vm
-        JOIN   users u ON u.id = vm.sender_id
+        JOIN   users s ON s.id = vm.sender_id
+        JOIN   users r ON r.id = vm.recipient_id
         WHERE  vm.recipient_id = :uid
           AND  vm.recipient_deleted_at IS NULL
           AND  (vm.expires_at IS NULL OR vm.expires_at > now())
+          AND  NOT EXISTS (
+                   SELECT 1 FROM user_blocks ub
+                   WHERE  ub.blocker_id = :uid AND ub.blocked_id = vm.sender_id
+               )
         ORDER  BY vm.created_at DESC
     """), {"uid": current_user.id}).fetchall()
     return [schemas.VoiceMessageResponse(**dict(r._mapping)) for r in rows]
@@ -200,13 +213,51 @@ def get_sent(
     current_user: models.User = Depends(oauth2.get_current_user),
 ):
     rows = db.execute(text("""
-        SELECT vm.*, u.username AS sender_username
+        SELECT vm.*, s.username AS sender_username, r.username AS recipient_username
         FROM   voice_messages vm
-        JOIN   users u ON u.id = vm.sender_id
+        JOIN   users s ON s.id = vm.sender_id
+        JOIN   users r ON r.id = vm.recipient_id
         WHERE  vm.sender_id = :uid
+          AND  (vm.expires_at IS NULL OR vm.expires_at > now())
         ORDER  BY vm.created_at DESC
     """), {"uid": current_user.id}).fetchall()
     return [schemas.VoiceMessageResponse(**dict(r._mapping)) for r in rows]
+
+
+@router.post("/block/{target_id}", status_code=status.HTTP_204_NO_CONTENT)
+def block_user(
+    target_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(oauth2.get_current_user),
+):
+    if str(current_user.id) == target_id:
+        raise HTTPException(400, "Cannot block yourself")
+    existing = db.query(models.UserBlock).filter(
+        models.UserBlock.blocker_id == current_user.id,
+        models.UserBlock.blocked_id == target_id,
+    ).first()
+    if not existing:
+        db.add(models.UserBlock(blocker_id=current_user.id, blocked_id=target_id))
+    # Soft-delete all their messages from your inbox
+    db.execute(text("""
+        UPDATE voice_messages
+        SET    recipient_deleted_at = now()
+        WHERE  recipient_id = :uid AND sender_id = :blocked AND recipient_deleted_at IS NULL
+    """), {"uid": current_user.id, "blocked": target_id})
+    db.commit()
+
+
+@router.delete("/block/{target_id}", status_code=status.HTTP_204_NO_CONTENT)
+def unblock_user(
+    target_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(oauth2.get_current_user),
+):
+    db.query(models.UserBlock).filter(
+        models.UserBlock.blocker_id == current_user.id,
+        models.UserBlock.blocked_id == target_id,
+    ).delete()
+    db.commit()
 
 
 @router.patch("/{msg_id}/read", response_model=schemas.VoiceMessageResponse)

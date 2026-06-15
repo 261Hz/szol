@@ -9,6 +9,7 @@
       :active="activeTab"
       :lang="activeLang"
       :current-user="currentUser"
+      :unread-messages="unreadMessages"
       @tab="activeTab = $event"
       @lang="changeLang"
       @auth="showAuth = true"
@@ -60,6 +61,13 @@
         @save-word="addToVocab"
       />
 
+      <VoiceView
+        v-if="activeTab === 'messages'"
+        :current-user="currentUser"
+        @open-auth="showAuth = true"
+        @unread-count="unreadMessages = $event"
+      />
+
     </main>
 
     <AuthModal
@@ -82,9 +90,11 @@ import LibraryView  from './views/LibraryView.vue'
 import VocabView    from './views/VocabView.vue'
 import SpeakView    from './views/SpeakView.vue'
 import LangPickView from './views/LangPickView.vue'
+import VoiceView    from './views/VoiceView.vue'
 import { getMe, logout, onUnauthorized } from './utils/api.js'
 
-const activeTab    = ref('library')
+const activeTab      = ref('library')
+const unreadMessages = ref(0)
 // Read saved language; null = first visit, show the picker
 const activeLang   = ref(localStorage.getItem('szol_lang') || null)
 const currentStory = ref(null)

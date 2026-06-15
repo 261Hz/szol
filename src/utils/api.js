@@ -160,6 +160,63 @@ export async function getProgress(storyId, tab) {
 
 // ── AI tutor chat ─────────────────────────────────────────────────────────────
 
+// ── Voice messages ────────────────────────────────────────────────────────────
+
+export async function getInbox() {
+  const res = await apiFetch(`${API_URL}/messages/inbox`, { headers: authHeaders() }).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json()
+}
+
+export async function getSent() {
+  const res = await apiFetch(`${API_URL}/messages/sent`, { headers: authHeaders() }).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json()
+}
+
+export async function markMessageRead(id) {
+  await apiFetch(`${API_URL}/messages/${id}/read`, { method: 'PATCH', headers: authHeaders() }).catch(() => {})
+}
+
+export async function deleteMessage(id) {
+  const res = await apiFetch(`${API_URL}/messages/${id}`, { method: 'DELETE', headers: authHeaders() })
+  if (!res.ok) throw new Error('Delete failed')
+}
+
+export async function blockUser(userId) {
+  const res = await apiFetch(`${API_URL}/messages/block/${userId}`, { method: 'POST', headers: authHeaders() })
+  if (!res.ok) throw new Error('Block failed')
+}
+
+export async function fetchAudioBlob(msgId) {
+  const res = await apiFetch(`${API_URL}/messages/${msgId}/audio`, { headers: authHeaders() }).catch(() => null)
+  if (!res?.ok) return null
+  const blob = await res.blob()
+  return URL.createObjectURL(blob)
+}
+
+export async function sendVoiceMessage(formData) {
+  const res = await apiFetch(`${API_URL}/messages/`, {
+    method: 'POST',
+    headers: authHeaders(),  // no Content-Type — browser sets multipart boundary
+    body: formData,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to send message')
+  }
+  return await res.json()
+}
+
+export async function discoverPartners(targetLang) {
+  const res = await apiFetch(
+    `${API_URL}/users/discover?native_lang=${encodeURIComponent(targetLang)}`,
+    { headers: authHeaders() }
+  ).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json()
+}
+
 // ── Feed stories (ingested from external sources) ─────────────────────────────
 
 export async function fetchFeed(lang, skip = 0, limit = 40) {
