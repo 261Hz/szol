@@ -6,15 +6,15 @@
       Sz<span class="text-violet-400">ó</span>l
     </div>
 
-    <!-- Language grid -->
+    <!-- Language grid — sorted by in-app learner count descending -->
     <div class="w-full max-w-sm grid grid-cols-2 sm:grid-cols-3 gap-2">
       <button
-        v-for="(cfg, code) in LANGS"
+        v-for="[code, cfg] in sortedLangs"
         :key="code"
         type="button"
         @click="selected = code"
         :class="[
-          'flex flex-col items-center gap-1.5 px-3 py-3.5 rounded-xl border transition-all text-center',
+          'flex flex-col items-center gap-1 px-3 py-3 rounded-xl border transition-all text-center',
           selected === code
             ? 'border-violet-500 bg-violet-950 text-violet-200'
             : 'border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200',
@@ -22,6 +22,9 @@
       >
         <div class="text-2xl leading-none">{{ FLAGS[code] }}</div>
         <div class="text-xs font-medium leading-tight">{{ cfg.name }}</div>
+        <div v-if="learnerCounts[code]" class="text-[10px] leading-none opacity-50">
+          {{ fmtCount(learnerCounts[code]) }} learners
+        </div>
       </button>
     </div>
 
@@ -49,12 +52,30 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { LANGS } from '../data/stories.js'
+import { fetchLearnerCounts } from '../utils/api.js'
 
 defineEmits(['pick', 'sign-in'])
 
 const selected = ref(null)
+const learnerCounts = ref({})
+
+onMounted(async () => {
+  learnerCounts.value = await fetchLearnerCounts()
+})
+
+const sortedLangs = computed(() =>
+  Object.entries(LANGS).sort(
+    (a, b) => (learnerCounts.value[b[0]] ?? 0) - (learnerCounts.value[a[0]] ?? 0)
+  )
+)
+
+function fmtCount(n) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace('.0', '') + 'M'
+  if (n >= 1_000)     return (n / 1_000).toFixed(1).replace('.0', '') + 'K'
+  return String(n)
+}
 
 const FLAGS = {
   en: '🇬🇧', es: '🇪🇸', fr: '🇫🇷', de: '🇩🇪',

@@ -338,6 +338,12 @@ export async function submitStory(story) {
 
 // ── Feed stories (ingested from external RSS sources) ────────────────────────
 
+export async function fetchLearnerCounts() {
+  const res = await apiFetch(`${API_URL}/stats/learners`).catch(() => null)
+  if (!res?.ok) return {}
+  return await res.json()
+}
+
 export async function fetchFeed(lang, skip = 0, limit = 20) {
   const res = await apiFetch(
     `${API_URL}/feed/?lang=${encodeURIComponent(lang)}&skip=${skip}&limit=${limit}`
