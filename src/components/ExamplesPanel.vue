@@ -35,6 +35,35 @@
       >{{ tab.label }}</button>
     </div>
 
+    <!-- ── CORPUS (LEIPZIG) TAB — auto-loads, no button needed ── -->
+    <div v-if="activeTab === 'corpus'">
+      <div v-if="corpus.loading" class="text-xs text-gray-500">Loading…</div>
+      <div v-else-if="corpus.results.length" class="flex flex-col gap-2">
+        <div v-for="(ex, i) in corpus.results" :key="i">
+          <span
+            class="text-sm text-gray-300 leading-snug"
+            :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+          >
+            <span v-for="(tok, j) in tokenize(ex.sentence)" :key="j">
+              <span
+                v-if="tok.type === 'word'"
+                @click="$emit('tap', { word: tok.text, sentence: ex.sentence })"
+                :class="[
+                  'cursor-pointer rounded px-0.5 transition-all hover:bg-green-950',
+                  savedWords && savedWords.has(normalize(tok.text)) ? 'bg-green-900 text-green-300' : '',
+                ]"
+              >{{ tok.text }}</span>
+              <span v-else>{{ tok.text }}</span>
+            </span>
+          </span>
+        </div>
+      </div>
+      <div v-else-if="corpus.done" class="text-xs text-gray-500">
+        No corpus examples yet —
+        <button @click="setTab('tatoeba')" class="underline hover:text-green-400 transition-all">try Tatoeba</button>
+      </div>
+    </div>
+
     <!-- ── TATOEBA TAB ── -->
     <!-- v-if="activeTab === 'tatoeba'" = only rendered when this tab is selected. -->
     <div v-if="activeTab === 'tatoeba'">
@@ -169,16 +198,12 @@
 <script setup>
 // ref = reactive variable. watch = run a function whenever a reactive value changes.
 import { ref, watch } from 'vue'
-// isRTL = returns true for right-to-left languages (Arabic, Hebrew).
 import { isRTL } from '../utils/rtl.js'
-// normalize() strips punctuation and lowercases a word for consistent Set lookups.
 import { normalize } from '../utils/scoring.js'
-// fetchTatoeba = downloads example sentences. playAudio = plays the MP3 for a sentence.
 import { fetchTatoeba, playAudio } from '../utils/tatoeba.js'
-// searchWikipedia = finds and returns article summaries for a word.
 import { searchWikipedia } from '../utils/wikipedia.js'
-// searchWikiquote = finds Wikiquote pages and returns their summaries.
 import { searchWikiquote } from '../utils/wikiquote.js'
+import { getWordExamples } from '../utils/api.js'
 
 // Props received from the parent (ReadView or VocabView).
 // word       = the cleaned word to look up (no punctuation, e.g. "hola" not "hola,").
@@ -195,34 +220,32 @@ const props = defineProps({
 // 'tap' = user clicked a word inside an example. Payload: { word, sentence }.
 defineEmits(['tap'])
 
-// tabs defines the three source tabs in display order.
-// id = the key used in activeTab comparisons. label = the button text the user sees.
 const tabs = [
+  { id: 'corpus',    label: 'Examples' },
   { id: 'tatoeba',   label: 'Tatoeba' },
   { id: 'wikipedia', label: 'Wikipedia' },
   { id: 'wikiquote', label: 'Wikiquote' },
 ]
 
-// activeTab tracks which tab is currently selected. Starts on Tatoeba (most useful for vocab).
-const activeTab = ref('tatoeba')
+const activeTab = ref('corpus')
 
 // Each source has its own state object with three fields:
 //   loading = true while the network request is in flight (shows "Loading…")
 //   results = the array returned by the fetch (empty until done)
 //   done    = true after the first fetch completes, prevents re-fetching on tab switch
+const corpus  = ref({ loading: false, results: [], done: false })
 const tatoeba = ref({ loading: false, results: [], done: false })
 const wiki    = ref({ loading: false, results: [], done: false })
 const wq      = ref({ loading: false, results: [], done: false })
 
-// Watch the 'word' prop: whenever the user taps a different word, reset all state.
-// This makes the panel start fresh for the new word (shows "See examples" again).
-// watch(getter, callback) — the getter returns the value to watch.
 watch(() => props.word, () => {
+  corpus.value    = { loading: false, results: [], done: false }
   tatoeba.value   = { loading: false, results: [], done: false }
   wiki.value      = { loading: false, results: [], done: false }
   wq.value        = { loading: false, results: [], done: false }
-  activeTab.value = 'tatoeba' // also reset to the first tab
-})
+  activeTab.value = 'corpus'
+  loadCorpus()  // auto-load corpus examples whenever word changes
+}, { immediate: true })
 
 // setTab() switches the active tab.
 function setTab(tab) {
@@ -239,6 +262,14 @@ function tokenize(text) {
     type: /^\s+$/.test(tok) ? 'space' : 'word', // pure whitespace = space token
     text: tok,
   }))
+}
+
+async function loadCorpus() {
+  if (!props.word || corpus.value.loading || corpus.value.done) return
+  corpus.value.loading = true
+  corpus.value.results = await getWordExamples(props.word, props.lang)
+  corpus.value.loading = false
+  corpus.value.done    = true
 }
 
 // loadTatoeba() fetches example sentences for the current word from Tatoeba.

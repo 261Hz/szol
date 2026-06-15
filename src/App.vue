@@ -2,6 +2,25 @@
 <template>
   <div class="min-h-screen bg-gray-950 text-gray-50">
 
+    <!-- Loading splash -->
+    <Transition name="splash">
+      <div
+        v-if="appLoading"
+        class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-gray-950"
+      >
+        <div class="flex flex-col items-center gap-4">
+          <div class="text-4xl font-bold tracking-tight text-gray-100 select-none">
+            Sz<span class="text-green-400">ó</span>l
+          </div>
+          <div class="flex gap-1.5">
+            <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-bounce" style="animation-delay: 0ms" />
+            <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-bounce" style="animation-delay: 150ms" />
+            <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-bounce" style="animation-delay: 300ms" />
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- First-visit onboarding: language picker + sign in / guest -->
     <WelcomeView
       v-if="!activeLang"
@@ -81,7 +100,19 @@
         :current-user="currentUser"
       />
 
-      <SettingsView v-if="activeTab === 'settings'" />
+      <SettingsView
+        v-if="activeTab === 'settings'"
+        :current-user="currentUser"
+        @open-auth="showAuth = true"
+        @user-updated="currentUser = $event"
+      />
+
+      <MessagesView
+        v-if="activeTab === 'messages'"
+        :current-user="currentUser"
+        :lang="activeLang"
+        @open-auth="showAuth = true"
+      />
 
     </main>
 
@@ -98,6 +129,8 @@
 <script setup>
 import { ref, watch, computed, onMounted, defineAsyncComponent } from 'vue'
 
+const appLoading = ref(true)
+
 import NavBar      from './components/NavBar.vue'
 import AuthModal   from './components/AuthModal.vue'
 import LibraryView from './views/LibraryView.vue'
@@ -107,9 +140,10 @@ const RetypeView   = defineAsyncComponent(() => import('./views/RetypeView.vue')
 const VocabView    = defineAsyncComponent(() => import('./views/VocabView.vue'))
 const SpeakView    = defineAsyncComponent(() => import('./views/SpeakView.vue'))
 const WriteView    = defineAsyncComponent(() => import('./views/WriteView.vue'))
-const SettingsView = defineAsyncComponent(() => import('./views/SettingsView.vue'))
-const ChatView     = defineAsyncComponent(() => import('./views/ChatView.vue'))
-const ListenView   = defineAsyncComponent(() => import('./views/ListenView.vue'))
+const SettingsView  = defineAsyncComponent(() => import('./views/SettingsView.vue'))
+const ChatView      = defineAsyncComponent(() => import('./views/ChatView.vue'))
+const ListenView    = defineAsyncComponent(() => import('./views/ListenView.vue'))
+const MessagesView  = defineAsyncComponent(() => import('./views/MessagesView.vue'))
 
 import { LANGS } from './data/stories.js'
 import { getMe, logout, onUnauthorized, getAccountVocab, saveVocabWord, removeVocabWord } from './utils/api.js'
@@ -154,6 +188,19 @@ onUnauthorized(() => {
 })
 
 onMounted(async () => {
+  // Handle email verification redirect from the backend
+  const params = new URLSearchParams(window.location.search)
+  if (params.get('email_verified')) {
+    showAuth.value = true
+    setTimeout(() => { window.__emailVerifiedToast = 'Email verified! You can now log in.' }, 50)
+    history.replaceState(null, '', window.location.pathname)
+  }
+  if (params.get('email_verify_error') === 'expired') {
+    showAuth.value = true
+    setTimeout(() => { window.__emailVerifiedToast = 'That verification link has expired. Log in and request a new one.' }, 50)
+    history.replaceState(null, '', window.location.pathname)
+  }
+
   const user = await getMe()
   if (user) {
     currentUser.value = user
@@ -161,6 +208,8 @@ onMounted(async () => {
   } else {
     localStorage.removeItem('szol_token')
   }
+
+  appLoading.value = false
 })
 
 // Convert a server UserVocabResponse → local vocabBank entry format
@@ -236,3 +285,8 @@ function handleLogout() {
   // Keep local vocab in localStorage; server copy is preserved for next login
 }
 </script>
+
+<style>
+.splash-leave-active { transition: opacity 0.4s ease; }
+.splash-leave-to    { opacity: 0; }
+</style>

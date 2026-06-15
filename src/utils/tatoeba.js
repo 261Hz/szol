@@ -36,18 +36,63 @@ export async function fetchTatoeba(word, lang) {
   //
   // native_lang=code restricts results to sentences originally written in this language
   // (not machine translations), giving more natural example sentences.
-  const url = `/api/tatoeba?query=${encodeURIComponent(word)}&from=${code}&native_lang=${code}&limit=4`
+  const url = `/api/tatoeba?query=${encodeURIComponent(word)}&from=${code}&native_lang=${code}&limit=12`
   try {
-    const res = await fetch(url)  // res = the HTTP response object
-    if (!res.ok) return []        // non-200 status (e.g. 500 from our proxy) -- return empty
-    const data = await res.json() // parse the response body as JSON
-    // data.results is the array of sentence objects from Tatoeba.
-    // ?? [] = use empty array if the key is missing.
-    return data.results ?? []
+    const res = await fetch(url)
+    if (!res.ok) return []
+    const data = await res.json()
+    const raw = data.results ?? []
+    return scoreSentences(raw, word).slice(0, 5)
   } catch {
-    // Network error, CORS issue, etc. -- fail silently and return empty.
     return []
   }
+}
+
+// scoreSentences() filters and ranks Tatoeba results using GDEX-inspired criteria:
+//   - Knock-outs: too short, too long, no finite structure, mostly non-letters
+//   - Bonuses: has audio, optimal length, word appears prominently
+// Returns results sorted best-first.
+function scoreSentences(sentences, word) {
+  const norm = word.toLowerCase()
+
+  return sentences
+    .map(s => {
+      const text   = s.text ?? ''
+      const words  = text.trim().split(/\s+/)
+      const wcount = words.length
+
+      // ── Knock-out criteria (score 0 = filtered out) ──────────────────────
+      if (wcount < 4)  return null                        // too short to be useful
+      if (wcount > 30) return null                        // too long to read comfortably
+      if (!/\p{L}/u.test(text)) return null               // no letters at all
+      if (/^[A-Z\s]+$/.test(text)) return null            // ALL CAPS (usually a title/header)
+      const letterRatio = (text.match(/\p{L}/gu) ?? []).length / text.length
+      if (letterRatio < 0.5) return null                  // mostly numbers/punctuation
+
+      // ── Gradual scoring ───────────────────────────────────────────────────
+      let score = 0.5
+
+      // Prefer sentences with audio recordings (native pronunciation available)
+      if (s.audios?.length) score += 0.2
+
+      // Optimal length 8–18 words
+      if (wcount >= 8 && wcount <= 18) score += 0.15
+      else if (wcount >= 5 && wcount <= 25) score += 0.05
+
+      // Word appears as a standalone token (not buried inside another word)
+      const containsWord = words.some(w => w.toLowerCase().replace(/\p{P}/gu, '') === norm)
+      if (containsWord) score += 0.1
+
+      // Ends with proper sentence-final punctuation
+      if (/[.!?。！？؟]$/.test(text.trim())) score += 0.05
+
+      // Penalise sentences that are mostly a dialogue cue ("- Yes.", "— Okay!")
+      if (/^[-—]/.test(text.trim()) && wcount < 6) score -= 0.3
+
+      return { ...s, _score: score }
+    })
+    .filter(Boolean)
+    .sort((a, b) => b._score - a._score)
 }
 
 // audioUrl() builds the direct MP3 link for a Tatoeba sentence.

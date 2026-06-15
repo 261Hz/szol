@@ -85,6 +85,17 @@
           >{{ savedWords.has(normalize(tapped.word)) ? t(lang, 'saved') : t(lang, 'save') }}</button>
         </div>
 
+        <!-- Frequency rank badge -->
+        <div v-if="tapped.frequencyRank != null" class="flex items-center gap-1.5">
+          <span
+            :class="tapped.frequencyRank <= 500 ? 'text-green-400' : tapped.frequencyRank <= 2000 ? 'text-yellow-400' : 'text-gray-400'"
+            class="text-xs font-medium"
+          >#{{ tapped.frequencyRank.toLocaleString() }}</span>
+          <span class="text-xs text-gray-600">
+            {{ tapped.frequencyRank <= 500 ? 'very common word' : tapped.frequencyRank <= 2000 ? 'common word' : 'less common word' }}
+          </span>
+        </div>
+
         <!-- Context sentence -->
         <div
           v-if="tapped.sentence"
@@ -126,7 +137,7 @@ import { isRTL, hasFranco } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
 import { normalize } from '../utils/scoring.js'
 import { useVoiceList, voicesForLang, pickVoice } from '../utils/voices.js'
-import { trackWord } from '../utils/api.js'
+import { trackWord, getWordFrequency } from '../utils/api.js'
 import ExamplesPanel from '../components/ExamplesPanel.vue'
 
 const props = defineProps({
@@ -179,7 +190,10 @@ function tap(word, contextSentence) {
     ?? props.story?.content.split(/(?<=[.!?؟।。！？])\s*/).find(s => s.includes(word))
     ?? ''
 
-  tapped.value = { word: clean, sentence }
+  tapped.value = { word: clean, sentence, frequencyRank: null }
+  getWordFrequency(clean, props.lang).then(data => {
+    if (tapped.value?.word === clean) tapped.value.frequencyRank = data?.frequency_rank ?? null
+  })
 }
 
 function saveWord() {
