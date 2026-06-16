@@ -14,32 +14,6 @@ Optional keys: fetch_full_text (bool, default True)
 
 SOURCES = [
 
-    # ── English — The Conversation (CC BY-ND 4.0, explicit free republish) ──
-    {
-        "name": "The Conversation US",
-        "feed_url": "https://theconversation.com/us/articles.atom",
-        "lang": "en",
-        "license": "CC BY-ND 4.0",
-    },
-    {
-        "name": "The Conversation UK",
-        "feed_url": "https://theconversation.com/uk/articles.atom",
-        "lang": "en",
-        "license": "CC BY-ND 4.0",
-    },
-    {
-        "name": "The Conversation Australia",
-        "feed_url": "https://theconversation.com/au/articles.atom",
-        "lang": "en",
-        "license": "CC BY-ND 4.0",
-    },
-    {
-        "name": "The Conversation Africa",
-        "feed_url": "https://theconversation.com/africa/articles.atom",
-        "lang": "en",
-        "license": "CC BY-ND 4.0",
-    },
-
     # ── English — curated open sources ──────────────────────────────────────
     {
         "name": "JSTOR Daily",
@@ -144,12 +118,6 @@ SOURCES = [
 
     # ── French ──────────────────────────────────────────────────────────────
     {
-        "name": "The Conversation France",
-        "feed_url": "https://theconversation.com/fr/articles.atom",
-        "lang": "fr",
-        "license": "CC BY-ND 4.0",
-    },
-    {
         "name": "Sciences et Avenir",
         "feed_url": "https://www.sciencesetavenir.fr/rss.xml",
         "lang": "fr",
@@ -157,12 +125,6 @@ SOURCES = [
     },
 
     # ── Spanish ─────────────────────────────────────────────────────────────
-    {
-        "name": "The Conversation España",
-        "feed_url": "https://theconversation.com/es/articles.atom",
-        "lang": "es",
-        "license": "CC BY-ND 4.0",
-    },
     {
         "name": "Muy Interesante",
         "feed_url": "https://www.muyinteresante.es/rss/",
@@ -172,23 +134,9 @@ SOURCES = [
 
     # ── Portuguese ──────────────────────────────────────────────────────────
     {
-        "name": "The Conversation Brazil",
-        "feed_url": "https://theconversation.com/br/articles.atom",
-        "lang": "pt",
-        "license": "CC BY-ND 4.0",
-    },
-    {
         "name": "Agência Pública",
         "feed_url": "https://apublica.org/feed/",
         "lang": "pt",
-        "license": "CC BY-ND 4.0",
-    },
-
-    # ── Indonesian ──────────────────────────────────────────────────────────
-    {
-        "name": "The Conversation Indonesia",
-        "feed_url": "https://theconversation.com/id/articles.atom",
-        "lang": "id",
         "license": "CC BY-ND 4.0",
     },
 
