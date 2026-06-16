@@ -176,24 +176,37 @@ async function tryInstance(base, videoId, lang) {
     const pick   = pickTrack(tracks, lang)
     const capUrl = pick.url?.startsWith('http') ? pick.url : `${base}${pick.url}`
 
-    // Try json3 for word-level timestamps. Non-fatal: Invidious instances that
-    // proxy YouTube's timedtext API pass through the fmt param; others don't.
-    let words = null
+    // Try json3 for word-level timestamps AND as a segment-entry fallback.
+    // YouTube's ASR VTT uses a blank line between the timestamp and its text,
+    // which makes cue-block splitting unreliable. json3 doesn't have that issue.
+    let words  = null
+    let j3Data = null
     try {
       const j3url = new URL(capUrl)
       j3url.searchParams.set('fmt', 'json3')
       const j3res = await fetch(j3url.toString(), { signal: ac.signal })
       if (j3res.ok) {
-        const j3 = await j3res.json().catch(() => null)
-        if (j3?.events) words = parseJson3(j3)
+        j3Data = await j3res.json().catch(() => null)
+        if (j3Data?.events) words = parseJson3(j3Data)
       }
     } catch { /* instance doesn't support json3 */ }
 
     const capRes = await fetch(capUrl, { signal: ac.signal })
     if (!capRes.ok) return null
 
-    const vtt     = await capRes.text()
-    const entries = parseVTT(vtt)
+    const vtt = await capRes.text()
+    let entries = parseVTT(vtt)
+
+    // If VTT parsing yielded nothing (YouTube ASR blank-line format, or
+    // non-VTT content returned by some instances), derive entries from json3.
+    if (!entries.length && j3Data?.events) {
+      for (const ev of j3Data.events) {
+        if (!ev.segs) continue
+        const text = ev.segs.map(s => s.utf8 ?? '').join('').replace(/\n/g, ' ').trim()
+        if (text) entries.push({ text, start: ev.tStartMs / 1000, duration: (ev.dDurationMs ?? 2000) / 1000 })
+      }
+    }
+
     if (!entries.length) return null
 
     // Title is a separate request — non-fatal if it fails.
