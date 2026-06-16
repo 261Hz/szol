@@ -247,6 +247,52 @@ class VoiceMessageResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ── Diegetic Documents (collections of found documents) ───────────────────────
+
+class DocumentResponse(BaseModel):
+    id:             int
+    collection_id:  int
+    doc_number:     int
+    calendar_month: Optional[int]  = None
+    calendar_day:   Optional[int]  = None
+    document_type:  Optional[str]  = None
+    voice:          Optional[str]  = None
+    title:          Optional[str]  = None
+    content:        Optional[str]  = None  # null when adapter/locator is used
+    locator:        Optional[dict] = None  # {"page": "...", "entry": "..."}
+    available:      bool                   # computed: today >= document's diegetic date
+
+    model_config = ConfigDict(from_attributes=True)
+
+class CollectionResponse(BaseModel):
+    id:                  int
+    title:               str
+    lang:                str
+    description:         Optional[str]  = None
+    author:              Optional[str]  = None
+    source:              Optional[str]  = None
+    adapter:             Optional[str]  = None   # 'mediawiki' | 'github' | 'inline'
+    adapter_config:      Optional[dict] = None   # e.g. {"site": "en.wikisource.org"}
+    today_count:         int = 0
+    total_documents:     int = 0
+    available_documents: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+class CollectionDetailResponse(CollectionResponse):
+    documents: List[DocumentResponse] = []
+
+class TodayDocumentResponse(BaseModel):
+    collection_id:     int
+    collection_title:  str
+    collection_author: Optional[str]  = None
+    adapter:           Optional[str]  = None
+    adapter_config:    Optional[dict] = None
+    document:          DocumentResponse
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ── Feed stories (ingested from external sources) ─────────────────────────────
 
 class FeedStoryResponse(BaseModel):

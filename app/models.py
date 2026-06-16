@@ -180,6 +180,36 @@ class CorpusSentence(Base):
     score         = Column(Integer, nullable=False, index=True)  # 0–100, higher = better example
 
 
+class Collection(Base):
+    __tablename__ = "collections"
+
+    id             = Column(Integer, primary_key=True, autoincrement=True)
+    title          = Column(String, nullable=False)
+    lang           = Column(String(10), nullable=False, index=True)
+    description    = Column(String)
+    author         = Column(String)        # original author / curator
+    source         = Column(String)        # display name of primary source
+    adapter        = Column(String)        # 'mediawiki' | 'github' | 'inline'
+    adapter_config = Column(JSON)          # e.g. {"site": "en.wikisource.org"}
+    documents      = relationship("CollectionDocument", back_populates="collection",
+                                  order_by="CollectionDocument.doc_number",
+                                  cascade="all, delete-orphan")
+
+class CollectionDocument(Base):
+    __tablename__ = "collection_documents"
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    collection_id   = Column(Integer, ForeignKey("collections.id", ondelete="CASCADE"), nullable=False)
+    doc_number      = Column(Integer, nullable=False)
+    calendar_month  = Column(Integer)      # 1–12; null = always available
+    calendar_day    = Column(Integer)      # 1–31
+    document_type   = Column(String)       # 'journal' | 'letter' | 'telegram' | 'newspaper' | 'log' | 'note'
+    voice           = Column(String)       # author of this document (character or real person)
+    title           = Column(String)       # e.g. "3 May. Bistritz." or "Telegram to White Star Line"
+    content         = Column(String)       # inline text for adapter='inline'; null otherwise
+    locator         = Column(JSON)         # adapter-specific: {"page": "Dracula/Chapter_I", "entry": "3 May"}
+    collection      = relationship("Collection", back_populates="documents")
+
 class UserBlock(Base):
     __tablename__ = "user_blocks"
 
