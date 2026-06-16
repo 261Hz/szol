@@ -1,4 +1,4 @@
-# vocab.py — endpoints for the user's saved vocabulary bank and shared video clips corpus.
+# vocab.py -- endpoints for the user's saved vocabulary bank and shared video clips corpus.
 #
 # Routes
 # ------
@@ -7,10 +7,8 @@
 #   DELETE /vocab/user?word=&lang=  remove a word from the bank
 #   GET    /vocab/clips?word=&lang= return YouTube clips where `word` appears (crawls on cache miss)
 
-import json
 import re
 import unicodedata
-import urllib.request
 from datetime import datetime, timezone, timedelta
 from typing import List
 
@@ -27,7 +25,7 @@ router = APIRouter(
     tags=["Vocab"],
 )
 
-# ── User vocab bank ───────────────────────────────────────────────────────────
+# -- User vocab bank ----------------------------------------------------------
 
 @router.post("/user", status_code=status.HTTP_201_CREATED, response_model=schemas.UserVocabResponse)
 def save_vocab_word(
@@ -47,7 +45,7 @@ def save_vocab_word(
         .first()
     )
     if existing:
-        return existing  # already saved — idempotent
+        return existing
 
     entry = models.UserVocab(user_id=current_user.id, **payload.model_dump())
     db.add(entry)
@@ -105,13 +103,13 @@ def remove_vocab_word(
         db.commit()
 
 
-# ── Shared YouTube clips corpus ───────────────────────────────────────────────
+# -- Shared YouTube clips corpus ----------------------------------------------
 
 _CLIP_TTL_DAYS = 7
 _MAX_CLIPS     = 8
-_MAX_VIDEOS    = 3   # videos to process per crawl
+_MAX_VIDEOS    = 3
 
-_ARABIC_DIACRITICS = re.compile(r"[ؐ-ًؚ-ٰٟۖ-ۜ۟-۪ۤۧۨ-ۭ]")
+_ARABIC_DIACRITICS = re.compile(r"[ؐ-ًؚ-ٰٟۖ-ۜ۟-۪ۤۧۨ-ۭ]")
 _HEBREW_NIQQUD     = re.compile(r"[֑-ׇ]")
 
 
@@ -129,18 +127,24 @@ def _contains_word(target: str, text: str, lang: str) -> bool:
     s = _normalize(text, lang)
     if not t:
         return False
-    if lang in ("zh", "ja", "ko", "th"):   # logographic / no word boundaries
+    if lang in ("zh", "ja", "ko", "th"):
         return t in s
     return bool(re.search(r"(?<!\w)" + re.escape(t) + r"(?!\w)", s))
 
 
-def _crawl_clips(word: str, lang: str, db: Session) -> list[dict]:
+def _crawl_clips(word: str, lang: str, db: Session) -> list:
     """Search YouTube for `word`, extract caption segments, upsert VocabClip rows.
 
-    Uses yt-dlp so no YouTube API key is needed. Runs synchronously — first call
-    for a new (word, lang) pair takes ~15-20 s; subsequent calls hit the DB cache.
+    Search uses yt-dlp (no API key needed; search endpoint not bot-detected).
+    Caption fetch uses youtube-transcript-api which scrapes the watch page HTML
+    rather than the Innertube player API -- avoids the datacenter IP bot block.
     """
-    # Step 1: search — extract_flat=True skips per-video info fetch (fast)
+    from youtube_transcript_api import (
+        YouTubeTranscriptApi, NoTranscriptFound,
+        TranscriptsDisabled, VideoUnavailable,
+    )
+
+    # Step 1: search -- extract_flat returns IDs without fetching each video page
     search_opts = {
         "skip_download": True, "quiet": True, "no_warnings": True,
         "extract_flat":  True, "socket_timeout": 15,
@@ -154,61 +158,48 @@ def _crawl_clips(word: str, lang: str, db: Session) -> list[dict]:
     except Exception:
         return []
 
-    # Step 2: for each video, fetch subtitle track in target language
-    info_opts = {
-        "skip_download": True, "quiet": True, "no_warnings": True,
-        "socket_timeout": 20,
-        "extractor_args": {"youtube": {"player_client": ["android", "tv_embedded"]}},
-    }
     base_lang = lang[:2]
-    clips: list[dict] = []
+    clips = []
 
     for video_id in video_ids:
         if len(clips) >= _MAX_CLIPS:
             break
+
+        # Step 2: list caption tracks via youtube-transcript-api (watch page scrape,
+        # not Innertube -- avoids "sign in to confirm you're not a bot" from datacenter IPs)
         try:
-            with yt_dlp.YoutubeDL(info_opts) as ydl:
-                info = ydl.extract_info(
-                    f"https://www.youtube.com/watch?v={video_id}", download=False
-                )
-        except Exception:
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        except (TranscriptsDisabled, VideoUnavailable, Exception):
             continue
 
         # Prefer manual captions; fall back to auto-generated
-        sub_url = None
-        for track_dict in [info.get("subtitles", {}), info.get("automatic_captions", {})]:
-            for key, fmts in track_dict.items():
-                if not key.startswith(base_lang):
-                    continue
-                for fmt in fmts:
-                    if fmt.get("ext") == "json3":
-                        sub_url = fmt["url"]
-                        break
-                if sub_url:
-                    break
-            if sub_url:
-                break
-
-        if not sub_url:
-            continue
-
-        # Fetch and parse json3 caption data
+        transcript = None
         try:
-            with urllib.request.urlopen(sub_url, timeout=10) as r:
-                data = json.loads(r.read().decode())
+            transcript = transcript_list.find_transcript([lang, base_lang])
+        except NoTranscriptFound:
+            try:
+                transcript = transcript_list.find_generated_transcript([lang, base_lang])
+            except (NoTranscriptFound, Exception):
+                continue
         except Exception:
             continue
 
-        for ev in data.get("events", []):
-            segs = ev.get("segs")
-            if not segs:
-                continue
-            text = " ".join(s.get("utf8", "") for s in segs).replace("\n", " ").strip()
+        # Skip if we landed on a completely different language
+        if not transcript.language_code.startswith(base_lang):
+            continue
+
+        try:
+            entries = transcript.fetch()
+        except Exception:
+            continue
+
+        for entry in entries:
+            text = (entry.get("text") or "").replace("\n", " ").strip()
             if not text or not _contains_word(word, text, lang):
                 continue
 
-            start_sec = int(ev.get("tStartMs", 0) / 1000)
-            end_sec   = start_sec + max(2, int(ev.get("dDurationMs", 3000) / 1000))
+            start_sec = int(entry.get("start", 0))
+            end_sec   = start_sec + max(2, int(entry.get("duration", 3)))
 
             row = db.query(models.VocabClip).filter_by(
                 word=word, lang=lang, video_id=video_id, start_sec=start_sec
@@ -241,7 +232,7 @@ def get_vocab_clips(word: str, lang: str, limit: int = 5, db: Session = Depends(
     """Return YouTube clips where `word` appears in `lang` captions.
 
     Results are shared across all users and cached for 7 days. A cache miss
-    triggers a yt-dlp crawl (expect ~15-20 s on first request for a new word).
+    triggers a crawl (expect ~15-20 s on first request for a new word).
     """
     if not word.strip() or not lang.strip():
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "word and lang are required")
