@@ -134,9 +134,6 @@ def _contains_word(target: str, text: str, lang: str) -> bool:
 
 def _crawl_clips(word: str, lang: str, db: Session) -> list:
     """Search YouTube for `word`, extract caption segments, upsert VocabClip rows."""
-    import logging
-    log = logging.getLogger(__name__)
-
     from youtube_transcript_api import (
         YouTubeTranscriptApi, NoTranscriptFound,
         TranscriptsDisabled, VideoUnavailable,
@@ -153,9 +150,9 @@ def _crawl_clips(word: str, lang: str, db: Session) -> list:
         video_ids = [
             e["id"] for e in (results.get("entries") or []) if e.get("id")
         ][:_MAX_VIDEOS]
-        log.info("[clips] search '%s' -> %s", word, video_ids)
+        print(f"[clips] search '{word}' -> {video_ids}", flush=True)
     except Exception as e:
-        log.warning("[clips] search failed: %s", e)
+        print(f"[clips] search failed: {e}", flush=True)
         return []
 
     base_lang = lang[:2]
@@ -168,40 +165,40 @@ def _crawl_clips(word: str, lang: str, db: Session) -> list:
         try:
             transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
         except TranscriptsDisabled:
-            log.info("[clips] %s: captions disabled", video_id)
+            print(f"[clips] {video_id}: captions disabled", flush=True)
             continue
         except VideoUnavailable:
-            log.info("[clips] %s: video unavailable", video_id)
+            print(f"[clips] {video_id}: video unavailable", flush=True)
             continue
         except Exception as e:
-            log.warning("[clips] %s: list_transcripts error: %s", video_id, e)
+            print(f"[clips] {video_id}: list_transcripts error: {e}", flush=True)
             continue
 
         # Prefer manual captions; fall back to auto-generated
         transcript = None
         try:
             transcript = transcript_list.find_transcript([lang, base_lang])
-            log.info("[clips] %s: found manual transcript %s", video_id, transcript.language_code)
+            print(f"[clips] {video_id}: found manual transcript {transcript.language_code}", flush=True)
         except NoTranscriptFound:
             try:
                 transcript = transcript_list.find_generated_transcript([lang, base_lang])
-                log.info("[clips] %s: found generated transcript %s", video_id, transcript.language_code)
+                print(f"[clips] {video_id}: found generated transcript {transcript.language_code}", flush=True)
             except (NoTranscriptFound, Exception) as e:
-                log.info("[clips] %s: no %s transcript: %s", video_id, lang, e)
+                print(f"[clips] {video_id}: no {lang} transcript: {e}", flush=True)
                 continue
         except Exception as e:
-            log.warning("[clips] %s: find_transcript error: %s", video_id, e)
+            print(f"[clips] {video_id}: find_transcript error: {e}", flush=True)
             continue
 
         if not transcript.language_code.startswith(base_lang):
-            log.info("[clips] %s: wrong lang %s (want %s), skipping", video_id, transcript.language_code, base_lang)
+            print(f"[clips] {video_id}: wrong lang {transcript.language_code} (want {base_lang}), skipping", flush=True)
             continue
 
         try:
             entries = transcript.fetch()
-            log.info("[clips] %s: fetched %d entries", video_id, len(entries))
+            print(f"[clips] {video_id}: fetched {len(entries)} entries", flush=True)
         except Exception as e:
-            log.warning("[clips] %s: fetch error: %s", video_id, e)
+            print(f"[clips] {video_id}: fetch error: {e}", flush=True)
             continue
 
         for entry in entries:
