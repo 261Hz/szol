@@ -188,35 +188,57 @@ async function tryInstance(base, videoId, lang) {
     const pick   = pickTrack(tracks, lang)
     const capUrl = pick.url?.startsWith('http') ? pick.url : `${base}${pick.url}`
 
-    // Try json3 for word-level timestamps AND as a segment-entry fallback.
-    // YouTube's ASR VTT uses a blank line between the timestamp and its text,
-    // which makes cue-block splitting unreliable. json3 doesn't have that issue.
+    // Fetch json3 and save the raw text. Some instances ignore ?fmt=json3 and
+    // return VTT; others return json3 for ?label=X without any fmt param.
+    // We need to try both interpretations on both responses.
     let words  = null
     let j3Data = null
+    let j3Text = ''
     try {
       const j3url = new URL(capUrl)
       j3url.searchParams.set('fmt', 'json3')
       const j3res = await fetch(j3url.toString(), { signal: ac.signal })
       if (j3res.ok) {
-        j3Data = await j3res.json().catch(() => null)
+        j3Text = await j3res.text()
+        try { j3Data = JSON.parse(j3Text) } catch {}
         if (j3Data?.events) words = parseJson3(j3Data)
       }
-    } catch { /* instance doesn't support json3 */ }
+    } catch {}
 
     const capRes = await fetch(capUrl, { signal: ac.signal })
     if (!capRes.ok) return null
+    const capText = await capRes.text()
 
-    const vtt = await capRes.text()
-    let entries = parseVTT(vtt)
+    // Try all format interpretations in sequence:
+    let entries = parseVTT(capText)                                 // capText is VTT
 
-    // If VTT parsing yielded nothing (YouTube ASR blank-line format, or
-    // non-VTT content returned by some instances), derive entries from json3.
+    if (!entries.length) {
+      // capText is json3 (Invidious proxied YouTube's default ASR format)
+      try {
+        const j = JSON.parse(capText)
+        if (j?.events) {
+          if (!words) words = parseJson3(j)
+          for (const ev of j.events) {
+            if (!ev.segs) continue
+            const t = ev.segs.map(s => s.utf8 ?? '').join('').replace(/\n/g, ' ').trim()
+            if (t) entries.push({ text: t, start: ev.tStartMs / 1000, duration: (ev.dDurationMs ?? 2000) / 1000 })
+          }
+        }
+      } catch {}
+    }
+
     if (!entries.length && j3Data?.events) {
+      // json3 URL gave proper json3; capText was something else
       for (const ev of j3Data.events) {
         if (!ev.segs) continue
-        const text = ev.segs.map(s => s.utf8 ?? '').join('').replace(/\n/g, ' ').trim()
-        if (text) entries.push({ text, start: ev.tStartMs / 1000, duration: (ev.dDurationMs ?? 2000) / 1000 })
+        const t = ev.segs.map(s => s.utf8 ?? '').join('').replace(/\n/g, ' ').trim()
+        if (t) entries.push({ text: t, start: ev.tStartMs / 1000, duration: (ev.dDurationMs ?? 2000) / 1000 })
       }
+    }
+
+    if (!entries.length && j3Text.includes('-->')) {
+      // json3 URL returned VTT (instance ignored ?fmt=json3)
+      entries = parseVTT(j3Text)
     }
 
     if (!entries.length) return null
