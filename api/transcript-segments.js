@@ -212,6 +212,7 @@ async function tryYouTubeInnertube(videoId, lang) {
   ]
 
   const langBase = lang.slice(0, 2)
+  let gotValidResponse = false
 
   for (const ctx of clients) {
     try {
@@ -224,6 +225,9 @@ async function tryYouTubeInnertube(videoId, lang) {
       if (!r.ok) continue
       const data = await r.json().catch(() => null)
       if (!data) continue
+
+      // We got a parseable JSON response — this client reached YouTube.
+      gotValidResponse = true
 
       const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? []
       if (!tracks.length) continue  // try next client before giving up
@@ -245,7 +249,8 @@ async function tryYouTubeInnertube(videoId, lang) {
       return { entries, isAuto: pick.kind === 'asr', lang: pick.languageCode ?? lang, title }
     } catch { /* try next client */ }
   }
-  return { noCaption: true }
+  // Only report noCaption if YouTube actually responded (not a network failure).
+  return gotValidResponse ? { noCaption: true } : null
 }
 
 // ── Caption source: direct YouTube watch page ─────────────────────────────────
@@ -265,6 +270,11 @@ async function tryYouTubeDirect(videoId, lang) {
     })
     if (!r.ok) return null
     const html = await r.text()
+
+    // If we got a consent/bot-detection page there'll be no ytInitialPlayerResponse.
+    // Return null (uncertain) rather than noCaption — we can't distinguish a bot
+    // wall from a video with no captions when the full player JSON is missing.
+    if (!html.includes('ytInitialPlayerResponse')) return null
 
     // Extract captionTracks array using bracket counting — regex fails on nested JSON.
     const marker = '"captionTracks":'
