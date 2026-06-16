@@ -147,12 +147,21 @@ async function tryYouTubeDirect(videoId, lang) {
     if (!r.ok) return null
     const html = await r.text()
 
-    // captionTracks array is embedded in the serialised ytInitialPlayerResponse.
-    const match = html.match(/"captionTracks":\s*(\[[\s\S]*?\])\s*,\s*"audioTracks"/)
-    if (!match) return { noCaption: true }
-
+    // Extract captionTracks array using bracket counting — regex fails on nested JSON.
+    const marker = '"captionTracks":'
+    const mi     = html.indexOf(marker)
+    if (mi === -1) return { noCaption: true }
+    const arrStart = html.indexOf('[', mi + marker.length)
+    if (arrStart === -1) return { noCaption: true }
+    let depth = 0, pos = arrStart
+    while (pos < html.length) {
+      const ch = html[pos]
+      if (ch === '[' || ch === '{') depth++
+      else if (ch === ']' || ch === '}') { if (--depth === 0) break }
+      pos++
+    }
     let tracks
-    try { tracks = JSON.parse(match[1]) } catch { return null }
+    try { tracks = JSON.parse(html.slice(arrStart, pos + 1)) } catch { return null }
     if (!tracks.length) return { noCaption: true }
 
     // Pick best track: prefer requested lang non-ASR, fallback to any.
