@@ -167,18 +167,20 @@
         class="text-xs text-green-300 hover:text-green-200 underline transition-all"
       >Search Wikiquote</button>
       <div v-else-if="wq.loading" class="text-xs text-gray-500">Loading…</div>
-      <div v-else-if="wq.results.length" class="flex flex-col gap-3">
-        <div v-for="r in wq.results" :key="r.title" class="flex flex-col gap-0.5">
+      <div v-else-if="wq.results.length" class="flex flex-col gap-4">
+        <div v-for="r in wq.results" :key="r.title" class="flex flex-col gap-1.5">
           <div class="text-xs font-medium text-gray-400">{{ r.title }}</div>
-          <!-- "italic" = visual cue that this text is a quotation, not a factual extract. -->
-          <span
-            class="text-sm text-gray-300 italic leading-snug"
+          <!-- Each quote line is rendered separately so they don't smush together. -->
+          <p
+            v-for="(line, li) in r.extract.split('\n')"
+            :key="li"
+            class="text-sm text-gray-300 italic leading-snug border-l-2 border-gray-700 pl-2 m-0"
             :dir="isRTL(lang) ? 'rtl' : 'ltr'"
           >
-            <span v-for="(tok, i) in tokenize(r.extract)" :key="i">
+            <span v-for="(tok, i) in tokenize(line)" :key="i">
               <span
                 v-if="tok.type === 'word'"
-                @click="$emit('tap', { word: tok.text, sentence: r.extract })"
+                @click="$emit('tap', { word: tok.text, sentence: line })"
                 :class="[
                   'cursor-pointer rounded px-0.5 transition-all hover:bg-green-950',
                   savedWords && savedWords.has(normalize(tok.text)) ? 'bg-green-900 text-green-300' : '',
@@ -186,7 +188,7 @@
               >{{ tok.text }}</span>
               <span v-else>{{ tok.text }}</span>
             </span>
-          </span>
+          </p>
         </div>
       </div>
       <div v-else-if="wq.done" class="text-xs text-gray-500">No Wikiquote results.</div>

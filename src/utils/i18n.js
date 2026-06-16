@@ -765,7 +765,7 @@ export const UI = {
     saveAsStory:   'احفظه قصة',
     fetch:         'جيب',
     discard:       'إلغاء',
-    browseTopics:  'اتفرج على المواضيع',
+    browseTopics:  'تابع المواضيع',
     noTopics:      '.مفيش مواضيع لهذه اللغة. جرّب الإنجليزي',
     subtitlesSec:  'ترجمات',
     subtitlesHelp: '.نزّل ملف .srt من موقع ترجمات وافتحه في محرر نص، وبعدين الصق المحتوى هنا',
