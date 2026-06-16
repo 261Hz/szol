@@ -26,17 +26,25 @@ function collectParagraphs(doc) {
 
 // For epistolary texts: find the paragraph containing `entry` marker
 // (e.g. "3 May") then collect forward until the next date-like heading.
-const DATE_LIKE = /^\d{1,2}\s+\p{L}+\.?\s*$|^\p{L}+\s+\d{1,2}\.?\s*$/u
+// Three formats seen in Dracula/Wikisource:
+//   DATE_LIKE   — standalone short heading:   "22 July."
+//   DATE_INLINE — date embedded in paragraph: "4 May.—I found..."
+//                 or "2 August, midnight.—Woke up..."
+//   DATE_ON     — Demeter log format:         "On 6 July we finished taking in cargo..."
+const _MONTHS = 'January|February|March|April|May|June|July|August|September|October|November|December'
+const DATE_LIKE   = /^\d{1,2}\s+\p{L}+\.?\s*$|^\p{L}+\s+\d{1,2}\.?\s*$/u
+const DATE_INLINE = new RegExp('^\\d{1,2}\\s+(?:' + _MONTHS + ')\\b', 'i')
+const DATE_ON     = new RegExp('^On\\s+\\d{1,2}\\s+(?:' + _MONTHS + ')\\b', 'i')
 
 function sliceByEntry(paras, entry) {
   const hint = entry.trim().toLowerCase()
   const start = paras.findIndex(p => p.toLowerCase().startsWith(hint))
-  if (start === -1) return paras   // marker not found — return everything
+  if (start === -1) return null   // marker not found in this chapter — wrong page
 
   const result = [paras[start]]
   for (let i = start + 1; i < paras.length; i++) {
-    // Stop at the next entry marker (but not at the very first paragraph)
-    if (DATE_LIKE.test(paras[i].trim())) break
+    const p = paras[i].trim()
+    if (DATE_LIKE.test(p) || DATE_INLINE.test(p) || DATE_ON.test(p)) break
     result.push(paras[i])
   }
   return result
@@ -79,5 +87,6 @@ export async function fetchMediaWiki(adapterConfig, locator) {
   if (!paras.length) return null
 
   const slice = entry ? sliceByEntry(paras, entry) : paras
+  if (!slice?.length) return null
   return slice.join('\n\n')
 }
