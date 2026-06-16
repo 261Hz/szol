@@ -145,13 +145,27 @@ def _crawl_clips(word: str, lang: str, db: Session) -> list:
 
     # Step 1: search for captioned videos via YouTube Data API.
     # Fall back to yt-dlp ytsearch (may include music videos without captions).
+    # Append the language name to bias toward spoken educational content.
+    # Bare words like "town" or "guitar" return music videos; "town english"
+    # returns vocabulary lessons and pronunciation guides that have speech captions.
+    _LANG_NAMES = {
+        "en": "english", "es": "spanish", "fr": "french", "de": "german",
+        "it": "italian", "pt": "portuguese", "ar": "arabic", "he": "hebrew",
+        "ja": "japanese", "ko": "korean", "zh": "chinese", "ru": "russian",
+        "nl": "dutch", "pl": "polish", "tr": "turkish", "sv": "swedish",
+        "da": "danish", "fi": "finnish", "no": "norwegian", "uk": "ukrainian",
+    }
+    lang_name = _LANG_NAMES.get(base_lang, "")
+    search_q  = f"{word} {lang_name}".strip() if lang_name else word
+
     video_ids = []
     if settings.YOUTUBE_API_KEY:
         try:
             params = urllib.parse.urlencode({
-                "q": word, "type": "video",
-                "videoCaption": "closedCaption",
+                "q": search_q, "type": "video",
+                "videoCaption":    "closedCaption",
                 "relevanceLanguage": base_lang,
+                "videoDuration":   "medium",
                 "maxResults": "10", "part": "id",
                 "key": settings.YOUTUBE_API_KEY,
             })
@@ -171,7 +185,7 @@ def _crawl_clips(word: str, lang: str, db: Session) -> list:
         }
         try:
             with yt_dlp.YoutubeDL(search_opts) as ydl:
-                results = ydl.extract_info(f"ytsearch10:{word}", download=False)
+                results = ydl.extract_info(f"ytsearch10:{search_q}", download=False)
             video_ids = [
                 e["id"] for e in (results.get("entries") or []) if e.get("id")
             ][:_MAX_VIDEOS]
