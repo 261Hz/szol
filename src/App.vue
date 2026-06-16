@@ -100,6 +100,13 @@
         @logout="handleLogout"
       />
 
+      <JournalView
+        v-if="activeTab === 'journal'"
+        :lang="activeLang"
+        :current-user="currentUser"
+        @load="loadStory"
+      />
+
       <MessagesView
         v-if="activeTab === 'messages'"
         :current-user="currentUser"
@@ -136,6 +143,7 @@ const WriteView    = defineAsyncComponent(() => import('./views/WriteView.vue'))
 const SettingsView  = defineAsyncComponent(() => import('./views/SettingsView.vue'))
 const ListenView    = defineAsyncComponent(() => import('./views/ListenView.vue'))
 const MessagesView  = defineAsyncComponent(() => import('./views/MessagesView.vue'))
+const JournalView   = defineAsyncComponent(() => import('./views/JournalView.vue'))
 
 import { LANGS } from './data/stories.js'
 import { getMe, logout, onUnauthorized, getAccountVocab, saveVocabWord, removeVocabWord } from './utils/api.js'

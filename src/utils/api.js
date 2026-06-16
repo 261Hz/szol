@@ -538,3 +538,23 @@ export async function sendChat({ message, storyContent, lang, history, vocab, pr
   }
   return await res.json() // { reply: string }
 }
+
+// ── Diegetic Documents (collections of found documents) ───────────────────────
+
+export async function fetchCollections(lang) {
+  const res = await fetch(`${API_URL}/collections/?lang=${encodeURIComponent(lang)}`).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json()
+}
+
+export async function fetchCollection(collectionId) {
+  const res = await fetch(`${API_URL}/collections/${collectionId}`).catch(() => null)
+  if (!res?.ok) return null
+  return await res.json()
+}
+
+export async function fetchTodayDocuments(lang) {
+  const res = await fetch(`${API_URL}/collections/today?lang=${encodeURIComponent(lang)}`).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json()
+}
