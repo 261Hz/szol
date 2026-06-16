@@ -8,7 +8,7 @@
       </h2>
       <div
         v-for="item in todayItems"
-        :key="`today-${item.chapter.id}`"
+        :key="`today-${item.document.id}`"
         class="rounded-xl border border-violet-700/60 bg-violet-950/30 p-4 cursor-pointer hover:bg-violet-950/50 transition-colors"
         @click="openChapter(item.document, { id: item.collection_id, title: item.collection_title, author: item.collection_author, adapter: item.adapter, adapter_config: item.adapter_config })"
       >
@@ -17,12 +17,12 @@
             {{ item.collection_title }}
           </span>
           <span
-            v-if="item.chapter.document_type"
+            v-if="item.document.document_type"
             class="text-[10px] px-1.5 py-0.5 rounded bg-violet-800/50 text-violet-300"
-          >{{ item.chapter.document_type }}</span>
+          >{{ item.document.document_type }}</span>
         </div>
-        <p class="text-sm font-medium text-gray-100">{{ item.chapter.title ?? formatDate(item.chapter.calendar_month, item.chapter.calendar_day) }}</p>
-        <p v-if="item.chapter.voice" class="text-xs text-gray-400 mt-0.5">— {{ item.chapter.voice }}</p>
+        <p class="text-sm font-medium text-gray-100">{{ item.document.title ?? formatDate(item.document.calendar_month, item.document.calendar_day) }}</p>
+        <p v-if="item.document.voice" class="text-xs text-gray-400 mt-0.5">— {{ item.document.voice }}</p>
       </div>
     </section>
 
@@ -89,13 +89,13 @@
                     {{ ch.calendar_day }}
                   </span>
                 </template>
-                <span v-else class="text-xs text-gray-500">#{{ ch.chapter_number }}</span>
+                <span v-else class="text-xs text-gray-500">#{{ ch.doc_number }}</span>
               </div>
 
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="text-sm font-medium" :class="ch.available ? 'text-gray-100' : 'text-gray-500'">
-                    {{ ch.title ?? (ch.voice ? `${ch.voice}` : `Entry ${ch.chapter_number}`) }}
+                    {{ ch.title ?? (ch.voice ? `${ch.voice}` : `Entry ${ch.doc_number}`) }}
                   </span>
                   <span
                     v-if="ch.document_type && ch.document_type !== 'journal'"
@@ -236,13 +236,19 @@ async function load(lang) {
   loading.value          = true
   expandedId.value       = null
   activeCollection.value = null
-  const [list, today] = await Promise.all([
-    fetchCollections(lang),
-    fetchTodayDocuments(lang),
-  ])
-  collections.value = list
-  todayItems.value  = today
-  loading.value     = false
+  try {
+    const [list, today] = await Promise.all([
+      fetchCollections(lang),
+      fetchTodayDocuments(lang),
+    ])
+    collections.value = list
+    todayItems.value  = today
+  } catch {
+    collections.value = []
+    todayItems.value  = []
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(() => load(props.lang))
