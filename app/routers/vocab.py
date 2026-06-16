@@ -111,7 +111,7 @@ def remove_vocab_word(
 
 _CLIP_TTL_DAYS = 7
 _MAX_CLIPS     = 8
-_MAX_VIDEOS    = 3
+_MAX_VIDEOS    = 8
 
 _ARABIC_DIACRITICS = re.compile(r"[ؐ-ًؚ-ٰٟۖ-ۜ۟-۪ۤۧۨ-ۭ]")
 _HEBREW_NIQQUD     = re.compile(r"[֑-ׇ]")
@@ -155,7 +155,7 @@ def _crawl_clips(word: str, lang: str, db: Session) -> list:
                 "q": word, "type": "video",
                 "videoCaption": "closedCaption",
                 "relevanceLanguage": base_lang,
-                "maxResults": "5", "part": "id",
+                "maxResults": "10", "part": "id",
                 "key": settings.YOUTUBE_API_KEY,
             })
             with urllib.request.urlopen(
