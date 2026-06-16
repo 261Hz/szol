@@ -396,6 +396,36 @@ export async function addListenFromUrl(url, lang) {
   return await res.json()
 }
 
+export async function searchYouTube(query, lang, maxResults = 8) {
+  const key = import.meta.env.VITE_YOUTUBE_API_KEY
+  if (!key) return []
+  const params = new URLSearchParams({
+    part:            'snippet',
+    q:               query,
+    type:            'video',
+    videoCaption:    'closedCaption',
+    videoEmbeddable: 'true',
+    safeSearch:      'strict',
+    relevanceLanguage: lang,
+    maxResults:      String(maxResults),
+    key,
+  })
+  try {
+    const r = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`, {
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!r.ok) return []
+    return ((await r.json()).items ?? []).map(item => ({
+      videoId:   item.id.videoId,
+      title:     item.snippet.title,
+      channel:   item.snippet.channelTitle,
+      thumbnail: item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url ?? '',
+    }))
+  } catch {
+    return []
+  }
+}
+
 export async function fetchCommunityStories(lang) {
   const r = await fetch(`${API_URL}/stories/community?lang=${lang}`)
   return await r.json().catch(() => [])
