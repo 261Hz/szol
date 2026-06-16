@@ -194,6 +194,54 @@
       <div v-else-if="wq.done" class="text-xs text-gray-500">No Wikiquote results.</div>
     </div>
 
+    <!-- ── VIDEO TAB ── -->
+    <!-- Crawls YouTube for clips containing this word; cached 7 days server-side. -->
+    <!-- Not auto-loaded — first crawl can take ~20 s for an unseen word. -->
+    <div v-else-if="activeTab === 'video'">
+      <button
+        v-if="!video.done && !video.loading"
+        @click="loadVideo"
+        class="text-xs text-green-300 hover:text-green-200 underline transition-all"
+      >Find video clips</button>
+      <div v-else-if="video.loading" class="text-xs text-gray-500">
+        Searching YouTube… <span class="text-gray-600">(may take ~20 s on first search)</span>
+      </div>
+      <div v-else-if="video.results.length" class="flex flex-col gap-3">
+        <div
+          v-for="clip in video.results"
+          :key="`${clip.video_id}-${clip.start_sec}`"
+          class="flex flex-col gap-0.5"
+        >
+          <!-- Context sentence with the target word highlighted yellow -->
+          <span
+            class="text-sm text-gray-300 leading-snug"
+            :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+          >
+            <span v-for="(tok, i) in tokenize(clip.context)" :key="i">
+              <span
+                v-if="tok.type === 'word'"
+                @click="$emit('tap', { word: tok.text, sentence: clip.context })"
+                :class="[
+                  'cursor-pointer rounded px-0.5 transition-all hover:bg-green-950',
+                  savedWords && savedWords.has(normalize(tok.text)) ? 'bg-green-900 text-green-300' : '',
+                  normalize(tok.text) === normalize(props.word) ? 'text-yellow-300 font-semibold' : '',
+                ]"
+              >{{ tok.text }}</span>
+              <span v-else>{{ tok.text }}</span>
+            </span>
+          </span>
+          <!-- YouTube deeplink to the exact timestamp -->
+          <a
+            :href="`https://www.youtube.com/watch?v=${clip.video_id}&t=${clip.start_sec}s`"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-xs text-blue-400 hover:text-blue-300 transition-all self-start"
+          >▶ {{ formatTime(clip.start_sec) }}</a>
+        </div>
+      </div>
+      <div v-else-if="video.done" class="text-xs text-gray-500">No video clips found.</div>
+    </div>
+
   </div>
 </template>
 
@@ -205,7 +253,7 @@ import { normalize } from '../utils/scoring.js'
 import { fetchTatoeba, playAudio } from '../utils/tatoeba.js'
 import { searchWikipedia } from '../utils/wikipedia.js'
 import { searchWikiquote } from '../utils/wikiquote.js'
-import { getWordExamples } from '../utils/api.js'
+import { getWordExamples, getVocabClips } from '../utils/api.js'
 
 // Props received from the parent (ReadView or VocabView).
 // word       = the cleaned word to look up (no punctuation, e.g. "hola" not "hola,").
@@ -227,6 +275,7 @@ const tabs = [
   { id: 'tatoeba',   label: 'Tatoeba' },
   { id: 'wikipedia', label: 'Wikipedia' },
   { id: 'wikiquote', label: 'Wikiquote' },
+  { id: 'video',     label: 'Video' },
 ]
 
 const activeTab = ref('corpus')
@@ -239,12 +288,14 @@ const corpus  = ref({ loading: false, results: [], done: false })
 const tatoeba = ref({ loading: false, results: [], done: false })
 const wiki    = ref({ loading: false, results: [], done: false })
 const wq      = ref({ loading: false, results: [], done: false })
+const video   = ref({ loading: false, results: [], done: false })
 
 watch(() => props.word, () => {
   corpus.value    = { loading: false, results: [], done: false }
   tatoeba.value   = { loading: false, results: [], done: false }
   wiki.value      = { loading: false, results: [], done: false }
   wq.value        = { loading: false, results: [], done: false }
+  video.value     = { loading: false, results: [], done: false }
   activeTab.value = 'corpus'
   loadCorpus()  // auto-load corpus examples whenever word changes
 }, { immediate: true })
@@ -300,5 +351,22 @@ async function loadWikiquote() {
   wq.value.results = await searchWikiquote(props.word, props.lang)
   wq.value.loading = false
   wq.value.done    = true
+}
+
+// loadVideo() fetches YouTube clips from the shared corpus endpoint.
+// Results are cached 7 days server-side; first call for an unseen word crawls yt-dlp (~20 s).
+async function loadVideo() {
+  if (!props.word || video.value.loading || video.value.done) return
+  video.value.loading = true
+  video.value.results = await getVocabClips(props.word, props.lang)
+  video.value.loading = false
+  video.value.done    = true
+}
+
+// formatTime converts seconds to MM:SS for the YouTube deeplink label.
+function formatTime(sec) {
+  const m = Math.floor(sec / 60)
+  const s = String(sec % 60).padStart(2, '0')
+  return `${m}:${s}`
 }
 </script>
