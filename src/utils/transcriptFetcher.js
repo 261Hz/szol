@@ -15,6 +15,25 @@ const INVIDIOUS = [
   'https://yt.cdaut.de',
 ]
 
+// ── YouTube Data API (official, CORS ✓, browser-callable) ────────────────────
+
+export async function fetchVideoMetadata(videoId) {
+  const key = import.meta.env.VITE_YOUTUBE_API_KEY
+  if (!key) return null
+  try {
+    const r = await fetch(
+      `https://www.googleapis.com/youtube/v3/videos?id=${videoId}&part=snippet&key=${key}`,
+      { signal: AbortSignal.timeout(5000) }
+    )
+    if (!r.ok) return null
+    const item = (await r.json()).items?.[0]?.snippet
+    if (!item) return null
+    return { title: item.title, channel: item.channelTitle }
+  } catch {
+    return null
+  }
+}
+
 // ── Parsers ───────────────────────────────────────────────────────────────────
 
 function vttTime(ts) {
