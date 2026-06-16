@@ -31,17 +31,25 @@ function vttTime(ts) {
 }
 
 function parseVTT(vtt) {
+  // Line-by-line scan: YouTube ASR VTT puts a blank line between the timestamp
+  // and the text, so block-splitting misses every cue.
   const entries = []
-  for (const cue of vtt.split(/\n{2,}/)) {
-    const lines    = cue.trim().split('\n')
-    const timeLine = lines.find(l => l.includes(' --> '))
-    if (!timeLine) continue
-    const [startStr, endStr] = timeLine.split(' --> ')
-    const start    = vttTime(startStr)
-    const end      = vttTime(endStr.split(' ')[0])
-    const text     = lines
-      .filter(l => l !== timeLine && !/^\d+$/.test(l.trim()))
-      .join(' ')
+  const lines   = vtt.replace(/\r\n/g, '\n').split('\n')
+  let i = 0
+  while (i < lines.length) {
+    if (!lines[i].includes(' --> ')) { i++; continue }
+    const [startStr, endRest] = lines[i].split(' --> ')
+    const start = vttTime(startStr)
+    const end   = vttTime(endRest.split(' ')[0])
+    i++
+    while (i < lines.length && lines[i].trim() === '') i++  // skip blank gap
+    const textLines = []
+    while (i < lines.length && lines[i].trim() !== '') {
+      const l = lines[i].trim()
+      if (!/^\d+$/.test(l)) textLines.push(l)
+      i++
+    }
+    const text = textLines.join(' ')
       .replace(/<[^>]+>/g, '')
       .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
       .trim()
