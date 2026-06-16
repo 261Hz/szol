@@ -223,10 +223,11 @@ def get_transcript_segments(v: str, lang: str = "en"):
     1. yt-dlp -> subtitle URLs (avoids 429s from youtube-transcript-api)
     2. No captions -> yt-dlp audio + Groq Whisper large-v3
     """
+    entries, is_auto, actual_lang = [], False, lang
     try:
         entries, is_auto, actual_lang = _get_captions_ytdlp(v, lang)
-    except RuntimeError as e:
-        raise HTTPException(502, str(e))
+    except RuntimeError:
+        pass  # bot detection or network error — fall through to Whisper
 
     if not entries:
         entries = _download_and_transcribe(v, lang)
