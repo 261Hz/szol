@@ -241,7 +241,18 @@ async function tryInstance(base, videoId, lang) {
       entries = parseVTT(j3Text)
     }
 
-    if (!entries.length) return null
+    if (!entries.length) {
+      // Temporary debug: open browser Console to see what the instance returned.
+      console.warn('[szol] caption parse failed', {
+        base,
+        j3Prefix:  j3Text.slice(0, 120),
+        capPrefix: capText.slice(0, 120),
+        j3HasArrow:  j3Text.includes('-->'),
+        capHasArrow: capText.includes('-->'),
+        j3Events:  j3Data?.events?.length ?? 'no-parse',
+      })
+      return null
+    }
 
     // Title is a separate request — non-fatal if it fails.
     let title = `YouTube: ${videoId}`
