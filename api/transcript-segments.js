@@ -104,16 +104,64 @@ async function tryInvidious(base, videoId, lang) {
     if (!r.ok) return null
     const data   = await r.json()
     const tracks = data.captions ?? []
-    if (!tracks.length) return { noCaption: true }
+
+    // Some instances return an empty track list even when captions exist.
+    // Probe common labels before giving up.
+    if (!tracks.length) {
+      const baseLang = lang.slice(0, 2)
+      const probes   = [
+        `lang=${baseLang}`,
+        `label=English+%28auto-generated%29`,
+        `label=English`,
+        `label=${encodeURIComponent(lang)}`,
+      ]
+      for (const qs of probes) {
+        try {
+          const pr = await fetch(`${base}/api/v1/captions/${videoId}?${qs}`, { signal: ac.signal })
+          if (!pr.ok) continue
+          const text = await pr.text()
+          if (!text.includes('-->')) continue
+          const entries = parseVTT(text)
+          if (!entries.length) continue
+          return { entries, isAuto: qs.includes('auto'), lang: baseLang, title: `YouTube: ${videoId}` }
+        } catch {}
+      }
+      return { noCaption: true }
+    }
 
     const pick   = pickTrack(tracks, lang)
     const capUrl = pick.url?.startsWith('http') ? pick.url : `${base}${pick.url}`
-    const capRes = await fetch(capUrl, { signal: ac.signal })
-    if (!capRes.ok) return null
 
-    const vtt     = await capRes.text()
-    const entries = parseVTT(vtt)
-    if (!entries.length) return null
+    // Try json3 first — no VTT blank-line format issues.
+    let entries = null
+    try {
+      const j3url = new URL(capUrl)
+      j3url.searchParams.set('fmt', 'json3')
+      const j3res = await fetch(j3url.toString(), { signal: ac.signal })
+      if (j3res.ok) {
+        const j3 = await j3res.json().catch(() => null)
+        if (j3?.events) {
+          entries = j3.events
+            .filter(ev => ev.segs)
+            .map(ev => ({
+              text:     ev.segs.map(s => s.utf8 ?? '').join('').replace(/\n/g, ' ').trim(),
+              start:    ev.tStartMs / 1000,
+              duration: (ev.dDurationMs ?? 2000) / 1000,
+            }))
+            .filter(e => e.text)
+        }
+      }
+    } catch {}
+
+    // Fall back to VTT.
+    if (!entries?.length) {
+      const capRes = await fetch(capUrl, { signal: ac.signal })
+      if (!capRes.ok) return null
+      const vtt = await capRes.text()
+      entries = parseVTT(vtt)
+    }
+
+    if (!entries?.length) return null
 
     // Fetch title separately (captions endpoint doesn't include it).
     let title = `YouTube: ${videoId}`
