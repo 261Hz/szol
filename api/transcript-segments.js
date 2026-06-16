@@ -85,9 +85,10 @@ function buildSegments(entries, words = 15) {
 function pickTrack(tracks, lang) {
   const langBase = lang.slice(0, 2)
   const isAuto   = t => /auto/i.test(t.label ?? '')
-  return tracks.find(t => t.language_code === lang)
-    ?? tracks.find(t => t.language_code?.startsWith(langBase) && !isAuto(t))
-    ?? tracks.find(t => t.language_code === 'en' && !isAuto(t))
+  const lc       = t => t.languageCode ?? t.language_code ?? ''
+  return tracks.find(t => lc(t) === lang && !isAuto(t))
+    ?? tracks.find(t => lc(t).startsWith(langBase) && !isAuto(t))
+    ?? tracks.find(t => lc(t) === 'en' && !isAuto(t))
     ?? tracks.find(t => !isAuto(t))
     ?? tracks[0]
 }
@@ -222,8 +223,10 @@ export default async function handler(req, res) {
     })
   }
 
-  // Stage 2: direct YouTube watch-page extraction (different IP pool, may succeed).
-  if (!confirmedNoCaption) {
+  // Stage 2: direct YouTube watch-page extraction — always try, regardless of what
+  // Invidious reported. Invidious frequently gives false "no captions" results;
+  // YouTube's own page is authoritative since it contains the actual captionTracks URLs.
+  {
     const result = await tryYouTubeDirect(videoId, lang)
     if (result && !result.noCaption) {
       const segments = buildSegments(result.entries)
