@@ -21,7 +21,8 @@ class Settings(BaseSettings):
 
     FRONTEND_URL:    str = "https://szol.vercel.app"
     BACKEND_URL:     str = "https://szol.onrender.com"
-    TURNSTILE_SECRET: str = ""   # Cloudflare Turnstile secret key
+    TURNSTILE_SECRET:  str = ""   # Cloudflare Turnstile secret key
+    YOUTUBE_API_KEY:   str = ""   # YouTube Data API v3 key (same one used in Vite frontend)
 
     class Config:
         env_file = ".env"

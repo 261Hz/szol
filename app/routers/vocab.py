@@ -7,8 +7,11 @@
 #   DELETE /vocab/user?word=&lang=  remove a word from the bank
 #   GET    /vocab/clips?word=&lang= return YouTube clips where `word` appears (crawls on cache miss)
 
+import json
 import re
 import unicodedata
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone, timedelta
 from typing import List
 
@@ -18,6 +21,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from .. import models, schemas, oauth2
+from ..config import settings
 from ..database import get_db
 
 router = APIRouter(
@@ -139,23 +143,51 @@ def _crawl_clips(word: str, lang: str, db: Session) -> list:
         TranscriptsDisabled, VideoUnavailable,
     )
 
-    # Step 1: search -- extract_flat returns IDs without fetching each video page
-    search_opts = {
-        "skip_download": True, "quiet": True, "no_warnings": True,
-        "extract_flat":  True, "socket_timeout": 15,
-    }
-    try:
-        with yt_dlp.YoutubeDL(search_opts) as ydl:
-            results = ydl.extract_info(f"ytsearch5:{word}", download=False)
-        video_ids = [
-            e["id"] for e in (results.get("entries") or []) if e.get("id")
-        ][:_MAX_VIDEOS]
-        print(f"[clips] search '{word}' -> {video_ids}", flush=True)
-    except Exception as e:
-        print(f"[clips] search failed: {e}", flush=True)
+    base_lang = lang[:2]
+
+    # Step 1: search for videos that have captions.
+    # Prefer YouTube Data API (videoCaption=closedCaption guarantees captions exist).
+    # Fall back to yt-dlp ytsearch which may return music videos with captions disabled.
+    video_ids = []
+    if settings.YOUTUBE_API_KEY:
+        try:
+            params = urllib.parse.urlencode({
+                "q": word, "type": "video",
+                "videoCaption": "closedCaption",
+                "relevanceLanguage": base_lang,
+                "maxResults": "5", "part": "id",
+                "key": settings.YOUTUBE_API_KEY,
+            })
+            with urllib.request.urlopen(
+                f"https://www.googleapis.com/youtube/v3/search?{params}", timeout=10
+            ) as r:
+                data = json.loads(r.read().decode())
+            video_ids = [
+                item["id"]["videoId"] for item in data.get("items", [])
+            ][:_MAX_VIDEOS]
+            print(f"[clips] YT API search '{word}' -> {video_ids}", flush=True)
+        except Exception as e:
+            print(f"[clips] YT API search failed: {e}", flush=True)
+
+    if not video_ids:
+        search_opts = {
+            "skip_download": True, "quiet": True, "no_warnings": True,
+            "extract_flat":  True, "socket_timeout": 15,
+        }
+        try:
+            with yt_dlp.YoutubeDL(search_opts) as ydl:
+                results = ydl.extract_info(f"ytsearch5:{word}", download=False)
+            video_ids = [
+                e["id"] for e in (results.get("entries") or []) if e.get("id")
+            ][:_MAX_VIDEOS]
+            print(f"[clips] yt-dlp search '{word}' -> {video_ids}", flush=True)
+        except Exception as e:
+            print(f"[clips] yt-dlp search failed: {e}", flush=True)
+            return []
+
+    if not video_ids:
         return []
 
-    base_lang = lang[:2]
     clips = []
 
     for video_id in video_ids:
