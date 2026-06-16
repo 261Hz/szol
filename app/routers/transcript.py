@@ -188,29 +188,69 @@ def _groq_transcribe(audio_path, lang):
     ]
 
 
+_INVIDIOUS = [
+    "https://inv.nadeko.net",
+    "https://invidious.fdn.fr",
+    "https://iv.datura.network",
+    "https://invidious.tiekoetter.com",
+    "https://yt.cdaut.de",
+]
+
+
+def _download_audio_via_invidious(video_id: str, tmpdir: str) -> str:
+    """
+    Download YouTube audio via Invidious public instances.
+    Render → Invidious → YouTube CDN avoids the YouTube IP block on Render.
+    Returns path to the downloaded audio file.
+    """
+    import requests as req
+
+    for base in _INVIDIOUS:
+        try:
+            r = req.get(
+                f"{base}/api/v1/videos/{video_id}?fields=adaptiveFormats",
+                timeout=10,
+                headers={"User-Agent": "szol-app/1.0"},
+            )
+            if not r.ok:
+                continue
+            formats = r.json().get("adaptiveFormats", [])
+            audio = [f for f in formats if "audio" in f.get("type", "")]
+            if not audio:
+                continue
+            # Prefer m4a/aac (Groq handles it best), fall back to webm/opus.
+            pick = (
+                next((f for f in audio if "mp4" in f.get("type", "") or "aac" in f.get("type", "")), None)
+                or audio[0]
+            )
+            url = pick.get("url")
+            if not url:
+                continue
+            ext = "m4a" if ("mp4" in pick.get("type", "") or "aac" in pick.get("type", "")) else "webm"
+            path = os.path.join(tmpdir, f"audio.{ext}")
+            with req.get(url, stream=True, timeout=120, headers={"User-Agent": "szol-app/1.0"}) as ar:
+                if not ar.ok:
+                    continue
+                with open(path, "wb") as fh:
+                    for chunk in ar.iter_content(65536):
+                        fh.write(chunk)
+            return path
+        except Exception:
+            continue
+
+    raise HTTPException(502, "Could not download audio from any source.")
+
+
 def _download_and_transcribe(video_id, lang):
     if not settings.GROQ_API_KEY:
         raise HTTPException(503, "This video has no captions. Set GROQ_API_KEY to enable audio transcription.")
     with tempfile.TemporaryDirectory() as tmpdir:
-        ydl_opts = {
-            "format":         "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio",
-            "outtmpl":        os.path.join(tmpdir, "audio.%(ext)s"),
-            "quiet":          True,
-            "no_warnings":    True,
-            "socket_timeout": 30,
-            "extractor_args": {"youtube": {"player_client": ["android", "tv_embedded"]}},
-        }
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
-        except Exception as e:
-            raise HTTPException(502, f"Audio download failed: {e}")
-
-        audio_files = [f for f in os.listdir(tmpdir) if f.startswith("audio.")]
-        if not audio_files:
-            raise HTTPException(502, "Audio download produced no output file.")
+            audio_path = _download_audio_via_invidious(video_id, tmpdir)
+        except HTTPException:
+            raise
         try:
-            return _groq_transcribe(os.path.join(tmpdir, audio_files[0]), lang)
+            return _groq_transcribe(audio_path, lang)
         except HTTPException:
             raise
         except Exception as e:
