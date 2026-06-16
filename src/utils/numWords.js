@@ -1,4 +1,4 @@
-// numWords.js — integer to spoken/written form, 0–9999, for all 13 app languages.
+// numWords.js — integer to spoken/written form, 0–9999, for all 15 app languages.
 // Returns null for unsupported ranges so callers can fall back to showing the numeral.
 
 function en(n) {
@@ -189,13 +189,39 @@ function arz(n) {
   return arz(t)+' آلاف'+(r?' و'+arz(r):'')
 }
 
+function pt(n) {
+  const ones = ['','um','dois','três','quatro','cinco','seis','sete','oito','nove',
+    'dez','onze','doze','treze','catorze','quinze','dezasseis','dezassete','dezoito','dezanove']
+  const tens = ['','','vinte','trinta','quarenta','cinquenta','sessenta','setenta','oitenta','noventa']
+  const hunds = ['','cento','duzentos','trezentos','quatrocentos','quinhentos',
+    'seiscentos','setecentos','oitocentos','novecentos']
+  if (n === 100) return 'cem'
+  if (n < 20) return ones[n]
+  if (n < 100) { const u=n%10; return tens[~~(n/10)]+(u?' e '+ones[u]:'') }
+  if (n < 1000) { const r=n%100; return hunds[~~(n/100)]+(r?' e '+pt(r):'') }
+  const t=~~(n/1000); const r=n%1000
+  return (t===1?'mil':pt(t)+' mil')+(r?(r<100?' e ':' ')+pt(r):'')
+}
+
+function id(n) {
+  const ones = ['','satu','dua','tiga','empat','lima','enam','tujuh','delapan','sembilan']
+  if (n < 10) return ones[n]
+  if (n === 10) return 'sepuluh'
+  if (n === 11) return 'sebelas'
+  if (n < 20) return ones[n-10]+' belas'
+  if (n < 100) { const u=n%10; return ones[~~(n/10)]+' puluh'+(u?' '+ones[u]:'') }
+  if (n < 1000) { const h=~~(n/100); const r=n%100; return (h===1?'se':ones[h]+' ')+'ratus'+(r?' '+id(r):'') }
+  const t=~~(n/1000); const r=n%1000
+  return (t===1?'se':ones[t]+' ')+'ribu'+(r?' '+id(r):'')
+}
+
 const ZERO = {
   en:'zero', es:'cero', fr:'zéro', de:'null', it:'zero',
   ru:'ноль', ja:'零', zh:'零', he:'אפס', ar:'صفر',
-  arz:'صفر', el:'μηδέν', hu:'nulla',
+  arz:'صفر', el:'μηδέν', hu:'nulla', pt:'zero', id:'nol',
 }
 
-const HANDLERS = { en, es, fr, de, it, ja, zh, ru, el, hu, he, ar, arz }
+const HANDLERS = { en, es, fr, de, it, ja, zh, ru, el, hu, he, ar, arz, pt, id }
 
 export function numToWords(n, lang) {
   if (!Number.isInteger(n) || n < 0 || n > 9999) return null
