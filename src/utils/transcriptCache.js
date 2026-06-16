@@ -70,3 +70,36 @@ export async function deleteCachedImport(videoId, lang) {
     tx.onerror    = e => reject(e.target.error)
   })
 }
+
+// Search all cached videos for a specific word.
+// Returns [{video_id, title, hits: [{start, raw, context}]}] sorted by hit count.
+// Only videos imported after word-level data was added will have words to search.
+export async function searchWordInImports(word, lang) {
+  const all    = await listCachedImports().catch(() => [])
+  const target = word.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+  if (!target) return []
+
+  const results = []
+  for (const imp of all) {
+    if (imp.lang !== lang || !imp.words?.length) continue
+    const hits = imp.words.filter(w => w.word === target)
+    if (!hits.length) continue
+    results.push({
+      video_id: imp.video_id,
+      title:    imp.title,
+      hits:     hits.slice(0, 6).map(h => ({
+        start:   h.start,
+        raw:     h.raw,
+        context: _findContext(imp.segments, h.start),
+      })),
+    })
+  }
+  return results.sort((a, b) => b.hits.length - a.hits.length)
+}
+
+function _findContext(segments, startSec) {
+  if (!segments?.length) return ''
+  const seg = segments.find(s => s.start <= startSec && s.end >= startSec)
+  if (seg) return seg.text
+  return segments.filter(s => s.end <= startSec).pop()?.text ?? ''
+}

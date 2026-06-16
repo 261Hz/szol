@@ -64,6 +64,25 @@ function parseVTT(vtt) {
   return entries
 }
 
+// Parse YouTube's json3 ASR format into a flat word-level timestamp array.
+// Each event has a block start time; each seg has a relative offset within it.
+export function parseJson3(data) {
+  const words = []
+  for (const event of data.events ?? []) {
+    if (!event.segs) continue
+    const blockStart = event.tStartMs ?? 0
+    for (const seg of event.segs) {
+      const raw  = (seg.utf8 ?? '').trim()
+      if (!raw || raw === '\n') continue
+      const start = (blockStart + (seg.tOffsetMs ?? 0)) / 1000
+      const word  = raw.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+      if (!word) continue
+      words.push({ word, raw, start: Math.round(start * 100) / 100 })
+    }
+  }
+  return words
+}
+
 export function buildSegments(entries, words = 15) {
   const segments = []
   let cur = { s: 0, e: 0, w: [] }
@@ -98,7 +117,7 @@ function pickTrack(tracks, lang) {
 
 async function tryInstance(base, videoId, lang) {
   const ac    = new AbortController()
-  const timer = setTimeout(() => ac.abort(), 6000)
+  const timer = setTimeout(() => ac.abort(), 10000)
   try {
     // Dedicated captions endpoint — returns track list with label, language_code, url.
     const r = await fetch(`${base}/api/v1/captions/${videoId}`, { signal: ac.signal })
@@ -109,6 +128,20 @@ async function tryInstance(base, videoId, lang) {
 
     const pick   = pickTrack(tracks, lang)
     const capUrl = pick.url?.startsWith('http') ? pick.url : `${base}${pick.url}`
+
+    // Try json3 for word-level timestamps. Non-fatal: Invidious instances that
+    // proxy YouTube's timedtext API pass through the fmt param; others don't.
+    let words = null
+    try {
+      const j3url = new URL(capUrl)
+      j3url.searchParams.set('fmt', 'json3')
+      const j3res = await fetch(j3url.toString(), { signal: ac.signal })
+      if (j3res.ok) {
+        const j3 = await j3res.json().catch(() => null)
+        if (j3?.events) words = parseJson3(j3)
+      }
+    } catch { /* instance doesn't support json3 */ }
+
     const capRes = await fetch(capUrl, { signal: ac.signal })
     if (!capRes.ok) return null
 
@@ -123,7 +156,7 @@ async function tryInstance(base, videoId, lang) {
       if (ir.ok) title = (await ir.json()).title ?? title
     } catch { /* ignore */ }
 
-    return { entries, isAuto: /auto/i.test(pick.label ?? ''), lang: pick.language_code ?? lang, title }
+    return { entries, isAuto: /auto/i.test(pick.label ?? ''), lang: pick.language_code ?? lang, title, words }
   } catch {
     return null
   } finally {
