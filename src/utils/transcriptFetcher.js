@@ -11,14 +11,10 @@ const INVIDIOUS = [
   'https://inv.nadeko.net',
   'https://invidious.fdn.fr',
   'https://iv.datura.network',
-  'https://invidious.tiekoetter.com',
   'https://yt.cdaut.de',
-  'https://invidious.private.coffee',
   'https://inv.tux.pizza',
   'https://invidious.nerdvpn.de',
-  'https://yewtu.be',
   'https://invidious.kavin.rocks',
-  'https://vid.priv.au',
 ]
 
 // ── YouTube Data API (official, CORS ✓, browser-callable) ────────────────────
@@ -131,6 +127,52 @@ function pickTrack(tracks, lang) {
     ?? tracks[0]
 }
 
+// ── YouTube timedtext (direct, no proxy needed) ───────────────────────────────
+// YouTube's timedtext API is reachable from the browser with CORS headers intact
+// on some responses (e.g. auto-generated captions for embeddable videos).
+// We try json3 first (word-level timestamps) then VTT; first working variant wins.
+async function tryYouTubeTimedtext(videoId, lang) {
+  const base = lang.slice(0, 2)
+  const variants = [
+    { qs: `v=${videoId}&lang=${base}&kind=asr&fmt=json3`, isJson3: true },
+    { qs: `v=${videoId}&lang=en&kind=asr&fmt=json3`,      isJson3: true },
+    { qs: `v=${videoId}&lang=${base}&kind=asr&fmt=vtt`,   isJson3: false },
+    { qs: `v=${videoId}&lang=en&kind=asr&fmt=vtt`,        isJson3: false },
+    { qs: `v=${videoId}&lang=${base}&fmt=vtt`,            isJson3: false },
+    { qs: `v=${videoId}&lang=en&fmt=vtt`,                 isJson3: false },
+  ]
+  for (const { qs, isJson3 } of variants) {
+    try {
+      const r = await fetch(`https://www.youtube.com/api/timedtext?${qs}`, {
+        signal: AbortSignal.timeout(5000),
+      })
+      if (!r.ok) continue
+      const text = await r.text()
+      if (!text.trim()) continue
+
+      let entries = []
+      let words   = null
+      if (isJson3) {
+        try {
+          const j = JSON.parse(text)
+          if (j?.events) {
+            words = parseJson3(j)
+            for (const ev of j.events) {
+              if (!ev.segs) continue
+              const t = ev.segs.map(s => s.utf8 ?? '').join('').replace(/\n/g, ' ').trim()
+              if (t) entries.push({ text: t, start: ev.tStartMs / 1000, duration: (ev.dDurationMs ?? 2000) / 1000 })
+            }
+          }
+        } catch {}
+      } else {
+        entries = parseVTT(text)
+      }
+      if (entries.length) return { entries, isAuto: true, lang: base, title: null, words }
+    } catch {}
+  }
+  return null
+}
+
 // ── Invidious fetcher (client-side, CORS ✓) ───────────────────────────────────
 
 async function tryInstance(base, videoId, lang) {
@@ -209,6 +251,10 @@ async function tryInstance(base, videoId, lang) {
     if (!capRes.ok) return null
     const capText = await capRes.text()
 
+    // Some instances return 200 with an empty body (e.g. inv.nadeko.net for ASR
+    // captions). Skip rather than falling through all parsers and returning null.
+    if (!capText.trim() && !j3Text.trim()) return null
+
     // Try all format interpretations in sequence:
     let entries = parseVTT(capText)                                 // capText is VTT
 
@@ -241,18 +287,7 @@ async function tryInstance(base, videoId, lang) {
       entries = parseVTT(j3Text)
     }
 
-    if (!entries.length) {
-      // Temporary debug: open browser Console to see what the instance returned.
-      console.warn('[szol] caption parse failed', {
-        base,
-        j3Prefix:  j3Text.slice(0, 120),
-        capPrefix: capText.slice(0, 120),
-        j3HasArrow:  j3Text.includes('-->'),
-        capHasArrow: capText.includes('-->'),
-        j3Events:  j3Data?.events?.length ?? 'no-parse',
-      })
-      return null
-    }
+    if (!entries.length) return null
 
     // Title is a separate request — non-fatal if it fails.
     let title = `YouTube: ${videoId}`
@@ -272,20 +307,22 @@ async function tryInstance(base, videoId, lang) {
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
- * Fetch YouTube captions for videoId+lang by trying public Invidious instances.
- * Tries all instances in parallel — first successful result wins.
- * Returns:
- *   { entries, isAuto, lang, title }  — on success
- *   null                              — all instances unreachable or no captions found
+ * Fetch YouTube captions from the browser. Tries in parallel:
+ *   1. YouTube timedtext API directly (no proxy required when CORS headers are present)
+ *   2. Public Invidious instances (CORS-enabled YouTube proxies)
+ * Returns { entries, isAuto, lang, title, words } on success, null if all sources fail.
  */
 export async function fetchCaptionsFromBrowser(videoId, lang) {
-  const result = await Promise.any(
-    INVIDIOUS.map(async base => {
+  const result = await Promise.any([
+    // YouTube timedtext API directly — no proxy, CORS headers present on many videos.
+    tryYouTubeTimedtext(videoId, lang).then(r => { if (!r) throw new Error('miss'); return r }),
+    // Invidious instances in parallel — first non-empty response wins.
+    ...INVIDIOUS.map(async base => {
       const r = await tryInstance(base, videoId, lang)
       if (!r || r.noCaption) throw new Error('miss')
       return r
-    })
-  ).catch(() => null)
+    }),
+  ]).catch(() => null)
   return result
 }
 
