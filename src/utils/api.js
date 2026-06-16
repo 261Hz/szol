@@ -215,6 +215,14 @@ export function removeVocabWord(word, lang) {
   }).catch(() => {})
 }
 
+export async function getVocabClips(word, lang, limit = 5) {
+  const res = await fetch(
+    `${API_URL}/vocab/clips?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}&limit=${limit}`
+  ).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json()
+}
+
 // ── User stories (private, synced to account) ────────────────────────────────
 
 export async function saveUserStory(story) {
