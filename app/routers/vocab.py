@@ -133,12 +133,10 @@ def _contains_word(target: str, text: str, lang: str) -> bool:
 
 
 def _crawl_clips(word: str, lang: str, db: Session) -> list:
-    """Search YouTube for `word`, extract caption segments, upsert VocabClip rows.
+    """Search YouTube for `word`, extract caption segments, upsert VocabClip rows."""
+    import logging
+    log = logging.getLogger(__name__)
 
-    Search uses yt-dlp (no API key needed; search endpoint not bot-detected).
-    Caption fetch uses youtube-transcript-api which scrapes the watch page HTML
-    rather than the Innertube player API -- avoids the datacenter IP bot block.
-    """
     from youtube_transcript_api import (
         YouTubeTranscriptApi, NoTranscriptFound,
         TranscriptsDisabled, VideoUnavailable,
@@ -155,7 +153,9 @@ def _crawl_clips(word: str, lang: str, db: Session) -> list:
         video_ids = [
             e["id"] for e in (results.get("entries") or []) if e.get("id")
         ][:_MAX_VIDEOS]
-    except Exception:
+        log.info("[clips] search '%s' -> %s", word, video_ids)
+    except Exception as e:
+        log.warning("[clips] search failed: %s", e)
         return []
 
     base_lang = lang[:2]
@@ -165,32 +165,43 @@ def _crawl_clips(word: str, lang: str, db: Session) -> list:
         if len(clips) >= _MAX_CLIPS:
             break
 
-        # Step 2: list caption tracks via youtube-transcript-api (watch page scrape,
-        # not Innertube -- avoids "sign in to confirm you're not a bot" from datacenter IPs)
         try:
             transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        except (TranscriptsDisabled, VideoUnavailable, Exception):
+        except TranscriptsDisabled:
+            log.info("[clips] %s: captions disabled", video_id)
+            continue
+        except VideoUnavailable:
+            log.info("[clips] %s: video unavailable", video_id)
+            continue
+        except Exception as e:
+            log.warning("[clips] %s: list_transcripts error: %s", video_id, e)
             continue
 
         # Prefer manual captions; fall back to auto-generated
         transcript = None
         try:
             transcript = transcript_list.find_transcript([lang, base_lang])
+            log.info("[clips] %s: found manual transcript %s", video_id, transcript.language_code)
         except NoTranscriptFound:
             try:
                 transcript = transcript_list.find_generated_transcript([lang, base_lang])
-            except (NoTranscriptFound, Exception):
+                log.info("[clips] %s: found generated transcript %s", video_id, transcript.language_code)
+            except (NoTranscriptFound, Exception) as e:
+                log.info("[clips] %s: no %s transcript: %s", video_id, lang, e)
                 continue
-        except Exception:
+        except Exception as e:
+            log.warning("[clips] %s: find_transcript error: %s", video_id, e)
             continue
 
-        # Skip if we landed on a completely different language
         if not transcript.language_code.startswith(base_lang):
+            log.info("[clips] %s: wrong lang %s (want %s), skipping", video_id, transcript.language_code, base_lang)
             continue
 
         try:
             entries = transcript.fetch()
-        except Exception:
+            log.info("[clips] %s: fetched %d entries", video_id, len(entries))
+        except Exception as e:
+            log.warning("[clips] %s: fetch error: %s", video_id, e)
             continue
 
         for entry in entries:
