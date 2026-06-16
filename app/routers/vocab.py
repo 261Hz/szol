@@ -136,18 +136,15 @@ def _contains_word(target: str, text: str, lang: str) -> bool:
     return bool(re.search(r"(?<!\w)" + re.escape(t) + r"(?!\w)", s))
 
 
-def _crawl_clips(word: str, lang: str, db: Session) -> list:
-    """Search YouTube for `word`, extract caption segments, upsert VocabClip rows."""
-    from youtube_transcript_api import (
-        YouTubeTranscriptApi, NoTranscriptFound,
-        TranscriptsDisabled, VideoUnavailable,
-    )
+_VERCEL_URL = "https://szol.vercel.app"
 
+
+def _crawl_clips(word: str, lang: str, db: Session) -> list:
+    """Search YouTube for `word`, delegate transcript fetching to Vercel (bot-safe IPs)."""
     base_lang = lang[:2]
 
-    # Step 1: search for videos that have captions.
-    # Prefer YouTube Data API (videoCaption=closedCaption guarantees captions exist).
-    # Fall back to yt-dlp ytsearch which may return music videos with captions disabled.
+    # Step 1: search for captioned videos via YouTube Data API.
+    # Fall back to yt-dlp ytsearch (may include music videos without captions).
     video_ids = []
     if settings.YOUTUBE_API_KEY:
         try:
@@ -162,9 +159,7 @@ def _crawl_clips(word: str, lang: str, db: Session) -> list:
                 f"https://www.googleapis.com/youtube/v3/search?{params}", timeout=10
             ) as r:
                 data = json.loads(r.read().decode())
-            video_ids = [
-                item["id"]["videoId"] for item in data.get("items", [])
-            ][:_MAX_VIDEOS]
+            video_ids = [item["id"]["videoId"] for item in data.get("items", [])][:_MAX_VIDEOS]
             print(f"[clips] YT API search '{word}' -> {video_ids}", flush=True)
         except Exception as e:
             print(f"[clips] YT API search failed: {e}", flush=True)
@@ -176,7 +171,7 @@ def _crawl_clips(word: str, lang: str, db: Session) -> list:
         }
         try:
             with yt_dlp.YoutubeDL(search_opts) as ydl:
-                results = ydl.extract_info(f"ytsearch5:{word}", download=False)
+                results = ydl.extract_info(f"ytsearch10:{word}", download=False)
             video_ids = [
                 e["id"] for e in (results.get("entries") or []) if e.get("id")
             ][:_MAX_VIDEOS]
@@ -188,77 +183,39 @@ def _crawl_clips(word: str, lang: str, db: Session) -> list:
     if not video_ids:
         return []
 
-    clips = []
+    # Step 2: delegate caption fetching to Vercel. Render's datacenter IPs are
+    # bot-detected by YouTube; Vercel's Lambda IPs are not.
+    try:
+        params = urllib.parse.urlencode({
+            "word":      word,
+            "lang":      lang,
+            "video_ids": ",".join(video_ids),
+        })
+        req = urllib.request.Request(
+            f"{_VERCEL_URL}/api/word-clips?{params}",
+            headers={"User-Agent": "szol-backend/1.0"},
+        )
+        with urllib.request.urlopen(req, timeout=45) as r:
+            clips = json.loads(r.read().decode())
+        print(f"[clips] Vercel word-clips returned {len(clips)} clips", flush=True)
+    except Exception as e:
+        print(f"[clips] Vercel word-clips failed: {e}", flush=True)
+        return []
 
-    for video_id in video_ids:
-        if len(clips) >= _MAX_CLIPS:
-            break
-
-        try:
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        except TranscriptsDisabled:
-            print(f"[clips] {video_id}: captions disabled", flush=True)
-            continue
-        except VideoUnavailable:
-            print(f"[clips] {video_id}: video unavailable", flush=True)
-            continue
-        except Exception as e:
-            print(f"[clips] {video_id}: list_transcripts error: {e}", flush=True)
-            continue
-
-        # Prefer manual captions; fall back to auto-generated
-        transcript = None
-        try:
-            transcript = transcript_list.find_transcript([lang, base_lang])
-            print(f"[clips] {video_id}: found manual transcript {transcript.language_code}", flush=True)
-        except NoTranscriptFound:
-            try:
-                transcript = transcript_list.find_generated_transcript([lang, base_lang])
-                print(f"[clips] {video_id}: found generated transcript {transcript.language_code}", flush=True)
-            except (NoTranscriptFound, Exception) as e:
-                print(f"[clips] {video_id}: no {lang} transcript: {e}", flush=True)
-                continue
-        except Exception as e:
-            print(f"[clips] {video_id}: find_transcript error: {e}", flush=True)
-            continue
-
-        if not transcript.language_code.startswith(base_lang):
-            print(f"[clips] {video_id}: wrong lang {transcript.language_code} (want {base_lang}), skipping", flush=True)
-            continue
-
-        try:
-            entries = transcript.fetch()
-            print(f"[clips] {video_id}: fetched {len(entries)} entries", flush=True)
-        except Exception as e:
-            print(f"[clips] {video_id}: fetch error: {e}", flush=True)
-            continue
-
-        for entry in entries:
-            text = (entry.get("text") or "").replace("\n", " ").strip()
-            if not text or not _contains_word(word, text, lang):
-                continue
-
-            start_sec = int(entry.get("start", 0))
-            end_sec   = start_sec + max(2, int(entry.get("duration", 3)))
-
-            row = db.query(models.VocabClip).filter_by(
-                word=word, lang=lang, video_id=video_id, start_sec=start_sec
-            ).first()
-            if not row:
-                row = models.VocabClip(
-                    word=word, lang=lang,
-                    video_id=video_id, start_sec=start_sec, end_sec=end_sec,
-                    context=text,
-                )
-                db.add(row)
-
-            clips.append({
-                "video_id": video_id, "start_sec": start_sec,
-                "end_sec": end_sec, "context": text,
-            })
-            if len(clips) >= _MAX_CLIPS:
-                break
-
+    # Step 3: persist to DB for caching.
+    for clip in clips:
+        row = db.query(models.VocabClip).filter_by(
+            word=word, lang=lang,
+            video_id=clip["video_id"], start_sec=clip["start_sec"],
+        ).first()
+        if not row:
+            db.add(models.VocabClip(
+                word=word, lang=lang,
+                video_id=clip["video_id"],
+                start_sec=clip["start_sec"],
+                end_sec=clip["end_sec"],
+                context=clip["context"],
+            ))
     try:
         db.commit()
     except Exception:
