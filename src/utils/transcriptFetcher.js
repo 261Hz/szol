@@ -13,6 +13,9 @@ const INVIDIOUS = [
   'https://iv.datura.network',
   'https://invidious.tiekoetter.com',
   'https://yt.cdaut.de',
+  'https://invidious.private.coffee',
+  'https://inv.tux.pizza',
+  'https://invidious.nerdvpn.de',
 ]
 
 // ── YouTube Data API (official, CORS ✓, browser-callable) ────────────────────
@@ -193,6 +196,14 @@ export async function fetchCaptionsFromBrowser(videoId, lang) {
 export async function fetchYouTubeAudioBlob(videoId) {
   for (const base of INVIDIOUS) {
     try {
+      // Strategy 1: /latest_version proxied stream (itag 140 = m4a audio).
+      // Simpler than adaptive formats and more widely supported across instances.
+      const streamUrl = `${base}/latest_version?id=${videoId}&itag=140`
+      const streamBlob = await fetch(streamUrl, { signal: AbortSignal.timeout(10000) })
+        .then(r => r.ok ? r.blob() : null).catch(() => null)
+      if (streamBlob && streamBlob.size > 1000) return { blob: streamBlob, ext: 'm4a' }
+
+      // Strategy 2: adaptive formats list, prefer proxy URLs (CORS-safe).
       const ac    = new AbortController()
       const timer = setTimeout(() => ac.abort(), 8000)
       let formats

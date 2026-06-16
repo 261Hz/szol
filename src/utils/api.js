@@ -343,22 +343,21 @@ export async function fetchYouTubeTranscript(videoId, lang) {
     }
   }
 
-  const confirmedNoCaption = browserResult?.noCaption ?? false
-
-  // Step 2: Vercel function (different IP pool + direct YouTube page parse).
-  if (!confirmedNoCaption) {
+  // Step 2: Vercel function — always try, even if Invidious said no captions.
+  // Invidious can give false negatives; the Vercel function uses a different IP
+  // and a direct YouTube page approach so it may succeed where Invidious fails.
+  {
     const vercelRes  = await fetch(`/api/transcript-segments?v=${v}&lang=${l}`)
-    const vercelData = await vercelRes.json()
+    const vercelData = await vercelRes.json().catch(() => ({}))
     if (vercelRes.ok) {
       const meta = await metaPromise
       if (meta?.title) vercelData.title = meta.title
       return vercelData
     }
-    if (vercelData?.needs_whisper) {
-      // Vercel confirmed no captions — fall through to Whisper.
-    } else {
+    if (!vercelData?.needs_whisper) {
       throw Object.assign(new Error(vercelData?.detail ?? 'Could not fetch transcript.'), { status: vercelRes.status })
     }
+    // needs_whisper: true → fall through to Whisper
   }
 
   // Step 3: browser downloads audio, Render transcribes with Groq Whisper.
@@ -366,7 +365,7 @@ export async function fetchYouTubeTranscript(videoId, lang) {
   const { fetchYouTubeAudioBlob } = await import('./transcriptFetcher.js')
   const audioResult = await fetchYouTubeAudioBlob(videoId)
   if (!audioResult) {
-    throw new Error('This video has no captions and audio could not be downloaded for transcription.')
+    throw new Error('No captions found and audio download failed. The video may have no captions, or caption servers may be temporarily unavailable — try again in a few minutes.')
   }
 
   const form = new FormData()
