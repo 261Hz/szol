@@ -131,3 +131,49 @@ export async function fetchCaptionsFromBrowser(videoId, lang) {
   }
   return confirmedNoCaption ? { noCaption: true } : null
 }
+
+/**
+ * Download YouTube audio via Invidious proxy (browser-side, CORS ✓).
+ * Invidious instances that proxy audio return URLs under their own domain,
+ * so they have proper CORS headers and aren't IP-bound like raw YouTube CDN URLs.
+ * Returns { blob, ext } or null if no instance could serve audio.
+ */
+export async function fetchYouTubeAudioBlob(videoId) {
+  for (const base of INVIDIOUS) {
+    try {
+      const ac    = new AbortController()
+      const timer = setTimeout(() => ac.abort(), 8000)
+      let formats
+      try {
+        const r = await fetch(`${base}/api/v1/videos/${videoId}?fields=adaptiveFormats`, {
+          signal: ac.signal,
+        })
+        clearTimeout(timer)
+        if (!r.ok) continue
+        formats = (await r.json()).adaptiveFormats ?? []
+      } catch {
+        clearTimeout(timer)
+        continue
+      }
+
+      const audio = formats.filter(f => f.type?.includes('audio'))
+      if (!audio.length) continue
+
+      // Prefer proxy URLs (start with instance base) — these have CORS and aren't IP-bound.
+      const proxyAudio = audio.filter(f => f.url?.startsWith(base))
+      const pick = proxyAudio[0] ?? audio[0]
+      if (!pick?.url) continue
+
+      // Determine extension from MIME type.
+      const mime = pick.type ?? 'audio/webm'
+      const ext  = mime.includes('mp4') || mime.includes('aac') ? 'm4a' : 'webm'
+
+      const blob = await fetch(pick.url).then(r => r.ok ? r.blob() : null).catch(() => null)
+      if (!blob || blob.size < 1000) continue
+      return { blob, ext }
+    } catch {
+      continue
+    }
+  }
+  return null
+}

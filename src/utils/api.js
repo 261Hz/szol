@@ -352,11 +352,23 @@ export async function fetchYouTubeTranscript(videoId, lang) {
     }
   }
 
-  // Step 3: Render backend — Groq Whisper (audio download, only for caption-less videos).
-  const renderRes  = await fetch(`${API_URL}/transcript-segments?v=${v}&lang=${l}`)
+  // Step 3: browser downloads audio, Render transcribes with Groq Whisper.
+  // Invidious proxy URLs have CORS headers; browser can fetch them unlike Render.
+  const { fetchYouTubeAudioBlob } = await import('./transcriptFetcher.js')
+  const audioResult = await fetchYouTubeAudioBlob(videoId)
+  if (!audioResult) {
+    throw new Error('This video has no captions and audio could not be downloaded for transcription.')
+  }
+
+  const form = new FormData()
+  form.append('file', audioResult.blob, `audio.${audioResult.ext}`)
+  form.append('lang', lang)
+  form.append('video_id', videoId)
+
+  const renderRes  = await fetch(`${API_URL}/transcript-from-audio`, { method: 'POST', body: form })
   const renderData = await renderRes.json()
   if (!renderRes.ok) {
-    throw Object.assign(new Error(renderData?.detail ?? 'Could not fetch transcript.'), { status: renderRes.status })
+    throw Object.assign(new Error(renderData?.detail ?? 'Transcription failed.'), { status: renderRes.status })
   }
   return renderData
 }
