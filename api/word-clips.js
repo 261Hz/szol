@@ -54,13 +54,9 @@ function parseJson3(data) {
 
 // ── Word matching ─────────────────────────────────────────────────────────────
 
-function containsWord(target, text, lang) {
-  const base = lang.slice(0, 2)
+function containsWord(target, text) {
   const t = target.trim().toLowerCase()
-  const s = text.toLowerCase()
-  if (!t) return false
-  if (['zh', 'ja', 'ko', 'th'].includes(base)) return s.includes(t)
-  return new RegExp('(?<![\\w])' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w])').test(s)
+  return t.length > 0 && text.toLowerCase().includes(t)
 }
 
 // ── Caption source: YouTube Innertube API ─────────────────────────────────────
@@ -223,6 +219,7 @@ export default async function handler(req, res) {
   const MAX_CLIPS = 8
 
   const clips = []
+  const debug = []
 
   for (const videoId of ids) {
     if (clips.length >= MAX_CLIPS) break
@@ -232,19 +229,20 @@ export default async function handler(req, res) {
     if (!result || result.noCaption) {
       result = await tryYouTubeDirect(videoId, lang)
     }
+    const status = !result ? 'null' : result.noCaption ? 'noCaption' : `ok:${result.lang}:${result.entries?.length ?? 0}`
     if (!result || result.noCaption || !result.entries?.length) {
-      console.log(`[word-clips] ${videoId}: no captions (noCaption=${result?.noCaption ?? 'null result'})`)
+      debug.push(`${videoId}: ${status}`)
       continue
     }
 
-    const sample = result.entries.slice(0, 3).map(e => e.text).join(' | ')
-    console.log(`[word-clips] ${videoId}: lang=${result.lang} entries=${result.entries.length} sample="${sample}"`)
+    const sample = result.entries.slice(0, 2).map(e => e.text).join(' | ')
+    debug.push(`${videoId}: ${status} sample="${sample.slice(0, 80)}"`)
 
     let found = 0
     for (const entry of result.entries) {
       if (clips.length >= MAX_CLIPS) break
       const text = entry.text?.replace(/\n/g, ' ').trim() || ''
-      if (!text || !containsWord(word, text, lang)) continue
+      if (!text || !containsWord(word, text)) continue
       clips.push({
         video_id:  videoId,
         start_sec: Math.floor(entry.start),
@@ -253,13 +251,12 @@ export default async function handler(req, res) {
       })
       found++
     }
-    console.log(`[word-clips] ${videoId}: found ${found} clips for "${word}"`)
-    if (found === 0 && result.entries.length > 0) {
-      const mentionsWord = result.entries.some(e => (e.text || '').toLowerCase().includes(word.toLowerCase()))
-      console.log(`[word-clips] ${videoId}: substring match=${mentionsWord} (regex may be too strict)`)
-    }
+    debug.push(`${videoId}: found ${found} clips`)
   }
 
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate')
+  if (clips.length === 0) {
+    return res.status(200).json({ clips: [], debug })
+  }
   return res.status(200).json(clips)
 }
