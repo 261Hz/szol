@@ -328,19 +328,60 @@ async function tryInstance(base, videoId, lang) {
   }
 }
 
+// ── Vercel same-origin proxy ──────────────────────────────────────────────────
+// Invidious redirects caption content to signed YouTube timedtext URLs.
+// The browser cannot follow that redirect (CORS). Our own /api/captions-proxy
+// fetches server-side (no CORS) and returns the raw VTT or json3 body.
+async function tryViaServerProxy(videoId, lang) {
+  try {
+    const r = await fetch(
+      `/api/captions-proxy?v=${encodeURIComponent(videoId)}&lang=${encodeURIComponent(lang)}`,
+      { signal: AbortSignal.timeout(20000) },
+    )
+    if (!r.ok) return null
+    const text = await r.text()
+    if (!text.trim()) return null
+
+    const base2   = lang.slice(0, 2)
+    let entries   = []
+    let words     = null
+
+    if (text.trimStart().startsWith('{')) {
+      try {
+        const j = JSON.parse(text)
+        if (j?.events) {
+          words = parseJson3(j)
+          for (const ev of j.events) {
+            if (!ev.segs) continue
+            const t = ev.segs.map(s => s.utf8 ?? '').join('').replace(/\n/g, ' ').trim()
+            if (t) entries.push({ text: t, start: ev.tStartMs / 1000, duration: (ev.dDurationMs ?? 2000) / 1000 })
+          }
+        }
+      } catch {}
+    } else {
+      entries = parseVTT(text)
+    }
+
+    if (!entries.length) return null
+    return { entries, isAuto: true, lang: base2, title: null, words }
+  } catch {
+    return null
+  }
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
  * Fetch YouTube captions from the browser. Tries in parallel:
- *   1. YouTube timedtext API directly (no proxy required when CORS headers are present)
- *   2. Public Invidious instances (CORS-enabled YouTube proxies)
- * Returns { entries, isAuto, lang, title, words } on success, null if all sources fail.
+ *   1. YouTube timedtext API directly (fast; works when CORS headers present)
+ *   2. /api/captions-proxy — Vercel proxies Invidious server-side (no CORS)
+ *   3. Direct Invidious instances (belt-and-suspenders; most are CORS-blocked)
+ * Returns { entries, isAuto, lang, title, words } on success, null if all fail.
  */
 export async function fetchCaptionsFromBrowser(videoId, lang) {
   const result = await Promise.any([
-    // YouTube timedtext API directly — no proxy, CORS headers present on many videos.
     tryYouTubeTimedtext(videoId, lang).then(r => { if (!r) throw new Error('miss'); return r }),
-    // Invidious instances in parallel — first non-empty response wins.
+    tryViaServerProxy(videoId, lang).then(r => { if (!r) throw new Error('miss'); return r }),
     ...INVIDIOUS.map(async base => {
       const r = await tryInstance(base, videoId, lang)
       if (!r || r.noCaption) throw new Error('miss')
