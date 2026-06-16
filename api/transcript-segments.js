@@ -136,58 +136,68 @@ async function tryInvidious(base, videoId, lang) {
 // More reliable than the watch-page scrape because it's a real API endpoint.
 
 async function tryYouTubeInnertube(videoId, lang) {
-  const ac    = new AbortController()
-  const timer = setTimeout(() => ac.abort(), 8000)
-  try {
-    const r = await fetch(
-      'https://www.youtube.com/youtubei/v1/player?key=***YT_KEY_WEB***&prettyPrint=false',
-      {
+  // Try multiple Innertube client contexts. ANDROID is what yt-dlp uses —
+  // separate key, different User-Agent, and far less IP-restricted than WEB.
+  const clients = [
+    {
+      url: 'https://www.youtube.com/youtubei/v1/player?key=***YT_KEY_ANDROID***&prettyPrint=false',
+      headers: {
+        'Content-Type':             'application/json',
+        'User-Agent':               'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
+        'X-YouTube-Client-Name':    '3',
+        'X-YouTube-Client-Version': '19.09.37',
+      },
+      client: { clientName: 'ANDROID', clientVersion: '19.09.37', androidSdkVersion: 30, hl: 'en', gl: 'US' },
+    },
+    {
+      url: 'https://www.youtube.com/youtubei/v1/player?key=***YT_KEY_WEB***&prettyPrint=false',
+      headers: {
+        'Content-Type':             'application/json',
+        'User-Agent':               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'X-YouTube-Client-Name':    '1',
+        'X-YouTube-Client-Version': '2.20241201.01.00',
+        'Origin':                   'https://www.youtube.com',
+        'Referer':                  `https://www.youtube.com/watch?v=${videoId}`,
+      },
+      client: { clientName: 'WEB', clientVersion: '2.20241201.01.00', hl: 'en', gl: 'US' },
+    },
+  ]
+
+  const langBase = lang.slice(0, 2)
+
+  for (const ctx of clients) {
+    try {
+      const r = await fetch(ctx.url, {
         method:  'POST',
-        signal:  ac.signal,
-        headers: {
-          'Content-Type':             'application/json',
-          'X-YouTube-Client-Name':    '1',
-          'X-YouTube-Client-Version': '2.20240101.00.00',
-          'Origin':                   'https://www.youtube.com',
-          'Referer':                  `https://www.youtube.com/watch?v=${videoId}`,
-          'User-Agent':               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        },
-        body: JSON.stringify({
-          videoId,
-          context: {
-            client: { clientName: 'WEB', clientVersion: '2.20240101.00.00', hl: 'en', gl: 'US' }
-          },
-        }),
-      }
-    )
-    if (!r.ok) return null
-    const data = await r.json().catch(() => null)
-    if (!data) return null
+        signal:  AbortSignal.timeout(8000),
+        headers: ctx.headers,
+        body:    JSON.stringify({ videoId, context: { client: ctx.client } }),
+      })
+      if (!r.ok) continue
+      const data = await r.json().catch(() => null)
+      if (!data) continue
 
-    const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? []
-    if (!tracks.length) return { noCaption: true }
+      const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? []
+      if (!tracks.length) continue  // try next client before giving up
 
-    const langBase = lang.slice(0, 2)
-    const pick = tracks.find(t => t.languageCode === lang && t.kind !== 'asr')
-      ?? tracks.find(t => t.languageCode?.startsWith(langBase) && t.kind !== 'asr')
-      ?? tracks.find(t => t.languageCode === 'en' && t.kind !== 'asr')
-      ?? tracks.find(t => t.kind !== 'asr')
-      ?? tracks[0]
-    if (!pick?.baseUrl) return null
+      const pick = tracks.find(t => t.languageCode === lang && t.kind !== 'asr')
+        ?? tracks.find(t => t.languageCode?.startsWith(langBase) && t.kind !== 'asr')
+        ?? tracks.find(t => t.languageCode === 'en' && t.kind !== 'asr')
+        ?? tracks.find(t => t.kind !== 'asr')
+        ?? tracks[0]
+      if (!pick?.baseUrl) continue
 
-    const capRes = await fetch(`${pick.baseUrl}&fmt=vtt`, { signal: ac.signal })
-    if (!capRes.ok) return null
-    const vtt     = await capRes.text()
-    const entries = parseVTT(vtt)
-    if (!entries.length) return null
+      const capRes = await fetch(`${pick.baseUrl}&fmt=vtt`, { signal: AbortSignal.timeout(6000) })
+      if (!capRes.ok) continue
+      const vtt     = await capRes.text()
+      const entries = parseVTT(vtt)
+      if (!entries.length) continue
 
-    const title = data?.videoDetails?.title ?? `YouTube: ${videoId}`
-    return { entries, isAuto: pick.kind === 'asr', lang: pick.languageCode ?? lang, title }
-  } catch {
-    return null
-  } finally {
-    clearTimeout(timer)
+      const title = data?.videoDetails?.title ?? `YouTube: ${videoId}`
+      return { entries, isAuto: pick.kind === 'asr', lang: pick.languageCode ?? lang, title }
+    } catch { /* try next client */ }
   }
+  return { noCaption: true }
 }
 
 // ── Caption source: direct YouTube watch page ─────────────────────────────────
