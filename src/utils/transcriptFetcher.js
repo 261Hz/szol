@@ -132,15 +132,13 @@ function pickTrack(tracks, lang) {
 // on some responses (e.g. auto-generated captions for embeddable videos).
 // We try json3 first (word-level timestamps) then VTT; first working variant wins.
 async function tryYouTubeTimedtext(videoId, lang) {
-  const base = lang.slice(0, 2)
-  const variants = [
-    { qs: `v=${videoId}&lang=${base}&kind=asr&fmt=json3`, isJson3: true },
-    { qs: `v=${videoId}&lang=en&kind=asr&fmt=json3`,      isJson3: true },
-    { qs: `v=${videoId}&lang=${base}&kind=asr&fmt=vtt`,   isJson3: false },
-    { qs: `v=${videoId}&lang=en&kind=asr&fmt=vtt`,        isJson3: false },
-    { qs: `v=${videoId}&lang=${base}&fmt=vtt`,            isJson3: false },
-    { qs: `v=${videoId}&lang=en&fmt=vtt`,                 isJson3: false },
-  ]
+  const base  = lang.slice(0, 2)
+  const langs = base === 'en' ? ['en'] : [base, 'en']
+  const variants = langs.flatMap(l => [
+    { qs: `v=${videoId}&lang=${l}&kind=asr&fmt=json3`, isJson3: true },
+    { qs: `v=${videoId}&lang=${l}&kind=asr&fmt=vtt`,   isJson3: false },
+    { qs: `v=${videoId}&lang=${l}&fmt=vtt`,            isJson3: false },
+  ])
   for (const { qs, isJson3 } of variants) {
     try {
       const r = await fetch(`https://www.youtube.com/api/timedtext?${qs}`, {

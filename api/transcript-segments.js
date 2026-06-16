@@ -192,9 +192,21 @@ async function tryInvidious(base, videoId, lang) {
 // More reliable than the watch-page scrape because it's a real API endpoint.
 
 async function tryYouTubeInnertube(videoId, lang) {
-  // Try multiple Innertube client contexts. ANDROID is what yt-dlp uses —
-  // separate key, different User-Agent, and far less IP-restricted than WEB.
+  // iOS client (id 5) is what yt-dlp defaults to from non-browser IPs — YouTube's
+  // mobile-app pipeline is less aggressively bot-checked than the WEB client.
+  // ANDROID (id 3) is the next best option; WEB is last resort.
   const clients = [
+    {
+      url: 'https://www.youtube.com/youtubei/v1/player?key=***YT_KEY_IOS***&prettyPrint=false',
+      headers: {
+        'Content-Type':             'application/json',
+        'User-Agent':               'com.google.ios.youtube/19.09.3 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)',
+        'X-YouTube-Client-Name':    '5',
+        'X-YouTube-Client-Version': '19.09.3',
+      },
+      client: { clientName: 'IOS', clientVersion: '19.09.3', deviceModel: 'iPhone14,3', hl: 'en', gl: 'US',
+                userAgent: 'com.google.ios.youtube/19.09.3 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)' },
+    },
     {
       url: 'https://www.youtube.com/youtubei/v1/player?key=***YT_KEY_ANDROID***&prettyPrint=false',
       headers: {
@@ -228,7 +240,8 @@ async function tryYouTubeInnertube(videoId, lang) {
         method:  'POST',
         signal:  AbortSignal.timeout(8000),
         headers: ctx.headers,
-        body:    JSON.stringify({ videoId, context: { client: ctx.client } }),
+        // contentCheckOk + racyCheckOk: skip YouTube's content-rating redirect
+        body:    JSON.stringify({ videoId, contentCheckOk: true, racyCheckOk: true, context: { client: ctx.client } }),
       })
       if (!r.ok) continue
       const data = await r.json().catch(() => null)
@@ -247,10 +260,17 @@ async function tryYouTubeInnertube(videoId, lang) {
         ?? tracks[0]
       if (!pick?.baseUrl) continue
 
-      const capRes = await fetch(`${pick.baseUrl}&fmt=vtt`, { signal: AbortSignal.timeout(6000) })
-      if (!capRes.ok) continue
-      const vtt     = await capRes.text()
-      const entries = parseVTT(vtt)
+      // Try json3 first (richer structure); fall back to VTT.
+      let entries = []
+      try {
+        const j3res = await fetch(`${pick.baseUrl}&fmt=json3`, { signal: AbortSignal.timeout(6000) })
+        if (j3res.ok) entries = parseJson3(await j3res.json())
+      } catch {}
+      if (!entries.length) {
+        const vttRes = await fetch(`${pick.baseUrl}&fmt=vtt`, { signal: AbortSignal.timeout(6000) })
+        if (!vttRes.ok) continue
+        entries = parseVTT(await vttRes.text())
+      }
       if (!entries.length) continue
 
       const title = data?.videoDetails?.title ?? `YouTube: ${videoId}`
@@ -274,6 +294,9 @@ async function tryYouTubeDirect(videoId, lang) {
       headers: {
         'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'Accept-Language': 'en-US,en;q=0.9',
+        'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        // CONSENT cookie bypasses the Google EU consent gate that blocks ytInitialPlayerResponse
+        'Cookie':          'CONSENT=YES+1; SOCS=CAE=',
       },
     })
     if (!r.ok) return null
