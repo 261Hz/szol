@@ -196,7 +196,14 @@ def _crawl_clips(word: str, lang: str, db: Session) -> list:
             headers={"User-Agent": "szol-backend/1.0"},
         )
         with urllib.request.urlopen(req, timeout=45) as r:
-            clips = json.loads(r.read().decode())
+            body = json.loads(r.read().decode())
+        # When clips is empty the function returns {"clips":[], "debug":[...]}
+        if isinstance(body, dict):
+            clips = body.get("clips", [])
+            for line in body.get("debug", []):
+                print(f"[clips] vercel: {line}", flush=True)
+        else:
+            clips = body
         print(f"[clips] Vercel word-clips returned {len(clips)} clips", flush=True)
     except Exception as e:
         print(f"[clips] Vercel word-clips failed: {e}", flush=True)
