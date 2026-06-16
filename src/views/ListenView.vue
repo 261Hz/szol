@@ -34,6 +34,51 @@
 
         <div v-if="importExpanded" class="flex flex-col gap-3 px-1">
 
+          <!-- ── Local corpus word search ── -->
+          <div v-if="importedStories.length" class="flex flex-col gap-2">
+            <div class="flex gap-2">
+              <input
+                v-model="wordQuery"
+                placeholder="Find a word in your videos…"
+                @keydown.enter="searchLocalCorpus"
+                :disabled="importing"
+                class="flex-1 bg-slate-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 outline-none focus:border-violet-600 placeholder:text-gray-600 disabled:opacity-50 transition-all"
+              />
+              <button
+                @click="searchLocalCorpus"
+                :disabled="importing || !wordQuery.trim()"
+                class="px-4 py-2 bg-violet-700 text-white text-sm rounded-lg hover:bg-violet-600 disabled:opacity-40 transition-all whitespace-nowrap"
+              >Find</button>
+            </div>
+
+            <div v-if="wordResults.length" class="flex flex-col gap-2 max-h-52 overflow-y-auto">
+              <div v-for="r in wordResults" :key="r.video_id" class="flex flex-col gap-1">
+                <div class="text-xs text-gray-400 font-medium truncate">{{ r.title }}</div>
+                <div
+                  v-for="h in r.hits.slice(0, 3)"
+                  :key="h.start"
+                  class="flex items-center gap-2 bg-slate-800 rounded px-2 py-1.5"
+                >
+                  <span class="text-[10px] text-gray-500 flex-shrink-0 tabular-nums">{{ fmtTime(h.start) }}</span>
+                  <span class="text-xs text-gray-300 flex-1 min-w-0 truncate">{{ excerptAround(h.context, wordQuery) }}</span>
+                  <button
+                    @click="openAtTime(r.video_id, h.start)"
+                    class="flex-shrink-0 text-[10px] px-2 py-0.5 bg-violet-700 text-white rounded hover:bg-violet-600 transition-all"
+                  >▶</button>
+                </div>
+              </div>
+            </div>
+            <p v-else-if="wordSearched" class="text-xs text-gray-600 px-1">
+              {{ hasWordData ? 'No matches found.' : 'Re-import videos to enable word search.' }}
+            </p>
+
+            <div v-if="hasYTSearch" class="flex items-center gap-2">
+              <div class="flex-1 border-t border-gray-800"></div>
+              <span class="text-xs text-gray-600">search YouTube</span>
+              <div class="flex-1 border-t border-gray-800"></div>
+            </div>
+          </div>
+
           <!-- ── YouTube search (requires VITE_YOUTUBE_API_KEY) ── -->
           <div v-if="hasYTSearch" class="flex flex-col gap-2">
             <div class="flex gap-2">
@@ -224,6 +269,14 @@
         </div>
       </div>
 
+      <!-- Word highlight (visible during playback when word-level data is available) -->
+      <div v-if="selectedStory?.words" class="h-7 flex items-center justify-center">
+        <span
+          v-if="currentWord && isPlaying"
+          class="text-emerald-400 font-bold text-base tracking-wider"
+        >{{ currentWord.raw }}</span>
+      </div>
+
       <!-- Player error -->
       <div v-if="playerError" class="text-xs text-red-400 text-center py-2">{{ playerError }}</div>
 
@@ -331,7 +384,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import Fuse from 'fuse.js'
 import { LANGS } from '../data/stories.js'
 import { fetchListenStories, fetchYouTubeTranscript, searchYouTube, getAccountVocab } from '../utils/api.js'
-import { cacheImport, getCachedImport, listCachedImports, deleteCachedImport } from '../utils/transcriptCache.js'
+import { cacheImport, getCachedImport, listCachedImports, deleteCachedImport, searchWordInImports } from '../utils/transcriptCache.js'
 import { t } from '../utils/i18n.js'
 import { isRTL } from '../utils/rtl.js'
 import { spokenNumbers } from '../utils/spokenNumbers.js'
@@ -385,6 +438,11 @@ const ytSearchQuery    = ref('')
 const ytSearchResults  = ref([])
 const ytSearching      = ref(false)
 const vocabChips       = ref([])
+
+const wordQuery    = ref('')
+const wordResults  = ref([])
+const wordSearched = ref(false)
+const hasWordData  = computed(() => importedStories.value.some(s => s.words?.length > 0))
 
 watch(importExpanded, async (open) => {
   if (open && hasYTSearch && !vocabChips.value.length) {
@@ -464,6 +522,31 @@ async function removeImport(videoId) {
   if (selectedStory.value?.id === `local_${videoId}`) backToList()
 }
 
+async function searchLocalCorpus() {
+  const q = wordQuery.value.trim()
+  if (!q) return
+  wordSearched.value = true
+  wordResults.value  = await searchWordInImports(q, props.lang).catch(() => [])
+}
+
+async function openAtTime(videoId, startSec) {
+  const cached = await getCachedImport(videoId, props.lang).catch(() => null)
+  if (!cached) return
+  importExpanded.value = false
+  wordResults.value    = []
+  wordSearched.value   = false
+  wordQuery.value      = ''
+  await loadStory(importedStoryObj(cached), startSec)
+}
+
+function excerptAround(text, word, radius = 30) {
+  const idx = (text ?? '').toLowerCase().indexOf(word.toLowerCase())
+  if (idx === -1) return (text ?? '').slice(0, 60)
+  const s = Math.max(0, idx - radius)
+  const e = Math.min(text.length, idx + word.length + radius)
+  return (s > 0 ? '…' : '') + text.slice(s, e) + (e < text.length ? '…' : '')
+}
+
 // Converts an IndexedDB-cached import into the same shape the player expects.
 function importedStoryObj(data) {
   return {
@@ -474,6 +557,7 @@ function importedStoryObj(data) {
     lang:            data.lang,
     is_autogenerated: data.is_autogenerated,
     segments:        data.segments,
+    words:           data.words ?? null,
     audio_url:       null,
     author:          null,
     source:          'YouTube',
@@ -490,17 +574,18 @@ const showTranscript = ref(false)
 const resumeSegment  = ref(null)
 const difficulty     = ref('medium')
 
-async function loadStory(story) {
+async function loadStory(story, startAt = null) {
   teardown()
   selectedStory.value  = story
   segments.value       = story.segments
   segmentIdx.value     = 0
   userInput.value      = ''
   showTranscript.value = false
+  _pendingStartAt      = startAt
 
   const saved = JSON.parse(localStorage.getItem('szol_listen_progress') || '{}')
   const vp    = saved[story.id]
-  resumeSegment.value = (vp && vp.segmentIndex > 0 && vp.segmentIndex < story.segments.length)
+  resumeSegment.value = (startAt === null && vp && vp.segmentIndex > 0 && vp.segmentIndex < story.segments.length)
     ? vp.segmentIndex : null
 
   if (story.source_type === 'youtube') {
@@ -533,8 +618,9 @@ const isPlaying     = ref(false)
 const currentTime   = ref(0)
 const duration      = ref(0)
 
-let player    = null
-let pollTimer = null
+let player          = null
+let pollTimer       = null
+let _pendingStartAt = null
 
 function initPlayer(id) {
   if (!ytContainerEl.value) return
@@ -548,7 +634,14 @@ function initPlayer(id) {
         onReady(e) {
           playerReady.value = true
           duration.value    = e.target.getDuration() || 0
-          e.target.seekTo(segments.value[segmentIdx.value]?.start ?? 0, true)
+          let seekTarget = segments.value[segmentIdx.value]?.start ?? 0
+          if (_pendingStartAt !== null) {
+            seekTarget = _pendingStartAt
+            const idx  = segments.value.findIndex(s => s.start <= _pendingStartAt && s.end >= _pendingStartAt)
+            if (idx >= 0) segmentIdx.value = idx
+            _pendingStartAt = null
+          }
+          e.target.seekTo(seekTarget, true)
           e.target.pauseVideo()
         },
         onStateChange(e) {
@@ -556,7 +649,7 @@ function initPlayer(id) {
           isPlaying.value = playing
           if (playing) {
             startWave()
-            pollTimer = setInterval(pollYTTime, 400)
+            pollTimer = setInterval(pollYTTime, 150)
           } else {
             stopWave()
             clearInterval(pollTimer)
@@ -684,6 +777,19 @@ const currentSegment = computed(() => segments.value[segmentIdx.value] ?? null)
 const segDuration = computed(() => {
   const seg = currentSegment.value
   return seg ? (seg.end - seg.start) : 0
+})
+
+// Binary-search the word currently being spoken (requires word-level json3 data).
+const currentWord = computed(() => {
+  const words = selectedStory.value?.words
+  if (!words?.length) return null
+  const t = currentTime.value
+  let lo = 0, hi = words.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1
+    words[mid].start <= t ? (lo = mid) : (hi = mid - 1)
+  }
+  return words[lo]?.start <= t ? words[lo] : null
 })
 
 function fmtTime(secs) {
