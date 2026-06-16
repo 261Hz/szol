@@ -122,6 +122,10 @@ export const UI = {
   noMessages:    'No messages yet',
   discoverPartners: 'Discover partners',
   loginToManageMsg: 'Log in to manage messaging settings.',
+  journal:          'Journal',
+  todayEntries:     "Today's Entries",
+  noJournals:       'No journals for this language yet.',
+  practiceTyping:   'Practice typing',
 },
 
   // ── Spanish (Español) ─────────────────────────────────────────────────────────
@@ -236,6 +240,10 @@ export const UI = {
     noMessages:    'Aún no hay mensajes',
     discoverPartners: 'Descubrir compañeros de aprendizaje',
     loginToManageMsg: 'Inicia sesión para gestionar mensajes.',
+    journal:          'Diario',
+    todayEntries:     'Entradas de hoy',
+    noJournals:       'No hay diarios para este idioma todavía.',
+    practiceTyping:   'Practicar escritura',
   },
 
   // ── French (Français) ─────────────────────────────────────────────────────────
@@ -349,6 +357,10 @@ export const UI = {
     noMessages:    'Aucun message pour le moment',
     discoverPartners: 'Découvrir des partenaires',
     loginToManageMsg: 'Connectez-vous pour gérer les messages.',
+    journal:          'Journal',
+    todayEntries:     "Entrées d'aujourd'hui",
+    noJournals:       'Pas encore de journaux pour cette langue.',
+    practiceTyping:   'Pratiquer la frappe',
   },
 
   // ── German (Deutsch) ──────────────────────────────────────────────────────────
@@ -462,6 +474,10 @@ export const UI = {
     noMessages:    'Noch keine Nachrichten',
     discoverPartners: 'Lernpartner entdecken',
     loginToManageMsg: 'Anmelden, um Nachrichten zu verwalten.',
+    journal:          'Tagebuch',
+    todayEntries:     'Heutige Einträge',
+    noJournals:       'Noch keine Tagebücher für diese Sprache.',
+    practiceTyping:   'Tippen üben',
   },
 
   // ── Hebrew (עברית) — reads right-to-left ──────────────────────────────────────
@@ -575,6 +591,10 @@ export const UI = {
     noMessages:    'אין עדיין הודעות',
     discoverPartners: 'גלה שותפי לימוד',
     loginToManageMsg: 'התחבר לניהול הגדרות הודעות.',
+    journal:          'יומן',
+    todayEntries:     'כניסות היום',
+    noJournals:       '.אין יומנים לשפה זו עדיין',
+    practiceTyping:   'תרגל הקלדה',
   },
 
   // ── Arabic (العربية) — Modern Standard Arabic, reads right-to-left ───────────
@@ -688,6 +708,10 @@ export const UI = {
     noMessages:    'لا توجد رسائل بعد',
     discoverPartners: 'اكتشف شركاء التعلم',
     loginToManageMsg: 'سجّل الدخول لإدارة الرسائل.',
+    journal:          'مذكرات',
+    todayEntries:     'مدخلات اليوم',
+    noJournals:       '.لا توجد مذكرات لهذه اللغة بعد',
+    practiceTyping:   'تدرب على الكتابة',
   },
 
   // ── Egyptian Arabic (مصري / arz) — colloquial Egyptian dialect, right-to-left ─
@@ -801,6 +825,10 @@ export const UI = {
     noMessages:    'مفيش رسايل لسه',
     discoverPartners: 'اكتشف شركاء التعلم',
     loginToManageMsg: 'سجّل دخول عشان تدير الرسائل.',
+    journal:          'مذكرات',
+    todayEntries:     'مدخلات النهارده',
+    noJournals:       '.مفيش مذكرات لهذه اللغة لسه',
+    practiceTyping:   'تدرب على الكتابة',
   },
 
   // ── Japanese (日本語) ──────────────────────────────────────────────────────────
@@ -914,6 +942,10 @@ export const UI = {
     noMessages:    'まだメッセージはありません',
     discoverPartners: '学習パートナーを探す',
     loginToManageMsg: 'ログインしてメッセージを管理する。',
+    journal:          '日記',
+    todayEntries:     '今日のエントリー',
+    noJournals:       'この言語の日記はまだありません。',
+    practiceTyping:   'タイピング練習',
   },
 
   // ── Russian (Русский) — Cyrillic alphabet ─────────────────────────────────────
@@ -1027,6 +1059,10 @@ export const UI = {
     noMessages:    'Пока нет сообщений',
     discoverPartners: 'Найти партнёров для обучения',
     loginToManageMsg: 'Войдите для управления сообщениями.',
+    journal:          'Дневник',
+    todayEntries:     'Записи сегодня',
+    noJournals:       'Дневников для этого языка пока нет.',
+    practiceTyping:   'Практика набора текста',
   },
 
   // ── Italian (Italiano) ────────────────────────────────────────────────────────
@@ -1140,6 +1176,10 @@ export const UI = {
     noMessages:    'Nessun messaggio al momento',
     discoverPartners: 'Scopri partner di apprendimento',
     loginToManageMsg: 'Accedi per gestire i messaggi.',
+    journal:          'Diario',
+    todayEntries:     'Voci di oggi',
+    noJournals:       'Nessun diario disponibile per questa lingua.',
+    practiceTyping:   'Esercita la digitazione',
   },
 
   // ── Greek (Ελληνικά) — Greek alphabet ─────────────────────────────────────────
@@ -1253,6 +1293,10 @@ export const UI = {
     noMessages:    'Δεν υπάρχουν ακόμη μηνύματα',
     discoverPartners: 'Ανακάλυψε συνεργάτες μάθησης',
     loginToManageMsg: 'Συνδεθείτε για τη διαχείριση μηνυμάτων.',
+    journal:          'Ημερολόγιο',
+    todayEntries:     'Σημερινές καταχωρίσεις',
+    noJournals:       'Δεν υπάρχουν ακόμη ημερολόγια για αυτή τη γλώσσα.',
+    practiceTyping:   'Εξάσκηση πληκτρολόγησης',
   },
 
   // ── Chinese Simplified (中文) ──────────────────────────────────────────────────
@@ -1366,6 +1410,10 @@ export const UI = {
     noMessages:    '暂无消息',
     discoverPartners: '发现学习伙伴',
     loginToManageMsg: '登录以管理消息设置。',
+    journal:          '日记',
+    todayEntries:     '今日条目',
+    noJournals:       '该语言暂无日记。',
+    practiceTyping:   '打字练习',
   },
 
   // ── Hungarian (Magyar) ────────────────────────────────────────────────────────
@@ -1479,6 +1527,10 @@ export const UI = {
     noMessages:    'Még nincsenek üzenetek',
     discoverPartners: 'Tanulótársak felfedezése',
     loginToManageMsg: 'Jelentkezz be az üzenetek kezeléséhez.',
+    journal:          'Napló',
+    todayEntries:     'Mai bejegyzések',
+    noJournals:       'Még nincsenek naplók ezen a nyelven.',
+    practiceTyping:   'Gépelési gyakorlat',
   },
 }
 
