@@ -16,6 +16,9 @@ const INVIDIOUS = [
   'https://invidious.private.coffee',
   'https://inv.tux.pizza',
   'https://invidious.nerdvpn.de',
+  'https://yewtu.be',
+  'https://invidious.kavin.rocks',
+  'https://vid.priv.au',
 ]
 
 // ── YouTube Data API (official, CORS ✓, browser-callable) ────────────────────
@@ -228,20 +231,20 @@ async function tryInstance(base, videoId, lang) {
 
 /**
  * Fetch YouTube captions for videoId+lang by trying public Invidious instances.
+ * Tries all instances in parallel — first successful result wins.
  * Returns:
  *   { entries, isAuto, lang, title }  — on success
- *   { noCaption: true }               — video confirmed to have no captions
- *   null                              — all instances unreachable (transient)
+ *   null                              — all instances unreachable or no captions found
  */
 export async function fetchCaptionsFromBrowser(videoId, lang) {
-  let confirmedNoCaption = false
-  for (const base of INVIDIOUS) {
-    const result = await tryInstance(base, videoId, lang)
-    if (!result) continue
-    if (result.noCaption) { confirmedNoCaption = true; continue }
-    return result
-  }
-  return confirmedNoCaption ? { noCaption: true } : null
+  const result = await Promise.any(
+    INVIDIOUS.map(async base => {
+      const r = await tryInstance(base, videoId, lang)
+      if (!r || r.noCaption) throw new Error('miss')
+      return r
+    })
+  ).catch(() => null)
+  return result
 }
 
 /**
