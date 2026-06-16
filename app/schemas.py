@@ -81,6 +81,17 @@ class UserProgressResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ── Vocab clips (shared YouTube corpus) ──────────────────────────────────────
+
+class VocabClipOut(BaseModel):
+    video_id:  str
+    start_sec: int
+    end_sec:   int
+    context:   str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ── User vocab (saved word bank) ─────────────────────────────────────────────
 
 class UserVocabCreate(BaseModel):

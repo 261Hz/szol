@@ -221,6 +221,21 @@ class UserBlock(Base):
     __table_args__ = (UniqueConstraint("blocker_id", "blocked_id"),)
 
 
+class VocabClip(Base):
+    __tablename__ = "vocab_clips"
+
+    id         = Column(BigInteger, primary_key=True, autoincrement=True)
+    word       = Column(String, nullable=False, index=True)
+    lang       = Column(String(10), nullable=False, index=True)
+    video_id   = Column(String(20), nullable=False)
+    start_sec  = Column(Integer, nullable=False)
+    end_sec    = Column(Integer, nullable=False)
+    context    = Column(String, nullable=False)
+    crawled_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
+
+    __table_args__ = (UniqueConstraint("word", "lang", "video_id", "start_sec"),)
+
+
 class FeedStory(Base):
     __tablename__ = "feed_stories"
 
