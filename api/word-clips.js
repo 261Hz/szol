@@ -233,11 +233,13 @@ export default async function handler(req, res) {
       result = await tryYouTubeDirect(videoId, lang)
     }
     if (!result || result.noCaption || !result.entries?.length) {
-      console.log(`[word-clips] ${videoId}: no captions (result=${JSON.stringify(result?.noCaption)})`)
+      console.log(`[word-clips] ${videoId}: no captions (noCaption=${result?.noCaption ?? 'null result'})`)
       continue
     }
 
-    console.log(`[word-clips] ${videoId}: ${result.entries.length} entries, searching for "${word}"`)
+    const sample = result.entries.slice(0, 3).map(e => e.text).join(' | ')
+    console.log(`[word-clips] ${videoId}: lang=${result.lang} entries=${result.entries.length} sample="${sample}"`)
+
     let found = 0
     for (const entry of result.entries) {
       if (clips.length >= MAX_CLIPS) break
@@ -251,7 +253,11 @@ export default async function handler(req, res) {
       })
       found++
     }
-    console.log(`[word-clips] ${videoId}: found ${found} clips`)
+    console.log(`[word-clips] ${videoId}: found ${found} clips for "${word}"`)
+    if (found === 0 && result.entries.length > 0) {
+      const mentionsWord = result.entries.some(e => (e.text || '').toLowerCase().includes(word.toLowerCase()))
+      console.log(`[word-clips] ${videoId}: substring match=${mentionsWord} (regex may be too strict)`)
+    }
   }
 
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate')
