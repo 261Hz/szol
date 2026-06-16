@@ -32,7 +32,64 @@
           <span class="ml-auto text-gray-600 text-xs">{{ importExpanded ? '▲' : '▼' }}</span>
         </button>
 
-        <div v-if="importExpanded" class="flex flex-col gap-2 px-1">
+        <div v-if="importExpanded" class="flex flex-col gap-3 px-1">
+
+          <!-- ── YouTube search (requires VITE_YOUTUBE_API_KEY) ── -->
+          <div v-if="hasYTSearch" class="flex flex-col gap-2">
+            <div class="flex gap-2">
+              <input
+                v-model="ytSearchQuery"
+                :placeholder="`Search ${LANGS[lang]?.name ?? lang} videos with captions…`"
+                @keydown.enter="runYTSearch"
+                :disabled="ytSearching || importing"
+                class="flex-1 bg-slate-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 outline-none focus:border-emerald-600 placeholder:text-gray-600 disabled:opacity-50 transition-all"
+              />
+              <button
+                @click="runYTSearch"
+                :disabled="ytSearching || importing || !ytSearchQuery.trim()"
+                class="px-4 py-2 bg-sky-700 text-white text-sm rounded-lg hover:bg-sky-600 disabled:opacity-40 transition-all whitespace-nowrap"
+              >{{ ytSearching ? '…' : 'Search' }}</button>
+            </div>
+
+            <!-- Vocab chips -->
+            <div v-if="vocabChips.length" class="flex flex-wrap gap-1.5">
+              <button
+                v-for="w in vocabChips"
+                :key="w.word"
+                @click="ytSearchQuery = w.word; runYTSearch()"
+                class="text-xs px-2.5 py-1 rounded-full bg-slate-800 border border-gray-700 text-gray-400 hover:text-white hover:border-sky-600 transition-all"
+              >{{ w.word }}</button>
+            </div>
+
+            <!-- Search results -->
+            <div v-if="ytSearchResults.length" class="flex flex-col gap-2 max-h-80 overflow-y-auto pr-0.5">
+              <div
+                v-for="r in ytSearchResults"
+                :key="r.videoId"
+                class="flex gap-3 bg-slate-800 rounded-lg p-2 items-start"
+              >
+                <img :src="r.thumbnail" alt="" class="w-24 h-[54px] object-cover rounded flex-shrink-0 bg-slate-700" />
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm text-gray-100 leading-snug line-clamp-2">{{ r.title }}</div>
+                  <div class="text-xs text-gray-500 mt-0.5 truncate">{{ r.channel }}</div>
+                </div>
+                <button
+                  @click="doImport(r.videoId)"
+                  :disabled="importing"
+                  class="flex-shrink-0 text-xs px-2.5 py-1 bg-emerald-700 text-white rounded-md hover:bg-emerald-600 disabled:opacity-40 transition-all mt-0.5"
+                >Import</button>
+              </div>
+            </div>
+
+            <!-- divider -->
+            <div class="flex items-center gap-2">
+              <div class="flex-1 border-t border-gray-800"></div>
+              <span class="text-xs text-gray-600">or paste URL</span>
+              <div class="flex-1 border-t border-gray-800"></div>
+            </div>
+          </div>
+
+          <!-- ── URL paste ── -->
           <div class="flex gap-2">
             <input
               v-model="importUrl"
@@ -47,6 +104,7 @@
               class="px-4 py-2 bg-emerald-700 text-white text-sm rounded-lg hover:bg-emerald-600 disabled:opacity-40 transition-all whitespace-nowrap"
             >{{ importing ? '…' : 'Import' }}</button>
           </div>
+
           <p v-if="importError" class="text-xs text-red-400 px-1">{{ importError }}</p>
           <p class="text-xs text-gray-600 px-1">Captions are cached on this device — no server storage.</p>
         </div>
@@ -271,7 +329,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import Fuse from 'fuse.js'
 import { LANGS } from '../data/stories.js'
-import { fetchListenStories, fetchYouTubeTranscript } from '../utils/api.js'
+import { fetchListenStories, fetchYouTubeTranscript, searchYouTube, getAccountVocab } from '../utils/api.js'
 import { cacheImport, getCachedImport, listCachedImports, deleteCachedImport } from '../utils/transcriptCache.js'
 import { t } from '../utils/i18n.js'
 import { isRTL } from '../utils/rtl.js'
@@ -313,12 +371,27 @@ watch(() => props.lang, () => {
   loadImportedStories()
 })
 
-// ── YouTube import ────────────────────────────────────────────────────────────
+// ── YouTube import + search ───────────────────────────────────────────────────
 
-const importUrl      = ref('')
-const importExpanded = ref(false)
-const importing      = ref(false)
-const importError    = ref('')
+const importUrl        = ref('')
+const importExpanded   = ref(false)
+const importing        = ref(false)
+const importError      = ref('')
+const hasYTSearch      = !!import.meta.env.VITE_YOUTUBE_API_KEY
+
+const ytSearchQuery    = ref('')
+const ytSearchResults  = ref([])
+const ytSearching      = ref(false)
+const vocabChips       = ref([])
+
+watch(importExpanded, async (open) => {
+  if (open && hasYTSearch && !vocabChips.value.length) {
+    try {
+      const vocab = await getAccountVocab()
+      vocabChips.value = vocab.filter(w => w.lang === props.lang).slice(0, 14)
+    } catch {}
+  }
+})
 
 function extractVideoId(url) {
   const patterns = [
@@ -334,31 +407,24 @@ function extractVideoId(url) {
   return null
 }
 
-async function importFromUrl() {
-  const url = importUrl.value.trim()
-  if (!url) return
-  const videoId = extractVideoId(url)
-  if (!videoId) { importError.value = 'Could not find a YouTube video ID in that URL.'; return }
-
+async function doImport(videoId) {
   importError.value = ''
   importing.value   = true
-
   try {
-    // Check IndexedDB first
     const cached = await getCachedImport(videoId, props.lang)
     if (cached) {
       importUrl.value      = ''
       importExpanded.value = false
+      ytSearchResults.value = []
       loadStory(importedStoryObj(cached))
       return
     }
-
-    // Fetch from backend
     const data = await fetchYouTubeTranscript(videoId, props.lang)
     await cacheImport(data)
     await loadImportedStories()
     importUrl.value      = ''
     importExpanded.value = false
+    ytSearchResults.value = []
     loadStory(importedStoryObj(data))
   } catch (err) {
     importError.value = err.status === 429
@@ -366,6 +432,27 @@ async function importFromUrl() {
       : (err.message || 'Could not import this video.')
   } finally {
     importing.value = false
+  }
+}
+
+async function importFromUrl() {
+  const url     = importUrl.value.trim()
+  if (!url) return
+  const videoId = extractVideoId(url)
+  if (!videoId) { importError.value = 'Could not find a YouTube video ID in that URL.'; return }
+  await doImport(videoId)
+}
+
+async function runYTSearch() {
+  const q = ytSearchQuery.value.trim()
+  if (!q || ytSearching.value) return
+  ytSearching.value    = true
+  ytSearchResults.value = []
+  importError.value    = ''
+  try {
+    ytSearchResults.value = await searchYouTube(q, props.lang)
+  } finally {
+    ytSearching.value = false
   }
 }
 
