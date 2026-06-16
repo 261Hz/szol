@@ -109,9 +109,12 @@ export function buildSegments(entries, words = 15) {
 function pickTrack(tracks, lang) {
   const base   = lang.slice(0, 2)
   const isAuto = t => /auto/i.test(t.label ?? '')
-  return tracks.find(t => t.language_code === lang && !isAuto(t))
-    ?? tracks.find(t => t.language_code?.startsWith(base) && !isAuto(t))
-    ?? tracks.find(t => t.language_code === 'en' && !isAuto(t))
+  // Invidious /api/v1/captions/:id returns "languageCode" (camelCase) per the docs,
+  // but /api/v1/videos/:id returns "language_code" (snake_case). Support both.
+  const lc = t => t.languageCode ?? t.language_code ?? ''
+  return tracks.find(t => lc(t) === lang && !isAuto(t))
+    ?? tracks.find(t => lc(t).startsWith(base) && !isAuto(t))
+    ?? tracks.find(t => lc(t) === 'en' && !isAuto(t))
     ?? tracks.find(t => !isAuto(t))
     ?? tracks[0]
 }
@@ -127,7 +130,48 @@ async function tryInstance(base, videoId, lang) {
     if (!r.ok) return null
     const data   = await r.json()
     const tracks = data.captions ?? []
-    if (!tracks.length) return { noCaption: true }
+
+    // Some Invidious instances return an empty track list even when captions exist
+    // (the list endpoint fails but direct caption serving still works).
+    // When empty, probe common label/lang params before giving up.
+    if (!tracks.length) {
+      const baseLang = lang.slice(0, 2)
+      const probes = [
+        `lang=${encodeURIComponent(baseLang)}`,
+        `label=${encodeURIComponent(baseLang)}`,
+        `label=${encodeURIComponent(lang)}`,
+        `label=${encodeURIComponent('English (auto-generated)')}`,
+        `label=${encodeURIComponent('English')}`,
+      ]
+      for (const qs of probes) {
+        try {
+          const probeUrl = `${base}/api/v1/captions/${videoId}?${qs}`
+          const pr = await fetch(probeUrl, { signal: ac.signal })
+          if (!pr.ok) continue
+          const text = await pr.text()
+          if (!text.includes('-->')) continue
+          const entries = parseVTT(text)
+          if (!entries.length) continue
+          let words = null
+          try {
+            const j3url = new URL(probeUrl)
+            j3url.searchParams.set('fmt', 'json3')
+            const j3res = await fetch(j3url.toString(), { signal: ac.signal })
+            if (j3res.ok) {
+              const j3 = await j3res.json().catch(() => null)
+              if (j3?.events) words = parseJson3(j3)
+            }
+          } catch {}
+          let title = `YouTube: ${videoId}`
+          try {
+            const ir = await fetch(`${base}/api/v1/videos/${videoId}?fields=title`, { signal: ac.signal })
+            if (ir.ok) title = (await ir.json()).title ?? title
+          } catch {}
+          return { entries, isAuto: qs.includes('auto'), lang: baseLang, title, words }
+        } catch {}
+      }
+      return { noCaption: true }
+    }
 
     const pick   = pickTrack(tracks, lang)
     const capUrl = pick.url?.startsWith('http') ? pick.url : `${base}${pick.url}`
