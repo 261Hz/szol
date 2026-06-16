@@ -240,8 +240,18 @@ async function tryYouTubeInnertube(videoId, lang) {
         method:  'POST',
         signal:  AbortSignal.timeout(8000),
         headers: ctx.headers,
-        // contentCheckOk + racyCheckOk: skip YouTube's content-rating redirect
-        body:    JSON.stringify({ videoId, contentCheckOk: true, racyCheckOk: true, context: { client: ctx.client } }),
+        // contentCheckOk + racyCheckOk: skip YouTube's content-rating redirect.
+        // thirdParty.embedUrl: tells YouTube this is an embedded-player request —
+        // without this, captionTracks is often absent from server-IP responses.
+        body: JSON.stringify({
+          videoId,
+          contentCheckOk: true,
+          racyCheckOk:    true,
+          context: {
+            client:     ctx.client,
+            thirdParty: { embedUrl: `https://www.youtube.com/embed/${videoId}` },
+          },
+        }),
       })
       if (!r.ok) continue
       const data = await r.json().catch(() => null)
