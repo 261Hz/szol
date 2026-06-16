@@ -9,12 +9,12 @@
 
 const INVIDIOUS = [
   'https://inv.nadeko.net',
-  'https://invidious.fdn.fr',
-  'https://iv.datura.network',
-  'https://yt.cdaut.de',
-  'https://inv.tux.pizza',
-  'https://invidious.nerdvpn.de',
-  'https://invidious.kavin.rocks',
+  'https://invidious.jing.rocks',
+  'https://inv.riverside.rocks',
+  'https://invidious.privacydev.net',
+  'https://yt.artemislena.eu',
+  'https://invidious.perennialte.ch',
+  'https://invidious.slipfox.xyz',
 ]
 
 // ── YouTube Data API (official, CORS ✓, browser-callable) ────────────────────
@@ -245,12 +245,38 @@ async function tryInstance(base, videoId, lang) {
       }
     } catch {}
 
-    const capRes = await fetch(capUrl, { signal: ac.signal })
-    if (!capRes.ok) return null
-    const capText = await capRes.text()
+    // Wrap in try/catch: some instances redirect the label-based caption URL to
+    // YouTube's timedtext API which has no CORS headers → fetch throws TypeError.
+    let capText = ''
+    try {
+      const capRes = await fetch(capUrl, { signal: ac.signal })
+      if (capRes.ok) capText = await capRes.text()
+    } catch {}
 
-    // Some instances return 200 with an empty body (e.g. inv.nadeko.net for ASR
-    // captions). Skip rather than falling through all parsers and returning null.
+    // When both are empty (empty body OR CORS-redirect to YouTube), try lang-based
+    // alternatives. Some instances serve captions differently for ?lang=X vs ?label=X.
+    if (!capText.trim() && !j3Text.trim()) {
+      const baseLang = lang.slice(0, 2)
+      for (const qs of [`lang=${baseLang}&fmt=json3`, `lang=en&fmt=json3`,
+                        `lang=${baseLang}&fmt=vtt`,   `lang=en&fmt=vtt`,
+                        `lang=${baseLang}`,            `lang=en`]) {
+        try {
+          const pr = await fetch(`${base}/api/v1/captions/${videoId}?${qs}`, { signal: ac.signal })
+          if (!pr.ok) continue
+          const t = await pr.text()
+          if (!t.trim()) continue
+          if (qs.includes('fmt=json3')) {
+            j3Text = t
+            try { j3Data = JSON.parse(j3Text) } catch {}
+            if (j3Data?.events) words = parseJson3(j3Data)
+          } else {
+            capText = t
+          }
+          break
+        } catch {}
+      }
+    }
+
     if (!capText.trim() && !j3Text.trim()) return null
 
     // Try all format interpretations in sequence:
@@ -285,16 +311,7 @@ async function tryInstance(base, videoId, lang) {
       entries = parseVTT(j3Text)
     }
 
-    if (!entries.length) {
-      console.warn('[szol]', base, {
-        j3: j3Text.slice(0, 300),
-        cap: capText.slice(0, 300),
-        j3Arrow: j3Text.includes('-->'),
-        capArrow: capText.includes('-->'),
-        j3Events: j3Data?.events?.length ?? 'no-parse',
-      })
-      return null
-    }
+    if (!entries.length) return null
 
     // Title is a separate request — non-fatal if it fails.
     let title = `YouTube: ${videoId}`
