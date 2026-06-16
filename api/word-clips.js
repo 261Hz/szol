@@ -6,6 +6,14 @@
 //
 // Usage: GET /api/word-clips?word=town&lang=en&video_ids=id1,id2,id3
 
+const INVIDIOUS = [
+  'https://inv.nadeko.net',
+  'https://invidious.fdn.fr',
+  'https://iv.datura.network',
+  'https://invidious.tiekoetter.com',
+  'https://yt.cdaut.de',
+]
+
 // ── Caption parsers ───────────────────────────────────────────────────────────
 
 function vttTime(ts) {
@@ -57,6 +65,77 @@ function parseJson3(data) {
 function containsWord(target, text) {
   const t = target.trim().toLowerCase()
   return t.length > 0 && text.toLowerCase().includes(t)
+}
+
+// ── Caption source: Invidious ────────────────────────────────────────────────
+
+async function tryInvidious(base, videoId, lang) {
+  const langBase = lang.slice(0, 2)
+  const isAuto   = t => /auto/i.test(t.label ?? '')
+  const lc       = t => t.languageCode ?? t.language_code ?? ''
+  try {
+    const r = await fetch(`${base}/api/v1/captions/${videoId}`, {
+      signal:  AbortSignal.timeout(6000),
+      headers: { 'User-Agent': 'szol-app/1.0' },
+    })
+    if (!r.ok) return null
+    const data   = await r.json().catch(() => null)
+    if (!data) return null
+    const tracks = data.captions ?? []
+    if (!tracks.length) return { noCaption: true }
+
+    const pick = tracks.find(t => lc(t) === lang && !isAuto(t))
+      ?? tracks.find(t => lc(t).startsWith(langBase) && !isAuto(t))
+      ?? tracks.find(t => lc(t) === 'en' && !isAuto(t))
+      ?? tracks.find(t => !isAuto(t))
+      ?? tracks[0]
+    if (!pick) return { noCaption: true }
+
+    const capUrl = pick.url?.startsWith('http') ? pick.url : `${base}${pick.url}`
+    try {
+      const j3url = new URL(capUrl)
+      j3url.searchParams.set('fmt', 'json3')
+      const j3res = await fetch(j3url.toString(), { signal: AbortSignal.timeout(5000) })
+      if (j3res.ok) {
+        const j3 = await j3res.json().catch(() => null)
+        if (j3?.events) {
+          const entries = j3.events
+            .filter(ev => ev.segs)
+            .map(ev => ({
+              text:     ev.segs.map(s => s.utf8 ?? '').join('').replace(/\n/g, ' ').trim(),
+              start:    ev.tStartMs / 1000,
+              duration: (ev.dDurationMs ?? 2000) / 1000,
+            }))
+            .filter(e => e.text)
+          if (entries.length) return { entries, lang: lc(pick) }
+        }
+      }
+    } catch {}
+
+    const vttRes = await fetch(capUrl, { signal: AbortSignal.timeout(5000) })
+    if (!vttRes.ok) return null
+    const entries = parseVTT(await vttRes.text())
+    return entries.length ? { entries, lang: lc(pick) } : null
+  } catch {
+    return null
+  }
+}
+
+// Race all Invidious instances for one video — take the first success.
+async function tryAnyInvidious(videoId, lang) {
+  return new Promise(resolve => {
+    let pending = INVIDIOUS.length
+    let settled = false
+    let bestNoCaption = null
+    for (const base of INVIDIOUS) {
+      tryInvidious(base, videoId, lang).then(r => {
+        if (settled) return
+        if (r && !r.noCaption) { settled = true; resolve(r); return }
+        if (r?.noCaption) bestNoCaption = r
+        if (--pending === 0) { settled = true; resolve(bestNoCaption) }
+      })
+    }
+  })
 }
 
 // ── Caption source: YouTube Innertube API ─────────────────────────────────────
@@ -225,10 +304,9 @@ export default async function handler(req, res) {
     if (clips.length >= MAX_CLIPS) break
     if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) continue
 
-    let result = await tryYouTubeInnertube(videoId, lang)
-    if (!result || result.noCaption) {
-      result = await tryYouTubeDirect(videoId, lang)
-    }
+    let result = await tryAnyInvidious(videoId, lang)
+    if (!result || result.noCaption) result = await tryYouTubeInnertube(videoId, lang)
+    if (!result || result.noCaption) result = await tryYouTubeDirect(videoId, lang)
     const status = !result ? 'null' : result.noCaption ? 'noCaption' : `ok:${result.lang}:${result.entries?.length ?? 0}`
     if (!result || result.noCaption || !result.entries?.length) {
       debug.push(`${videoId}: ${status}`)
