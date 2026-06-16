@@ -265,6 +265,7 @@
           v-model="userInput"
           rows="3"
           :placeholder="t(lang, 'typeWhatYouHear')"
+          @keydown.space="playWordTick"
           class="w-full bg-slate-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-100 outline-none focus:border-emerald-600 resize-none placeholder:text-gray-600 transition-all"
         />
 
@@ -333,6 +334,7 @@ import { fetchListenStories, fetchYouTubeTranscript, searchYouTube, getAccountVo
 import { cacheImport, getCachedImport, listCachedImports, deleteCachedImport } from '../utils/transcriptCache.js'
 import { t } from '../utils/i18n.js'
 import { isRTL } from '../utils/rtl.js'
+import { spokenNumbers } from '../utils/spokenNumbers.js'
 
 const props = defineProps({
   story:       Object,
@@ -712,6 +714,27 @@ function stopWave() {
   bars.value = [...BASE_HEIGHTS]
 }
 
+// ── Word tick (audio feedback on word completion) ─────────────────────────────
+
+let _audioCtx = null
+function playWordTick() {
+  try {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+    if (_audioCtx.state === 'suspended') _audioCtx.resume()
+    const osc  = _audioCtx.createOscillator()
+    const gain = _audioCtx.createGain()
+    osc.connect(gain)
+    gain.connect(_audioCtx.destination)
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(900, _audioCtx.currentTime)
+    osc.frequency.exponentialRampToValueAtTime(600, _audioCtx.currentTime + 0.04)
+    gain.gain.setValueAtTime(0.07, _audioCtx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, _audioCtx.currentTime + 0.08)
+    osc.start(_audioCtx.currentTime)
+    osc.stop(_audioCtx.currentTime + 0.08)
+  } catch {}
+}
+
 // ── Word comparison ───────────────────────────────────────────────────────────
 
 function normalizeWord(w) {
@@ -726,7 +749,9 @@ function wordMatch(typed, expected) {
   return new Fuse([e], { threshold: 0.4 }).search(t).length > 0
 }
 
-const segmentWords = computed(() => (currentSegment.value?.text ?? '').split(/\s+/).filter(Boolean))
+const segmentWords = computed(() =>
+  spokenNumbers(currentSegment.value?.text ?? '', props.lang).split(/\s+/).filter(Boolean)
+)
 const userWords    = computed(() => userInput.value.trim().split(/\s+/).filter(w => w))
 
 const comparedWords = computed(() =>
