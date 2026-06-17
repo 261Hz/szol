@@ -478,6 +478,16 @@ export async function discoverPartners(targetLang) {
 
 // ── Handwriting checker ───────────────────────────────────────────────────────
 
+export async function checkTranslation(sourceText, translation, sourceLang, targetLang = 'en') {
+  const res = await apiFetch(`${API_URL}/words/translate/check`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ source_text: sourceText, translation, source_lang: sourceLang, target_lang: targetLang }),
+  }).catch(() => null)
+  if (!res?.ok) return null
+  return await res.json() // { score: number, feedback: string }
+}
+
 export async function checkHandwriting(word, lang, imagePng) {
   const res = await apiFetch(`${API_URL}/words/write/check`, {
     method:  'POST',
