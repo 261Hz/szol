@@ -121,6 +121,7 @@
           :currentUser="currentUser"
           @tap="({ word: w, sentence }) => saveFromExample(w, sentence, word.lang)"
           @openAuth="emit('openAuth')"
+          @openClip="clip => emit('openClip', clip)"
         />
       </div>
     </div>
@@ -142,7 +143,7 @@ const props = defineProps({
   currentUser: Object, // null if logged out
 })
 
-const emit = defineEmits(['remove', 'saveWord', 'openAuth'])
+const emit = defineEmits(['remove', 'saveWord', 'openAuth', 'openClip'])
 
 // freqPopup holds the word whose frequency popup is currently open, or null.
 const freqPopup = ref(null)

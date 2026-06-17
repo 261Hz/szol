@@ -82,6 +82,7 @@
         @remove="removeFromVocab"
         @save-word="addToVocab"
         @open-auth="showAuth = true"
+        @open-clip="clip => { activeClip.value = clip; activeTab.value = 'listen' }"
       />
 
       <ListenView
@@ -89,6 +90,8 @@
         :story="currentStory"
         :lang="activeLang"
         :current-user="currentUser"
+        :clip="activeClip"
+        @close-clip="activeClip.value = null"
       />
 
       <SettingsView
@@ -155,6 +158,7 @@ const activeLang   = ref(localStorage.getItem('szol_lang') || null)
 const currentStory = ref(null)
 const currentUser  = ref(null)
 const showAuth     = ref(false)
+const activeClip   = ref(null)
 
 const vocabBank = ref(JSON.parse(localStorage.getItem('szol_vocab') || '[]'))
 watch(vocabBank, val => localStorage.setItem('szol_vocab', JSON.stringify(val)), { deep: true })

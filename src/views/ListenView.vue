@@ -16,6 +16,24 @@
     style="display:none"
   />
 
+  <!-- Clip viewer: opened from Vocab → Video tab -->
+  <div v-if="activeClip" class="flex flex-col gap-2 mb-4 bg-slate-900 border border-blue-800 rounded-xl p-3">
+    <div class="flex items-center justify-between">
+      <span class="text-xs text-blue-400 font-medium">Video clip</span>
+      <button @click="closeClip" class="text-xs text-gray-500 hover:text-white transition-all">✕ close</button>
+    </div>
+    <div class="relative w-full rounded-lg overflow-hidden bg-black" style="padding-bottom:56.25%">
+      <iframe
+        :src="`https://www.youtube.com/embed/${activeClip.video_id}?start=${activeClip.start_sec}`"
+        class="absolute inset-0 w-full h-full"
+        frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen
+      />
+    </div>
+    <p v-if="activeClip.context" class="text-sm text-gray-300 leading-snug px-1">{{ activeClip.context }}</p>
+  </div>
+
   <div class="flex flex-col gap-3">
 
     <!-- Story picker -->
@@ -393,7 +411,18 @@ const props = defineProps({
   story:       Object,
   lang:        String,
   currentUser: Object,
+  clip:        Object,  // { video_id, start_sec, context } from Vocab → Video tab
 })
+
+const emit = defineEmits(['closeClip'])
+
+const activeClip = ref(props.clip ?? null)
+watch(() => props.clip, c => { activeClip.value = c ?? null })
+
+function closeClip() {
+  activeClip.value = null
+  emit('closeClip')
+}
 
 // ── Story list ────────────────────────────────────────────────────────────────
 
