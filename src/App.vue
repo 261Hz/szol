@@ -121,8 +121,6 @@
         v-if="activeTab === 'tutor'"
         :current-user="currentUser"
         :lang="activeLang"
-        :story="currentStory"
-        :vocab="vocabBank"
         @open-auth="showAuth = true"
       />
 

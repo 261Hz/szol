@@ -13,21 +13,24 @@
 
     <template v-else>
 
-      <!-- Context pills -->
-      <div class="flex flex-wrap gap-1.5 text-xs">
-        <span v-if="story" class="px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 truncate max-w-[200px]">
-          📖 {{ story.title }}
-        </span>
-        <span v-if="vocab?.length" class="px-2 py-0.5 rounded-full bg-gray-800 text-gray-400">
-          {{ vocab.length }} saved words
-        </span>
-        <span class="px-2 py-0.5 rounded-full bg-gray-800 text-gray-400">{{ langName }}</span>
+      <!-- Header -->
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-medium text-gray-200">{{ langName }} tutor</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-500">immersion · Gemma 4</span>
+        </div>
+        <button
+          v-if="messages.length"
+          @click="clearChat"
+          class="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+        >Clear</button>
       </div>
 
       <!-- Message thread -->
       <div ref="messagesEl" class="flex flex-col gap-3 max-h-[65vh] overflow-y-auto scroll-smooth">
-        <div v-if="!messages.length" class="text-center text-gray-600 text-sm py-8">
-          Ask anything about {{ langName }} — grammar, vocabulary, pronunciation, culture.
+        <div v-if="!messages.length" class="text-center text-gray-600 text-sm py-8 leading-relaxed">
+          Responds only in {{ langName }}.<br>
+          <span class="text-gray-700 text-xs">Ask about grammar, vocabulary, what you're reading — anything.</span>
         </div>
 
         <div v-for="msg in messages" :key="msg.id">
@@ -58,7 +61,7 @@
           v-model="input"
           @keydown.enter.prevent="send"
           :disabled="waiting"
-          placeholder="Ask anything about the language…"
+          placeholder="Type in any language…"
           class="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-gray-100 placeholder-gray-600 outline-none focus:border-green-600 transition-colors disabled:opacity-50"
         />
         <button
@@ -67,12 +70,6 @@
           class="px-4 py-2.5 rounded-xl bg-green-700 text-white text-sm hover:bg-green-600 disabled:opacity-40 transition-all"
         >{{ waiting ? '…' : 'Send' }}</button>
       </div>
-
-      <button
-        v-if="messages.length"
-        @click="clearChat"
-        class="self-start text-xs text-gray-600 hover:text-gray-400 transition-colors"
-      >Clear chat</button>
 
     </template>
   </div>
@@ -86,8 +83,6 @@ import { tutorChat } from '../utils/api.js'
 const props = defineProps({
   currentUser: Object,
   lang:        String,
-  story:       Object,
-  vocab:       Array,
 })
 
 defineEmits(['open-auth'])
@@ -116,13 +111,7 @@ async function send() {
     .slice(0, -1)
     .map(m => ({ role: m.role, content: m.content }))
 
-  const result = await tutorChat({
-    messages:     history,
-    lang:         props.lang,
-    storyTitle:   props.story?.title   || null,
-    storyExcerpt: props.story?.content?.slice(0, 600) || null,
-    vocabSample:  props.vocab?.slice(0, 25).map(v => v.word || v).join(', ') || null,
-  })
+  const result = await tutorChat({ messages: history, lang: props.lang })
 
   aiMsg.loading = false
   waiting.value = false

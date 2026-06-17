@@ -530,17 +530,11 @@ export async function fetchTodayDocuments(lang) {
   return await res.json()
 }
 
-export async function tutorChat({ messages, lang, storyTitle, storyExcerpt, vocabSample }) {
+export async function tutorChat({ messages, lang }) {
   const res = await apiFetch(`${API_URL}/words/tutor/chat`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      lang,
-      messages,
-      story_title:   storyTitle   || null,
-      story_excerpt: storyExcerpt || null,
-      vocab_sample:  vocabSample  || null,
-    }),
+    body: JSON.stringify({ lang, messages }),
   }).catch(() => null)
   if (!res?.ok) return null
   return await res.json() // { reply: string }
