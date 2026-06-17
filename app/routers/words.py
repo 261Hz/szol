@@ -82,26 +82,7 @@ def word_frequency(word: str, lang: str, db: Session = Depends(get_db)):
 
 
 @router.get("/examples")
-def word_examples(word: str, lang: str, limit: int = 5, db: Session = Depends(get_db)):
-    """
-    Return up to `limit` corpus example sentences, scored best-first.
-    Fast path: local corpus_sentences (ILIKE search).
-    Fallback: Leipzig API sentences when local corpus has no results.
-    """
-    norm = _normalize(lang, word)
-    rows = db.execute(text("""
-        SELECT sentence, score
-        FROM   corpus_sentences
-        WHERE  language_code = :lang
-          AND  sentence ILIKE :pattern
-        ORDER  BY score DESC
-        LIMIT  :lim
-    """), {"lang": lang, "pattern": f"%{norm}%", "lim": limit}).fetchall()
-
-    if rows:
-        return [{"sentence": r[0], "score": r[1]} for r in rows]
-
-    # Fallback: Leipzig API
+def word_examples(word: str, lang: str, limit: int = 5):
     sentences = leipzig_sentences(word, lang, limit)
     return [{"sentence": s, "score": 70} for s in sentences]
 

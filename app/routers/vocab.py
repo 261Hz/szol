@@ -151,10 +151,14 @@ def get_all_words(
         .all()
     )
 
+    _CJK = {'ja', 'zh', 'ko', 'cmn', 'yue'}
     pending = [
         {"word": w, "lang": l}
         for w, l in all_pairs
         if (w, l) not in cached
+        and len(w.strip()) >= (1 if l in _CJK else 2)
+        and len(w.strip()) <= 40
+        and not (' ' in w.strip() and len(w.strip()) > 20)
     ]
     return pending
 
