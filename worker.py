@@ -34,6 +34,9 @@ _LANG_NAMES = {
 }
 
 
+class QuotaExceeded(Exception):
+    pass
+
 def yt_search(word, lang):
     base = lang[:2]
     q    = word  # rely on relevanceLanguage, not appending the language name
@@ -49,7 +52,11 @@ def yt_search(word, lang):
         },
         timeout=10,
     )
-    ids = [item["id"]["videoId"] for item in r.json().get("items", []) if "videoId" in item.get("id", {})]
+    data = r.json()
+    errors = data.get("error", {}).get("errors", [])
+    if any(e.get("reason") == "quotaExceeded" for e in errors):
+        raise QuotaExceeded("YouTube API daily quota exceeded — try again tomorrow")
+    ids = [item["id"]["videoId"] for item in data.get("items", []) if "videoId" in item.get("id", {})]
     print(f"  search '{q}' -> {ids}")
     return ids
 
@@ -154,7 +161,10 @@ def process(word, lang):
         print("  skipping — too short, too long, or a sentence/title")
         return
 
-    video_ids = yt_search(word, lang)
+    try:
+        video_ids = yt_search(word, lang)
+    except QuotaExceeded as e:
+        raise  # bubble up to stop the whole run
     if not video_ids:
         print("  no videos found")
         return
@@ -218,7 +228,12 @@ if __name__ == "__main__":
         print()
 
         for item in pending:
-            process(item["word"], item["lang"])
+            try:
+                process(item["word"], item["lang"])
+            except QuotaExceeded as e:
+                print(f"\n⚠ {e}")
+                print("Stopping early — remaining words will be processed tomorrow.")
+                sys.exit(1)
 
         print("\nAll done.")
     else:
