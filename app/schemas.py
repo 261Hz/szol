@@ -91,6 +91,14 @@ class VocabClipOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class VocabClipIn(BaseModel):
+    word:      str
+    lang:      str
+    video_id:  str
+    start_sec: int
+    end_sec:   int
+    context:   str
+
 
 # ── User vocab (saved word bank) ─────────────────────────────────────────────
 
