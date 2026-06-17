@@ -159,7 +159,7 @@ _LANG_NAMES_FULL = {
     "hu": "Hungarian", "el": "Greek",
 }
 
-_GROQ_MODEL = "gemma2-9b-it"
+_GROQ_MODEL = "llama-3.3-70b-versatile"
 
 
 def _search_stories(query: str, lang: str, db: Session, limit: int = 2):
@@ -220,7 +220,7 @@ def tutor_chat(
             messages=messages,
             max_tokens=512,
         )
-        return {"reply": resp.choices[0].message.content.strip(), "model": "gemma2-9b"}
+        return {"reply": resp.choices[0].message.content.strip(), "model": "llama-3.3-70b"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
