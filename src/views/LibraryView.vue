@@ -475,14 +475,28 @@ onMounted(async () => {
   fetchCommunityStories(props.lang),
 ])
 watch(() => props.lang, async (newLang) => {
-  loading.value = true
+  // Reset all lazy-loaded content so stale data from the previous language is cleared
+  loading.value      = true
+  feedStories.value  = []
+  feedPage.value     = 0
+  feedExhausted.value = false
+  todayArticle.value = null
+  quoteOfDay.value   = null
+  onThisDay.value    = []
+
   const [curated, community] = await Promise.all([
     fetchCuratedStories(newLang),
     fetchCommunityStories(newLang),
   ])
-  curatedStories.value = curated
+  curatedStories.value   = curated
   communityStories.value = community
-  loading.value = false
+  loading.value          = false
+
+  // Reload whichever lazy sections the user already had open
+  if (open.value.feed)      loadFeed(true)
+  if (open.value.today)     loadToday()
+  if (open.value.quote)     loadQuote()
+  if (open.value.onthisday) loadOnThisDay()
 })
   curatedStories.value   = curated
   communityStories.value = community
@@ -552,7 +566,6 @@ async function loadFeed(reset = false) {
   feedLoading.value = false
 }
 
-watch(() => props.lang, () => { if (open.value.feed) loadFeed(true) })
 
 // ── Section open/close ─────────────────────────────────────────
 // open = tracks which accordion sections are expanded (true) or collapsed (false).
@@ -841,8 +854,6 @@ async function loadQuote() {
   quoteOfDay.value   = await fetchQuoteOfDay(props.lang)
   quoteLoading.value = false
 }
-
-watch(() => props.lang, () => { quoteOfDay.value = null })
 
 function importQuote() {
   if (!quoteOfDay.value) return
