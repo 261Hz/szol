@@ -17,7 +17,7 @@
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
           <span class="text-sm font-medium text-gray-200">{{ langName }} tutor</span>
-          <span class="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-500">immersion · Gemma 2</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-500">immersion · Llama 3.3</span>
         </div>
         <button
           v-if="messages.length"
