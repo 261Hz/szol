@@ -162,25 +162,39 @@ _LANG_NAMES_FULL = {
 _GROQ_MODEL = "llama-3.3-70b-versatile"
 
 
-def _search_stories(query: str, lang: str, db: Session, limit: int = 2):
-    """Return up to `limit` curated stories whose title or content match any word in `query`."""
+def _search_content(query: str, lang: str, db: Session):
+    """Search curated stories, community stories, and videos for the query keywords.
+    Returns a list of short context snippets (max 3 total, 250 chars each)."""
     from sqlalchemy import or_
-    words = [w.strip() for w in query.split() if len(w.strip()) > 2][:6]
+    words = [w.strip() for w in query.split() if len(w.strip()) > 2][:5]
     if not words:
         return []
-    conditions = [
-        or_(
-            models.CuratedStory.content.ilike(f"%{w}%"),
-            models.CuratedStory.title.ilike(f"%{w}%"),
-        )
-        for w in words
-    ]
-    return (
-        db.query(models.CuratedStory)
-        .filter(models.CuratedStory.lang == lang, or_(*conditions))
-        .limit(limit)
-        .all()
-    )
+
+    snippets = []
+
+    # Curated stories
+    conds = [or_(models.CuratedStory.content.ilike(f"%{w}%"),
+                 models.CuratedStory.title.ilike(f"%{w}%")) for w in words]
+    for s in db.query(models.CuratedStory).filter(
+            models.CuratedStory.lang == lang, or_(*conds)).limit(1).all():
+        snippets.append(f'Story "{s.title}": {s.content[:250]}')
+
+    # Community stories
+    conds2 = [or_(models.CommunityStory.content.ilike(f"%{w}%"),
+                  models.CommunityStory.title.ilike(f"%{w}%")) for w in words]
+    for s in db.query(models.CommunityStory).filter(
+            models.CommunityStory.lang == lang, or_(*conds2)).limit(1).all():
+        snippets.append(f'Community story "{s.title}": {s.content[:250]}')
+
+    # Video transcripts (title search + first 300 chars of transcript)
+    conds3 = [models.VideoStory.title.ilike(f"%{w}%") for w in words]
+    for v in db.query(models.VideoStory).filter(
+            models.VideoStory.lang == lang, or_(*conds3)).limit(1).all():
+        segs = v.segments or []
+        transcript = " ".join(seg.get("text", "") for seg in segs[:8])[:300]
+        snippets.append(f'Video "{v.title}": {transcript}')
+
+    return snippets[:3]
 
 
 @router.post("/tutor/chat")
@@ -189,50 +203,47 @@ def tutor_chat(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(oauth2.get_current_user),
 ):
-    """Language tutor (Groq Gemma 2 9B) with automatic story RAG. Requires auth."""
+    """Immersive language tutor with full content RAG (stories, videos, vocab). Requires auth."""
     from groq import Groq
     from ..config import settings
     lang_name = _LANG_NAMES_FULL.get(payload.lang, payload.lang)
 
     last_user = next((m.content for m in reversed(payload.messages) if m.role == "user"), "")
 
-    # ── User's saved vocab for this language ──────────────────────────────────
+    # ── User vocab (words + definitions) ──────────────────────────────────────
     saved = (
         db.query(models.UserVocab)
         .filter(models.UserVocab.user_id == current_user.id,
                 models.UserVocab.lang    == payload.lang)
         .order_by(models.UserVocab.saved_at.desc())
-        .limit(100)
+        .limit(80)
         .all()
     )
     vocab_ctx = ""
     if saved:
-        entries = "; ".join(
-            f"{v.word}" + (f" ({v.definition})" if v.definition else "")
+        entries  = "; ".join(
+            v.word + (f" ({v.definition})" if v.definition else "")
             for v in saved
         )
-        vocab_ctx = f"\n\nThe student's saved vocabulary ({len(saved)} words): {entries}"
+        vocab_ctx = f"\n\nStudent's saved vocabulary ({len(saved)} words): {entries}"
 
-    # ── RAG: relevant story excerpts ──────────────────────────────────────────
-    stories   = _search_stories(last_user, payload.lang, db)
-    story_ctx = ""
-    if stories:
-        excerpts  = "\n\n".join(f'"{s.title}":\n{s.content[:500]}' for s in stories)
-        story_ctx = f"\n\nRelevant texts from the app:\n{excerpts}"
+    # ── Content RAG: stories + videos ─────────────────────────────────────────
+    snippets = _search_content(last_user, payload.lang, db)
+    content_ctx = ("\n\nRelevant app content:\n" + "\n\n".join(snippets)) if snippets else ""
 
     # ── System prompt ─────────────────────────────────────────────────────────
     system = (
         f"You are a friendly, immersive language tutor. The student is learning {lang_name}. "
-        f"Always respond in {lang_name} only — never switch languages, never explain why, just stay in {lang_name}. "
-        f"Keep replies brief (2–3 sentences). "
-        f"When the student asks about words in their vocabulary list, answer from that list. "
-        f"When they ask if they've seen something before, check the vocab list and say yes or no."
+        f"Always respond in {lang_name} only — never switch languages, never explain why. "
+        f"Keep replies to 2–3 sentences. "
+        f"When asked about their vocabulary or whether they've seen a word before, use the vocab list to answer accurately."
         f"{vocab_ctx}"
-        f"{story_ctx}"
+        f"{content_ctx}"
     )
 
+    # Trim to last 16 turns (8 exchanges) to keep token usage low
     messages = [{"role": "system", "content": system}]
-    messages += [{"role": m.role, "content": m.content} for m in payload.messages]
+    messages += [{"role": m.role, "content": m.content} for m in payload.messages[-16:]]
 
     try:
         client = Groq(api_key=settings.GROQ_API_KEY)
