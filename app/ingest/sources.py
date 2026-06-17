@@ -182,7 +182,109 @@ SOURCES = [
         "license": "attribution",
     },
 
-    # ── Add more sources here ────────────────────────────────────────────────
-    # Any Substack with public posts works: https://[pub].substack.com/feed
-    # The Conversation has editions for most major languages — check theconversation.com
+    # ── Hebrew ──────────────────────────────────────────────────────────────
+    {
+        "name": "הארץ",
+        "feed_url": "https://www.haaretz.co.il/cmlink/1.1615254",
+        "lang": "he",
+        "license": "attribution",
+    },
+    {
+        "name": "ynet",
+        "feed_url": "https://www.ynet.co.il/Integration/StoryRss2.xml",
+        "lang": "he",
+        "license": "attribution",
+        "min_words": 60,
+    },
+
+    # ── Arabic ──────────────────────────────────────────────────────────────
+    {
+        "name": "BBC Arabic",
+        "feed_url": "https://feeds.bbci.co.uk/arabic/rss.xml",
+        "lang": "ar",
+        "license": "attribution",
+        "min_words": 60,
+    },
+    {
+        "name": "الجزيرة",
+        "feed_url": "https://www.aljazeera.net/xml/rss/all.xml",
+        "lang": "ar",
+        "license": "attribution",
+        "min_words": 60,
+    },
+
+    # ── Chinese ─────────────────────────────────────────────────────────────
+    {
+        "name": "BBC 中文",
+        "feed_url": "https://feeds.bbci.co.uk/zhongwen/simp/rss.xml",
+        "lang": "zh",
+        "license": "attribution",
+        "min_words": 40,
+    },
+    {
+        "name": "Deutsche Welle 中文",
+        "feed_url": "https://rss.dw.com/rdf/rss-chi-all",
+        "lang": "zh",
+        "license": "attribution",
+        "min_words": 40,
+    },
+
+    # ── Russian ─────────────────────────────────────────────────────────────
+    {
+        "name": "BBC Русская служба",
+        "feed_url": "https://feeds.bbci.co.uk/russian/rss.xml",
+        "lang": "ru",
+        "license": "attribution",
+        "min_words": 60,
+    },
+    {
+        "name": "Deutsche Welle Русский",
+        "feed_url": "https://rss.dw.com/rdf/rss-rus-all",
+        "lang": "ru",
+        "license": "attribution",
+        "min_words": 60,
+    },
+
+    # ── French ──────────────────────────────────────────────────────────────
+    {
+        "name": "RFI Français",
+        "feed_url": "https://www.rfi.fr/fr/rss",
+        "lang": "fr",
+        "license": "attribution",
+        "min_words": 60,
+    },
+
+    # ── Spanish ─────────────────────────────────────────────────────────────
+    {
+        "name": "BBC Mundo",
+        "feed_url": "https://feeds.bbci.co.uk/mundo/rss.xml",
+        "lang": "es",
+        "license": "attribution",
+        "min_words": 60,
+    },
+
+    # ── Greek ───────────────────────────────────────────────────────────────
+    {
+        "name": "Kathimerini",
+        "feed_url": "https://www.kathimerini.gr/rss/",
+        "lang": "el",
+        "license": "attribution",
+        "min_words": 60,
+    },
+
+    # ── Hungarian ───────────────────────────────────────────────────────────
+    {
+        "name": "444.hu",
+        "feed_url": "https://444.hu/feed",
+        "lang": "hu",
+        "license": "attribution",
+        "min_words": 60,
+    },
+    {
+        "name": "Index.hu",
+        "feed_url": "https://index.hu/24ora/rss/",
+        "lang": "hu",
+        "license": "attribution",
+        "min_words": 60,
+    },
 ]
