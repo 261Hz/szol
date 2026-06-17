@@ -11,6 +11,7 @@ Usage:
     python worker.py chance en
 """
 
+import io
 import json
 import os
 import subprocess
@@ -56,46 +57,40 @@ def yt_search(word, lang):
     return ids
 
 
-def download_audio(video_id, outdir):
-    out = os.path.join(outdir, f"{video_id}.%(ext)s")
-    # Use 'python -m yt_dlp' so we don't need yt-dlp on PATH.
-    # No --audio-format conversion so ffmpeg is not required.
-    # Groq Whisper accepts m4a/webm/mp4 natively.
+def download_audio(video_id):
+    """Download audio to memory (stdout). Returns BytesIO or None."""
     cmd = [
         sys.executable, "-m", "yt_dlp",
         "--js-runtimes", "node",
         "--remote-components", "ejs:github",
         "--no-cache-dir",
+        "--cookies-from-browser", "chrome",
         "-f", "bestaudio[ext=m4a]/bestaudio",
-        "-o", out,
+        "-o", "-",       # pipe to stdout — no disk writes
+        "--quiet",
         f"https://www.youtube.com/watch?v={video_id}",
     ]
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = subprocess.run(cmd, capture_output=True)
     if r.returncode != 0:
-        print(f"  yt-dlp failed: {r.stderr.strip()[:300]}")
+        print(f"  yt-dlp failed: {r.stderr.decode(errors='ignore').strip()[:300]}")
         return None
-    for fname in os.listdir(outdir):
-        if fname.startswith(video_id):
-            path = os.path.join(outdir, fname)
-            mb   = os.path.getsize(path) / 1e6
-            print(f"  downloaded {fname}  ({mb:.1f} MB)")
-            if mb > 24:
-                print(f"  file too large for Groq (>24 MB), skipping")
-                return None
-            return path
-    return None
+    mb = len(r.stdout) / 1e6
+    print(f"  downloaded {mb:.1f} MB (in memory)")
+    if mb > 24:
+        print(f"  too large for Groq (>24 MB), skipping")
+        return None
+    return io.BytesIO(r.stdout)
 
 
-def transcribe(audio_path):
+def transcribe(audio_data):
     from groq import Groq
     client = Groq(api_key=GROQ_API_KEY)
-    with open(audio_path, "rb") as f:
-        result = client.audio.transcriptions.create(
-            model="whisper-large-v3",
-            file=f,
-            response_format="verbose_json",
-            timestamp_granularities=["segment"],
-        )
+    result = client.audio.transcriptions.create(
+        model="whisper-large-v3",
+        file=("audio.m4a", audio_data),
+        response_format="verbose_json",
+        timestamp_granularities=["segment"],
+    )
     segs = result.segments or []
     print(f"  transcribed: {len(segs)} segments")
     return segs
@@ -153,35 +148,27 @@ def process(word, lang):
         return
 
     total = 0
-    tmpdir = os.path.join(os.path.dirname(__file__), "_audio_tmp")
-    os.makedirs(tmpdir, exist_ok=True)
-    if True:
-        for vid in video_ids:
-            if total >= MAX_CLIPS:
-                break
-            print(f"\n  [{vid}]")
-            audio = download_audio(vid, tmpdir)
-            if not audio:
-                continue
+    for vid in video_ids:
+        if total >= MAX_CLIPS:
+            break
+        print(f"\n  [{vid}]")
+        audio = download_audio(vid)
+        if not audio:
+            continue
+        try:
+            segs = transcribe(audio)
+        except Exception as e:
+            print(f"  transcription error: {e}")
+            continue
+        clips = find_clips(word, segs)
+        print(f"  clips containing '{word}': {len(clips)}")
+        if clips:
+            want = clips[:MAX_CLIPS - total]
             try:
-                segs = transcribe(audio)
+                post_clips(word, lang, vid, want)
+                total += len(want)
             except Exception as e:
-                print(f"  transcription error: {e}")
-                continue
-            finally:
-                try:
-                    os.remove(audio)
-                except OSError:
-                    pass
-            clips = find_clips(word, segs)
-            print(f"  clips containing '{word}': {len(clips)}")
-            if clips:
-                want = clips[:MAX_CLIPS - total]
-                try:
-                    post_clips(word, lang, vid, want)
-                    total += len(want)
-                except Exception as e:
-                    print(f"  post error: {e}")
+                print(f"  post error: {e}")
 
     print(f"\nDone: {total} clips stored for '{word}'")
 
