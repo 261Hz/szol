@@ -159,9 +159,7 @@ _LANG_NAMES_FULL = {
     "hu": "Hungarian", "el": "Greek",
 }
 
-_HF_MODEL   = "google/gemma-4-12B-it"
-_HF_API_URL = f"https://api-inference.huggingface.co/models/{_HF_MODEL}/v1/chat/completions"
-_GROQ_FALLBACK = "gemma2-9b-it"
+_GROQ_MODEL = "gemma2-9b-it"
 
 
 def _search_stories(query: str, lang: str, db: Session, limit: int = 2):
@@ -191,21 +189,20 @@ def tutor_chat(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(oauth2.get_current_user),
 ):
-    """Language tutor using Gemma 4 via HuggingFace Inference API.
-    Auto-retrieves relevant story excerpts from the DB (RAG). Requires auth."""
-    import requests as req
+    """Language tutor (Groq Gemma 2 9B) with automatic story RAG. Requires auth."""
+    from groq import Groq
     from ..config import settings
     lang_name = _LANG_NAMES_FULL.get(payload.lang, payload.lang)
 
-    # ── RAG: find relevant stories based on the latest user message ───────────
+    # ── RAG: inject relevant story excerpts from the DB ───────────────────────
     last_user = next((m.content for m in reversed(payload.messages) if m.role == "user"), "")
     stories   = _search_stories(last_user, payload.lang, db)
     story_ctx = ""
     if stories:
         excerpts  = "\n\n".join(f'"{s.title}":\n{s.content[:500]}' for s in stories)
-        story_ctx = f"\n\nRelevant texts from the app you may draw on:\n{excerpts}"
+        story_ctx = f"\n\nRelevant texts from the app you may reference:\n{excerpts}"
 
-    # ── System prompt: immersion mode ─────────────────────────────────────────
+    # ── System prompt: full immersion ─────────────────────────────────────────
     system = (
         f"You are a friendly, patient language tutor. The student is learning {lang_name}.\n"
         f"IMPORTANT: You MUST respond ONLY in {lang_name}. Never use English or any other language, "
@@ -216,42 +213,16 @@ def tutor_chat(
     messages = [{"role": "system", "content": system}]
     messages += [{"role": m.role, "content": m.content} for m in payload.messages]
 
-    # ── Try Gemma 4 via HuggingFace; fall back to Groq Gemma 2 ──────────────
-    hf_error = None
-    if settings.HF_TOKEN:
-        try:
-            resp = req.post(
-                _HF_API_URL,
-                headers={
-                    "Authorization": f"Bearer {settings.HF_TOKEN}",
-                    "Content-Type": "application/json",
-                },
-                json={"model": _HF_MODEL, "messages": messages, "max_tokens": 512},
-                timeout=25,
-            )
-            if resp.ok:
-                reply = resp.json()["choices"][0]["message"]["content"].strip()
-                return {"reply": reply, "model": "gemma-4"}
-            hf_error = f"HF {resp.status_code}: {resp.text[:200]}"
-        except Exception as e:
-            hf_error = str(e)
-
-    # Fallback: Groq Gemma 2 9B
     try:
-        from groq import Groq
         client = Groq(api_key=settings.GROQ_API_KEY)
-        resp2  = client.chat.completions.create(
-            model=_GROQ_FALLBACK,
+        resp   = client.chat.completions.create(
+            model=_GROQ_MODEL,
             messages=messages,
             max_tokens=512,
         )
-        reply = resp2.choices[0].message.content.strip()
-        return {"reply": reply, "model": "gemma2-9b", "hf_error": hf_error}
-    except Exception as e2:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Both models failed. HF: {hf_error} | Groq: {e2}"
-        )
+        return {"reply": resp.choices[0].message.content.strip(), "model": "gemma2-9b"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/cache", response_model=schemas.WordCacheResponse)
