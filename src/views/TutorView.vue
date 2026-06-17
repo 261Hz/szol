@@ -61,6 +61,7 @@
           v-model="input"
           @keydown.enter.prevent="send"
           :disabled="waiting"
+          maxlength="300"
           placeholder="Type in any language…"
           class="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-gray-100 placeholder-gray-600 outline-none focus:border-green-600 transition-colors disabled:opacity-50"
         />
