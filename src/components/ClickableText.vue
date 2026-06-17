@@ -55,6 +55,15 @@ const CJK_LANGS = new Set(['ja', 'zh', 'cmn', 'yue', 'ko'])
 const tokens = computed(() => {
   const text = props.text || ''
   if (CJK_LANGS.has(props.lang)) {
+    if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+      const seg = new Intl.Segmenter(props.lang, { granularity: 'word' })
+      return [...seg.segment(text)].map(s => ({
+        type: s.isWordLike ? 'word' : 'space',
+        text: s.segment,
+        numWord: null,
+      }))
+    }
+    // Fallback for older browsers: character-by-character
     return [...text].map(char => ({
       type: /\s/.test(char) ? 'space' : 'word',
       text: char,
