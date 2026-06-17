@@ -133,11 +133,12 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
                 "role": "user",
                 "content": [
                     {"type": "text", "text": (
-                        f"Handwriting check: '{payload.word}' in {lang_name}. "
-                        f"Numbered circles = stroke order. "
-                        f"PASS if shape is recognisable and stroke direction correct (RTL for Arabic/Hebrew, top-down for CJK). "
-                        f"FAIL if blank, unrecognisable, or wrong direction. "
-                        f"Reply PASS or FAIL only."
+                        f"You are a strict handwriting grader. The target word is '{payload.word}' in {lang_name}. "
+                        f"Numbered circles show stroke order. "
+                        f"PASS only if: every character is clearly identifiable, proportions and form are correct, "
+                        f"stroke direction is right (RTL for Arabic/Hebrew, top-down for CJK), and nothing is missing or added. "
+                        f"FAIL if: any character is malformed, ambiguous, too sloppy to read confidently, wrong stroke direction, or the writing does not closely match the target. "
+                        f"Be strict — when in doubt, FAIL. Reply PASS or FAIL only."
                     )},
                     {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{payload.image_b64}"}},
                 ],
