@@ -190,7 +190,7 @@
         <textarea
           v-model="userInput"
           rows="3"
-          :placeholder="mode === 'translation' ? 'Type your English translation…' : t(lang, 'typeWhatYouHear')"
+          :placeholder="mode === 'translation' ? `Type your ${TRANSLATE_TO_OPTIONS.find(o => o.code === translateTo)?.label ?? ''} translation…` : t(lang, 'typeWhatYouHear')"
           @keydown.space="mode === 'dictation' ? playWordTick() : undefined"
           class="w-full bg-slate-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-100 outline-none focus:border-emerald-600 resize-none placeholder:text-gray-600 transition-all"
         />
@@ -345,7 +345,7 @@ const showTranscript = ref(false)
 const resumeSegment  = ref(null)
 const difficulty     = ref('medium')
 const mode           = ref('dictation') // 'dictation' | 'translation'
-const translateTo    = ref('en')
+const translateTo    = ref(props.lang === 'en' ? 'es' : 'en')
 
 const translationResult   = ref(null) // { score, feedback }
 const translationChecking = ref(false)
