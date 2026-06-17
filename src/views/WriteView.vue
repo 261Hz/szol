@@ -81,20 +81,6 @@
               class="px-4 py-2 text-sm rounded-lg bg-amber-700 text-amber-50 hover:bg-amber-600 disabled:opacity-50 transition-all">
               {{ aiChecking ? 'Checking…' : '✦ Check' }}
             </button>
-            <template v-if="isScript">
-              <button @click="report(true)"
-                class="px-4 py-2 text-sm rounded-lg bg-green-700 text-white hover:bg-green-600 transition-all">
-                ✓ Correct
-              </button>
-              <button @click="report(false)"
-                class="px-4 py-2 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600 transition-all">
-                ✗ Wrong
-              </button>
-            </template>
-          </div>
-          <div v-if="selfReport !== null" class="text-sm font-medium text-center"
-            :class="selfReport ? 'text-green-700' : 'text-red-600'">
-            {{ selfReport ? 'Marked correct!' : 'Keep practising.' }}
           </div>
           <div v-if="checkResult !== null" class="text-center text-2xl font-bold py-1"
             :class="checkResult ? 'text-green-700' : 'text-red-600'">
@@ -140,7 +126,7 @@ const handwritingStyle = computed(() => {
   if (props.lang === 'zh')               return { fontFamily: "'Zhi Mang Xing', cursive",    fontSize: '4rem' }
   if (props.lang === 'ja')               return { fontFamily: "'Kaisei Tokumin', serif",      fontSize: '4rem' }
   if (['ar', 'arz'].includes(props.lang)) return { fontFamily: "'Amiri', serif",               fontSize: '3.5rem' }
-  if (props.lang === 'he')               return { fontFamily: "'Rubik', sans-serif",            fontSize: '3.5rem' }
+  if (props.lang === 'he')               return { fontFamily: "'Noto Rashi Hebrew', serif",       fontSize: '4rem' }
   return { fontFamily: "'Patrick Hand', cursive", fontSize: '4rem' }
 })
 
@@ -278,9 +264,9 @@ function startQuiz() {
 
 // ── Canvas drawing ──────────────────────────────────────────────────────────────
 const canvas       = ref(null)
-const selfReport   = ref(null)
 const checkResult  = ref(null)  // null | true | false
 const aiChecking   = ref(false)
+const failCount    = ref(0)
 let ctx           = null
 let drawing       = false
 let strokes       = []          // [[{x,y},...], ...] — one array per pen-down→up
@@ -342,6 +328,28 @@ function clearCanvasAndGuides() {
   strokes       = []
   currentStroke = null
   checkResult.value = null
+  failCount.value   = 0
+}
+
+// Faint tracing guide drawn after 2 failed attempts.
+function drawTraceGuide() {
+  if (!ctx || !canvas.value || !currentUnit.value) return
+  const w   = parseInt(canvas.value.style.width)
+  const h   = parseInt(canvas.value.style.height)
+  const sz  = Math.min(w, h) * 0.7
+  const family = handwritingStyle.value.fontFamily
+  ctx.save()
+  ctx.font          = `bold ${sz}px ${family}`
+  ctx.fillStyle     = 'rgba(150,100,40,0.10)'
+  ctx.textAlign     = 'center'
+  ctx.textBaseline  = 'middle'
+  ctx.direction     = isRTL(props.lang) ? 'rtl' : 'ltr'
+  ctx.fillText(currentUnit.value, w / 2, h / 2)
+  ctx.restore()
+  // restore drawing style
+  ctx.strokeStyle = INK_COLOR
+  ctx.fillStyle   = INK_COLOR
+  ctx.lineWidth   = 3
 }
 
 // Offscreen copy of the canvas with coloured numbered circles at each stroke's
@@ -377,6 +385,12 @@ async function runCheck() {
   checkResult.value = null
   const result = await checkHandwriting(currentUnit.value, props.lang, annotatedImage())
   checkResult.value = result?.passed ?? null
+  if (result?.passed === false) {
+    failCount.value++
+    if (failCount.value >= 2) drawTraceGuide()
+  } else if (result?.passed === true) {
+    failCount.value = 0
+  }
   aiChecking.value  = false
 }
 
@@ -411,11 +425,6 @@ function moveDraw(e) {
 
 function stopDraw() { drawing = false; currentStroke = null }
 
-function report(correct) {
-  selfReport.value = correct
-  window.clarity?.('event', correct ? 'write_correct' : 'write_incorrect')
-}
-
 // ── Watchers & lifecycle ────────────────────────────────────────────────────────
 onMounted(async () => {
   await nextTick()
@@ -431,7 +440,7 @@ watch(unitIdx, async () => {
 
 watch([sentenceIdx, wordIdx], async () => {
   if (isCJK.value) return
-  selfReport.value  = null
+
   checkResult.value = null
   await nextTick()
   if (canvas.value) clearCanvasAndGuides()
@@ -441,7 +450,7 @@ watch([() => props.lang, () => props.story], async () => {
   sentenceIdx.value = 0
   wordIdx.value     = 0
   unitIdx.value     = 0
-  selfReport.value  = null
+
   quizActive.value  = false
   quizDone.value    = false
   charError.value   = false
