@@ -63,12 +63,6 @@
 
         <!-- ── Non-CJK: free canvas ───────────────────────────────────── -->
         <div v-else class="flex flex-col gap-3 pb-5 px-5">
-          <div v-if="isLatin" class="text-xs text-amber-700/50 text-center">
-            Handwriting practice is most useful for non-Latin scripts, but you can trace here freely.
-          </div>
-          <div v-if="isRTL(lang)" class="text-xs text-amber-700/60 text-center">
-            ← Write right-to-left (start near the right edge)
-          </div>
           <canvas
             ref="canvas"
             class="paper-canvas w-full rounded-xl touch-none cursor-crosshair border border-amber-200"
