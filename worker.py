@@ -4,20 +4,18 @@ worker.py - local clip generator for szol
 
 Requires:
     pip install yt-dlp groq requests
-    ffmpeg in PATH  (yt-dlp needs it for audio extraction)
 
 Usage:
-    python worker.py guitar en
-    python worker.py chance en
+    python worker.py guitar en   # single word
+    python worker.py             # all pending vocab words
 """
 
 import io
-import json
 import os
 import subprocess
 import sys
-import urllib.parse
-import urllib.request
+
+import requests
 
 BACKEND_URL   = os.getenv("SZOL_BACKEND_URL", "https://szol.onrender.com")
 YT_API_KEY    = os.getenv("YOUTUBE_API_KEY", "")
@@ -36,29 +34,27 @@ _LANG_NAMES = {
 
 
 def yt_search(word, lang):
-    base   = lang[:2]
-    suffix = _LANG_NAMES.get(base, "")
-    q      = f"{word} {suffix}".strip() if suffix else word
-    params = urllib.parse.urlencode({
-        "q": q, "type": "video",
-        "videoCaption":     "closedCaption",
-        "relevanceLanguage": base,
-        "videoDuration":    "medium",
-        "maxResults":       str(MAX_VIDEOS),
-        "part":             "id",
-        "key":              YT_API_KEY,
-    })
-    with urllib.request.urlopen(
-        f"https://www.googleapis.com/youtube/v3/search?{params}", timeout=10
-    ) as r:
-        data = json.loads(r.read().decode())
-    ids = [item["id"]["videoId"] for item in data.get("items", [])]
+    base = lang[:2]
+    q    = word  # rely on relevanceLanguage, not appending the language name
+    r = requests.get(
+        "https://www.googleapis.com/youtube/v3/search",
+        params={
+            "q": q, "type": "video",
+            "relevanceLanguage": base,
+            "videoDuration":     "medium",
+            "maxResults":        str(MAX_VIDEOS),
+            "part":              "id",
+            "key":               YT_API_KEY,
+        },
+        timeout=10,
+    )
+    ids = [item["id"]["videoId"] for item in r.json().get("items", [])]
     print(f"  search '{q}' -> {ids}")
     return ids
 
 
 def download_audio(video_id):
-    """Download audio to memory (stdout). Returns BytesIO or None."""
+    """Stream audio into memory via yt-dlp stdout — no disk writes."""
     cmd = [
         sys.executable, "-m", "yt_dlp",
         "--js-runtimes", "node",
@@ -66,7 +62,7 @@ def download_audio(video_id):
         "--no-cache-dir",
         "--cookies-from-browser", "chrome",
         "-f", "bestaudio[ext=m4a]/bestaudio",
-        "-o", "-",       # pipe to stdout — no disk writes
+        "-o", "-",
         "--quiet",
         f"https://www.youtube.com/watch?v={video_id}",
     ]
@@ -77,7 +73,7 @@ def download_audio(video_id):
     mb = len(r.stdout) / 1e6
     print(f"  downloaded {mb:.1f} MB (in memory)")
     if mb > 24:
-        print(f"  too large for Groq (>24 MB), skipping")
+        print("  too large for Groq (>24 MB), skipping")
         return None
     return io.BytesIO(r.stdout)
 
@@ -96,51 +92,51 @@ def transcribe(audio_data):
     return segs
 
 
-def find_clips(word, segments):
-    clips = []
+def find_clips(word, segments, debug=False):
+    clips  = []
+    target = word.lower()
+    # Collapsed form catches Whisper splitting compounds: "nervenzusammenbruch" ↔ "nerven zusammenbruch"
+    target_collapsed = target.replace(" ", "").replace("-", "")
+    parts = [p for p in target.split() if len(p) > 3]
     for seg in segments:
         text = (seg.get("text") or "").strip()
-        if word.lower() in text.lower():
-            start = int(seg.get("start", 0))
-            end   = int(seg.get("end", start + 3))
+        tl   = text.lower()
+        tl_collapsed = tl.replace(" ", "").replace("-", "")
+        if debug and parts and any(p in tl for p in parts):
+            print(f"    partial: {text}")
+        if target in tl or target_collapsed in tl_collapsed:
+            start = int(float(seg.get("start", 0)))
+            end   = int(float(seg.get("end",   start + 3)))
             clips.append({"start_sec": start, "end_sec": end, "context": text})
     return clips
 
 
 def post_clips(word, lang, video_id, clips):
-    payload = json.dumps([
-        {"word": word, "lang": lang, "video_id": video_id, **c}
-        for c in clips
-    ]).encode()
-    req = urllib.request.Request(
+    payload = [{"word": word, "lang": lang, "video_id": video_id, **c} for c in clips]
+    r = requests.post(
         f"{BACKEND_URL}/vocab/clips",
-        data=payload,
-        headers={
-            "Content-Type":    "application/json",
-            "X-Worker-Secret": WORKER_SECRET,
-        },
-        method="POST",
+        json=payload,
+        headers={"X-Worker-Secret": WORKER_SECRET},
+        timeout=10,
     )
-    with urllib.request.urlopen(req, timeout=10) as r:
-        body = r.read().decode()
-    print(f"  posted -> {body}")
+    print(f"  posted -> {r.text}")
 
 
 def process(word, lang):
     print(f"\n{'='*50}")
     print(f"word={word!r}  lang={lang}")
 
-    # Skip if already cached
-    params = urllib.parse.urlencode({"word": word, "lang": lang, "limit": "1"})
     try:
-        with urllib.request.urlopen(
-            f"{BACKEND_URL}/vocab/clips?{params}", timeout=5
-        ) as r:
-            if json.loads(r.read().decode()):
-                print("  already cached, skipping")
-                return
+        r = requests.get(
+            f"{BACKEND_URL}/vocab/clips",
+            params={"word": word, "lang": lang, "limit": "1"},
+            timeout=5,
+        )
+        if r.json():
+            print("  already cached, skipping")
+            return
     except Exception:
-        pass  # backend down or no cache entry, continue
+        pass
 
     video_ids = yt_search(word, lang)
     if not video_ids:
@@ -160,7 +156,7 @@ def process(word, lang):
         except Exception as e:
             print(f"  transcription error: {e}")
             continue
-        clips = find_clips(word, segs)
+        clips = find_clips(word, segs, debug=True)
         print(f"  clips containing '{word}': {len(clips)}")
         if clips:
             want = clips[:MAX_CLIPS - total]
@@ -174,13 +170,12 @@ def process(word, lang):
 
 
 def fetch_pending():
-    """Return list of {word, lang} dicts that have no cached clips yet."""
-    req = urllib.request.Request(
+    r = requests.get(
         f"{BACKEND_URL}/vocab/all-words",
         headers={"X-Worker-Secret": WORKER_SECRET},
+        timeout=10,
     )
-    with urllib.request.urlopen(req, timeout=10) as r:
-        return json.loads(r.read().decode())
+    return r.json()
 
 
 if __name__ == "__main__":

@@ -42,11 +42,10 @@
       <!-- ── Curated stories ── -->
       <div v-if="storiesLoading" class="text-sm text-gray-500 text-center py-10">{{ t(lang, 'loading') }}</div>
       <div v-else-if="storiesError" class="text-sm text-red-400 text-center py-6">{{ storiesError }}</div>
-      <div v-else-if="!stories.length && !importedStories.length" class="text-sm text-gray-500 text-center py-6">
+      <div v-else-if="!stories.length" class="text-sm text-gray-500 text-center py-6">
         {{ t(lang, 'noExercises') }}
       </div>
       <div v-if="stories.length" class="flex flex-col gap-2">
-        <p v-if="importedStories.length" class="text-xs text-gray-600 px-1">Curated exercises</p>
         <button
           v-for="story in stories"
           :key="story.id"
