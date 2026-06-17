@@ -531,11 +531,17 @@ export async function fetchTodayDocuments(lang) {
 }
 
 export async function tutorChat({ messages, lang }) {
-  const res = await apiFetch(`${API_URL}/words/tutor/chat`, {
-    method:  'POST',
-    headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ lang, messages }),
-  }).catch(() => null)
-  if (!res?.ok) return null
-  return await res.json() // { reply: string }
+  let res
+  try {
+    res = await apiFetch(`${API_URL}/words/tutor/chat`, {
+      method:  'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ lang, messages }),
+    })
+  } catch (e) {
+    return { error: e.message }
+  }
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) return { error: data.detail || `Server error ${res.status}` }
+  return data // { reply, model, hf_error? }
 }

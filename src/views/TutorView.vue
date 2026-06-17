@@ -17,7 +17,7 @@
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
           <span class="text-sm font-medium text-gray-200">{{ langName }} tutor</span>
-          <span class="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-500">immersion · Gemma 4</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-500">immersion · {{ modelUsed === 'gemma-4' ? 'Gemma 4' : 'Gemma 2' }}</span>
         </div>
         <button
           v-if="messages.length"
@@ -93,6 +93,7 @@ const messages   = ref([])
 const input      = ref('')
 const waiting    = ref(false)
 const error      = ref('')
+const modelUsed  = ref('gemma-4')   // updated per response
 const messagesEl = ref(null)
 
 async function send() {
@@ -118,9 +119,10 @@ async function send() {
 
   if (result?.reply) {
     aiMsg.content = result.reply
+    if (result.model) modelUsed.value = result.model
   } else {
     aiMsg.content = ''
-    error.value   = 'Could not reach the tutor — try again.'
+    error.value   = result?.error || 'Could not reach the tutor — try again.'
   }
 
   scrollBottom()
