@@ -82,7 +82,7 @@
         @remove="removeFromVocab"
         @save-word="addToVocab"
         @open-auth="showAuth = true"
-        @open-clip="clip => { activeClip.value = clip; activeTab.value = 'listen' }"
+        @open-clip="clip => { activeClip = clip; activeTab = 'listen' }"
       />
 
       <ListenView
@@ -91,7 +91,7 @@
         :lang="activeLang"
         :current-user="currentUser"
         :clip="activeClip"
-        @close-clip="activeClip.value = null"
+        @close-clip="activeClip = null"
       />
 
       <SettingsView
