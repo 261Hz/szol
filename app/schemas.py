@@ -191,6 +191,12 @@ class HandwritingCheckIn(BaseModel):
     lang:      str
     image_b64: str  # PNG data URL base64 from canvas.toDataURL()
 
+class TranslationCheckIn(BaseModel):
+    source_text: str
+    translation: str
+    source_lang: str
+    target_lang: str = 'en'
+
 class TutorMessage(BaseModel):
     role:    str   # 'user' | 'assistant'
     content: str

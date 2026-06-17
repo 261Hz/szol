@@ -161,6 +161,37 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/translate/check")
+def check_translation(payload: schemas.TranslationCheckIn):
+    """Grade a user's spoken-segment translation using an LLM."""
+    import json as _json
+    from groq import Groq
+    from ..config import settings
+    client   = Groq(api_key=settings.GROQ_API_KEY)
+    src_name = _LANG_NAMES.get(payload.source_lang, payload.source_lang)
+    tgt_name = _LANG_NAMES.get(payload.target_lang, payload.target_lang)
+    try:
+        resp = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"You are a translation grader.\n"
+                    f"Source text ({src_name}): \"{payload.source_text}\"\n"
+                    f"Student's translation ({tgt_name}): \"{payload.translation}\"\n"
+                    f"Score 0-100 on meaning accuracy and completeness. "
+                    f"Reply with JSON only: {{\"score\": <number>, \"feedback\": \"<one sentence>\"}}"
+                ),
+            }],
+            max_tokens=120,
+            response_format={"type": "json_object"},
+        )
+        data = _json.loads(resp.choices[0].message.content)
+        return {"score": int(data.get("score", 0)), "feedback": data.get("feedback", "")}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 _LANG_NAMES_FULL = {
     "en": "English", "es": "Spanish", "fr": "French", "de": "German",
     "it": "Italian", "ru": "Russian", "he": "Hebrew", "ar": "Arabic",
