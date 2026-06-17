@@ -128,6 +128,7 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
     from ..config import settings
     client    = Groq(api_key=settings.GROQ_API_KEY)
     lang_name = _LANG_NAMES.get(payload.lang, payload.lang)
+    word      = _normalize(payload.lang, payload.word)
     try:
         resp = client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
@@ -135,14 +136,14 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
                 "role": "user",
                 "content": [
                     {"type": "text", "text": (
-                        f"Handwriting grader. Target word: '{payload.word}' ({lang_name}). "
+                        f"Handwriting grader. Target word: '{word}' ({lang_name}). "
                         + (
                             f"The student wrote this in cursive Latin script — letters may connect or overlap. "
-                            f"Read the word as a whole (not letter-by-letter) and judge whether a fluent reader would recognise it as '{payload.word}'. "
+                            f"Read the word as a whole (not letter-by-letter) and judge whether a fluent reader would recognise it as '{word}'. "
                             f"PASS if it is clearly recognisable as the target word despite messy style. "
                             f"FAIL only if it could be mistaken for a clearly different word. "
                             if payload.lang in _LATIN_LANGS else
-                            f"Read the characters carefully and compare to '{payload.word}' one by one. "
+                            f"Read the characters carefully and compare to '{word}' one by one. "
                             f"PASS only if every character matches the target. Neatness and style do not matter. "
                             f"For Arabic/Hebrew the word must read right-to-left (first character on the right). "
                             f"FAIL if any character is wrong, missing, or added. "
