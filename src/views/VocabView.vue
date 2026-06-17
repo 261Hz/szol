@@ -118,7 +118,9 @@
           :word="word.word"
           :lang="word.lang"
           :savedWords="savedWordsSet"
+          :currentUser="currentUser"
           @tap="({ word: w, sentence }) => saveFromExample(w, sentence, word.lang)"
+          @openAuth="emit('openAuth')"
         />
       </div>
     </div>

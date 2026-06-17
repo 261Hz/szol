@@ -122,7 +122,9 @@
           :word="tapped.word"
           :lang="lang"
           :savedWords="savedWords"
+          :currentUser="currentUser"
           @tap="({ word: w, sentence }) => tap(w, sentence)"
+          @openAuth="$emit('openAuth')"
         />
       </div>
 
@@ -147,7 +149,7 @@ const props = defineProps({
   currentUser: Object, // null if logged out
 })
 
-const emit = defineEmits(['go', 'saveWord'])
+const emit = defineEmits(['go', 'saveWord', 'openAuth'])
 
 const francoOn = ref(false)
 const tapped   = ref(null)
