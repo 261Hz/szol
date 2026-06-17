@@ -35,7 +35,7 @@
               :style="handwritingStyle"
               :dir="isRTL(lang) ? 'rtl' : 'ltr'"
             >{{ currentUnit }}</div>
-            <div class="text-xs text-amber-700/60 mt-1">{{ unitLabel }}</div>
+            <div class="text-xs text-amber-700/60 mt-1" :dir="isRTL(lang) ? 'rtl' : 'ltr'">{{ unitLabel }}</div>
           </div>
           <button
             @click="toggleFullscreen"
@@ -65,6 +65,9 @@
         <div v-else class="flex flex-col gap-3 pb-5 px-5">
           <div v-if="isLatin" class="text-xs text-amber-700/50 text-center">
             Handwriting practice is most useful for non-Latin scripts, but you can trace here freely.
+          </div>
+          <div v-if="isRTL(lang)" class="text-xs text-amber-700/60 text-center">
+            ← Write right-to-left (start near the right edge)
           </div>
           <canvas
             ref="canvas"
