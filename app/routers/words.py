@@ -119,6 +119,8 @@ _LANG_NAMES = {
     "hu": "Hungarian", "el": "Greek",   "ko": "Korean",
 }
 
+_LATIN_LANGS = {"en", "es", "fr", "de", "it", "pt", "nl", "pl", "tr", "sv", "hu"}
+
 @router.post("/write/check")
 def check_handwriting(payload: schemas.HandwritingCheckIn):
     """Use a vision LLM to evaluate the user's handwritten attempt."""
@@ -134,11 +136,17 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
                 "content": [
                     {"type": "text", "text": (
                         f"Handwriting grader. Target word: '{payload.word}' ({lang_name}). "
-                        f"Step 1 — read what is actually written on the canvas, letter by letter. "
-                        f"Step 2 — compare it exactly to '{payload.word}'. "
-                        f"PASS only if the written letters match the target letters exactly (same count, same identity). Neatness and style do not matter. "
-                        f"For Arabic/Hebrew the word must read right-to-left (first letter on the right). "
-                        f"FAIL if any letter is wrong, missing, or added — even one wrong letter is a FAIL. "
+                        + (
+                            f"The student wrote this in cursive Latin script — letters may connect or overlap. "
+                            f"Read the word as a whole (not letter-by-letter) and judge whether a fluent reader would recognise it as '{payload.word}'. "
+                            f"PASS if it is clearly recognisable as the target word despite messy style. "
+                            f"FAIL only if it could be mistaken for a clearly different word. "
+                            if payload.lang in _LATIN_LANGS else
+                            f"Read the characters carefully and compare to '{payload.word}' one by one. "
+                            f"PASS only if every character matches the target. Neatness and style do not matter. "
+                            f"For Arabic/Hebrew the word must read right-to-left (first character on the right). "
+                            f"FAIL if any character is wrong, missing, or added. "
+                        ) +
                         f"Reply PASS or FAIL only."
                     )},
                     {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{payload.image_b64}"}},
