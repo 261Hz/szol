@@ -122,6 +122,43 @@ def get_vocab_clips(word: str, lang: str, limit: int = 5, db: Session = Depends(
     )
 
 
+@router.get("/all-words")
+def get_all_words(
+    x_worker_secret: str = Header(None),
+    db: Session = Depends(get_db),
+):
+    """Return all unique (word, lang) pairs from every user's vocab bank.
+    Only words that have no cached clips are returned — nothing to do otherwise.
+    Protected by WORKER_SECRET header."""
+    if not settings.WORKER_SECRET or x_worker_secret != settings.WORKER_SECRET:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "invalid worker secret")
+
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(days=_CLIP_TTL_DAYS)
+
+    # All unique (word, lang) in the vocab bank
+    all_pairs = (
+        db.query(models.UserVocab.word, models.UserVocab.lang)
+        .distinct()
+        .all()
+    )
+
+    # Which ones already have fresh clips
+    cached = set(
+        (r.word, r.lang)
+        for r in db.query(models.VocabClip.word, models.VocabClip.lang)
+        .filter(models.VocabClip.crawled_at > stale_cutoff)
+        .distinct()
+        .all()
+    )
+
+    pending = [
+        {"word": w, "lang": l}
+        for w, l in all_pairs
+        if (w, l) not in cached
+    ]
+    return pending
+
+
 @router.post("/clips", status_code=status.HTTP_201_CREATED)
 def post_vocab_clips(
     clips: List[schemas.VocabClipIn],
