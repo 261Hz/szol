@@ -59,10 +59,12 @@ def yt_search(word, lang):
 
 def download_audio(video_id, outdir):
     out = os.path.join(outdir, f"{video_id}.%(ext)s")
+    # Use 'python -m yt_dlp' so we don't need yt-dlp on PATH.
+    # No --audio-format conversion so ffmpeg is not required.
+    # Groq Whisper accepts m4a/webm/mp4 natively.
     cmd = [
-        "yt-dlp", "-x",
-        "--audio-format", "mp3",
-        "--audio-quality", "64K",
+        sys.executable, "-m", "yt_dlp",
+        "-f", "bestaudio[ext=m4a]/bestaudio",
         "-o", out,
         f"https://www.youtube.com/watch?v={video_id}",
     ]
