@@ -110,6 +110,12 @@
         @load="loadStory"
       />
 
+      <ParallelView
+        v-if="activeTab === 'parallel'"
+        :lang="activeLang"
+        :current-user="currentUser"
+      />
+
       <MessagesView
         v-if="activeTab === 'messages'"
         :current-user="currentUser"
@@ -153,7 +159,8 @@ const WriteView    = defineAsyncComponent(() => import('./views/WriteView.vue'))
 const SettingsView  = defineAsyncComponent(() => import('./views/SettingsView.vue'))
 const ListenView    = defineAsyncComponent(() => import('./views/ListenView.vue'))
 const MessagesView  = defineAsyncComponent(() => import('./views/MessagesView.vue'))
-const JournalView   = defineAsyncComponent(() => import('./views/JournalView.vue'))
+const JournalView    = defineAsyncComponent(() => import('./views/JournalView.vue'))
+const ParallelView   = defineAsyncComponent(() => import('./views/ParallelView.vue'))
 const TutorView     = defineAsyncComponent(() => import('./views/TutorView.vue'))
 
 import { LANGS } from './data/stories.js'
