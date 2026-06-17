@@ -1,177 +1,112 @@
-<!-- WriteView.vue: handwriting / stroke order practice. -->
-<!-- For Chinese/Japanese: animated stroke order via Hanzi Writer + a tracing quiz. -->
-<!-- For other scripts (Arabic, Hebrew, Greek, Russian): free canvas drawing with self-grading. -->
-<!-- For Latin scripts (Spanish, French, etc.): a note + optional free drawing. -->
 <template>
-  <!-- Outer container stacks items vertically. -->
-  <div class="flex flex-col gap-6">
+  <div class="flex flex-col gap-4">
 
-    <!-- Shown when no story is selected. -->
     <div v-if="!story" class="text-gray-500 text-sm text-center py-12">
       {{ t(lang, 'noStory') }}
     </div>
 
-    <!-- Main practice interface. -->
-    <div v-else class="flex flex-col gap-4">
+    <div v-else class="flex flex-col gap-3">
 
-      <!-- Header: story title, language name, and position counter. -->
+      <!-- Header -->
       <div class="flex items-center justify-between">
         <div>
           <div class="font-semibold text-lg">{{ story.title }}</div>
           <div class="text-xs text-gray-500">{{ LANGS[lang]?.name }}</div>
         </div>
-        <!-- Progress counter: different text for CJK (characters) vs others (sentence/word). -->
         <div class="text-xs text-gray-500 font-medium">
-          <!-- isCJK = true for Chinese and Japanese. Shows "char 5 / 120". -->
           <span v-if="isCJK">{{ unitIdx + 1 }} / {{ cjkChars.length }}</span>
-          <!-- For other languages: shows "S2/5 · W3/8" (sentence 2 of 5, word 3 of 8). -->
           <span v-else>S{{ sentenceIdx + 1 }}/{{ sentences.length }} · W{{ wordIdx + 1 }}/{{ wordsInSentence.length }}</span>
         </div>
       </div>
 
-      <!-- Progress bar showing overall completion through the story. -->
+      <!-- Progress bar -->
       <div class="h-1 bg-gray-800 rounded-full overflow-hidden">
-        <!-- progressPct is a computed number 0–100. -->
-        <div
-          class="h-full bg-green-600 transition-all duration-300"
-          :style="{ width: progressPct + '%' }"
-        />
+        <div class="h-full bg-green-600 transition-all duration-300" :style="{ width: progressPct + '%' }" />
       </div>
 
-      <!-- ═══════════════════════════════════════════════════════════════ -->
-      <!-- CJK SECTION (Chinese / Japanese): Hanzi Writer stroke practice -->
-      <!-- ═══════════════════════════════════════════════════════════════ -->
-      <!-- v-if="isCJK" = only shown when language is 'zh' or 'ja'. -->
-      <div v-if="isCJK" class="flex flex-col items-center gap-4">
-        <!-- Large faint preview of the character above the drawing area. -->
-        <!-- "select-none" prevents the character from being accidentally selected/highlighted. -->
-        <div class="text-5xl font-light text-gray-600 select-none">{{ currentUnit }}</div>
+      <!-- ── Paper card ─────────────────────────────────────────────────── -->
+      <div ref="paperCard" class="paper-card rounded-2xl overflow-hidden shadow-xl">
 
-        <!-- Container div where Hanzi Writer injects its SVG canvas. -->
-        <!-- ref="hanziContainer" gives us a JavaScript reference to this DOM element. -->
-        <!-- "style" here sets inline CSS (fixed pixel size required by Hanzi Writer). -->
-        <div
-          ref="hanziContainer"
-          class="rounded-xl border border-gray-700 bg-gray-900"
-          style="width:220px;height:220px"
-        />
-
-        <!-- Shown when Hanzi Writer can't find stroke data for this character. -->
-        <!-- Not all Chinese/Japanese characters are in the Hanzi Writer dataset. -->
-        <div v-if="charError" class="text-xs text-gray-500">
-          Stroke data not available for this character.
-        </div>
-
-        <!-- Green success message after completing the quiz. -->
-        <div v-if="quizDone" class="text-green-400 font-medium text-sm">✓ Complete!</div>
-
-        <!-- Control buttons for the Hanzi Writer. -->
-        <div class="flex gap-3">
-          <!-- Animate: plays the stroke order animation so you can watch how it's drawn. -->
-          <!-- :disabled="!!charError" = disable button if charError is truthy. !! = cast to boolean. -->
+        <!-- Paper header: reference word -->
+        <div class="paper-header px-5 pt-5 pb-3 flex items-start justify-between">
+          <div class="flex flex-col gap-0.5">
+            <div
+              class="paper-word select-none leading-none"
+              :style="handwritingStyle"
+              :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+            >{{ currentUnit }}</div>
+            <div class="text-xs text-amber-700/60 mt-1">{{ unitLabel }}</div>
+          </div>
           <button
-            @click="animate"
-            :disabled="!!charError"
-            class="px-4 py-2 text-sm rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 disabled:opacity-30 transition-all"
-          >Animate</button>
-          <!-- Practice: starts the interactive tracing quiz (you draw over the character). -->
-          <!-- Disabled while a quiz is already in progress. -->
-          <button
-            @click="startQuiz"
-            :disabled="!!charError || quizActive"
-            class="px-4 py-2 text-sm rounded-lg bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all"
-          >{{ quizActive ? 'Practising…' : 'Practice' }}</button>
-        </div>
-      </div>
-
-      <!-- ═══════════════════════════════════════════════════════════════════════ -->
-      <!-- NON-CJK SECTION: canvas drawing for script and Latin languages -->
-      <!-- ═══════════════════════════════════════════════════════════════════════ -->
-      <!-- v-else = shown when isCJK is false. -->
-      <div v-else class="flex flex-col items-center gap-4">
-
-        <!-- Latin language notice: drawing is optional, just for practice. -->
-        <!-- v-if="isLatin" = shown only for Latin-alphabet languages (Spanish, French, etc.). -->
-        <div
-          v-if="isLatin"
-          class="text-xs text-gray-500 text-center px-4 py-2 bg-gray-900 rounded-lg border border-gray-800 w-full"
-        >
-          Handwriting practice is most useful for non-Latin scripts, but you can still trace here freely.
+            @click="toggleFullscreen"
+            class="text-amber-700/50 hover:text-amber-800 text-lg mt-0.5 transition-colors"
+            :title="isFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
+          >{{ isFullscreen ? '⊠' : '⛶' }}</button>
         </div>
 
-        <!-- The target word to practice writing, shown large above the canvas. -->
-        <!-- "tracking-widest" = extra space between letters for clarity. -->
-        <div
-          class="text-4xl font-semibold text-center tracking-widest"
-          :dir="isRTL(lang) ? 'rtl' : 'ltr'"
-        >{{ currentUnit }}</div>
-
-        <!-- The drawing canvas where the user writes with their mouse or finger. -->
-        <!-- ref="canvas" gives us a JS reference to this element so we can call canvas APIs. -->
-        <!-- width="300" height="300" sets canvas dimensions in pixels. -->
-        <!-- "touch-none" = disable browser's default touch gestures (so drawing isn't interrupted). -->
-        <!-- "cursor-crosshair" = show a + cursor so users know it's a drawing area. -->
-        <!-- @mousedown / @mousemove / @mouseup = desktop mouse drawing events. -->
-        <!-- @touchstart / @touchmove / @touchend = mobile touch drawing events. -->
-        <!-- .prevent on touch events calls event.preventDefault() to stop page scrolling while drawing. -->
-        <canvas
-          ref="canvas"
-          class="rounded-xl border border-gray-700 bg-gray-900 touch-none cursor-crosshair"
-          @mousedown="startDraw" @mousemove="moveDraw" @mouseup="stopDraw" @mouseleave="stopDraw"
-          @touchstart="startDraw" @touchmove.prevent="moveDraw" @touchend="stopDraw" @touchcancel="stopDraw"
-        />
-
-        <!-- Buttons below the canvas. -->
-        <div class="flex gap-3">
-          <!-- Clear button: wipes the canvas so the user can try again. -->
-          <button
-            @click="clearCanvas"
-            class="px-4 py-2 text-sm rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition-all"
-          >Clear</button>
-          <!-- Self-report buttons: only shown for non-Latin scripts. -->
-          <!-- Latin doesn't have correct/wrong because there's no automatic check. -->
-          <!-- <template> is a Vue wrapper that renders nothing itself -- just groups elements. -->
-          <template v-if="isScript">
-            <!-- ✓ Correct: user decides they wrote it right. -->
-            <button
-              @click="report(true)"
-              class="px-4 py-2 text-sm rounded-lg bg-green-700 text-white hover:bg-green-600 transition-all"
-            >✓ Correct</button>
-            <!-- ✗ Wrong: user decides they need more practice. -->
-            <button
-              @click="report(false)"
-              class="px-4 py-2 text-sm rounded-lg bg-red-400 text-white hover:bg-red-500 transition-all"
-            >✗ Wrong</button>
-          </template>
+        <!-- ── CJK: Hanzi Writer ──────────────────────────────────────── -->
+        <div v-if="isCJK" class="flex flex-col items-center gap-3 pb-5 px-5">
+          <div ref="hanziContainer" class="hanzi-container rounded-xl" />
+          <div v-if="charError" class="text-xs text-amber-700/60">Stroke data unavailable for this character.</div>
+          <div v-if="quizDone" class="text-green-700 font-medium text-sm">✓ Complete!</div>
+          <div class="flex gap-3">
+            <button @click="animate" :disabled="!!charError"
+              class="px-4 py-2 text-sm rounded-lg border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 disabled:opacity-30 transition-all">
+              Animate
+            </button>
+            <button @click="startQuiz" :disabled="!!charError || quizActive"
+              class="px-4 py-2 text-sm rounded-lg bg-amber-700 text-amber-50 hover:bg-amber-600 disabled:opacity-40 transition-all">
+              {{ quizActive ? 'Practising…' : 'Practice' }}
+            </button>
+          </div>
         </div>
 
-        <!-- Feedback message after self-reporting. -->
-        <!-- selfReport is true (correct), false (wrong), or null (not yet reported). -->
-        <!-- v-if="selfReport !== null" = only show when a report has been made. -->
-        <!-- !== means "not exactly equal to". -->
-        <div
-          v-if="selfReport !== null"
-          class="text-sm font-medium"
-          :class="selfReport ? 'text-green-400' : 'text-red-500'"
-        >{{ selfReport ? 'Marked correct!' : 'Keep practising.' }}</div>
+        <!-- ── Non-CJK: free canvas ───────────────────────────────────── -->
+        <div v-else class="flex flex-col gap-3 pb-5 px-5">
+          <div v-if="isLatin" class="text-xs text-amber-700/50 text-center">
+            Handwriting practice is most useful for non-Latin scripts, but you can trace here freely.
+          </div>
+          <canvas
+            ref="canvas"
+            class="paper-canvas w-full rounded-xl touch-none cursor-crosshair border border-amber-200"
+            @mousedown="startDraw" @mousemove="moveDraw" @mouseup="stopDraw" @mouseleave="stopDraw"
+            @touchstart="startDraw" @touchmove.prevent="moveDraw" @touchend="stopDraw" @touchcancel="stopDraw"
+          />
+          <div class="flex gap-3 justify-center">
+            <button @click="clearCanvasAndGuides"
+              class="px-4 py-2 text-sm rounded-lg border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 transition-all">
+              Clear
+            </button>
+            <template v-if="isScript">
+              <button @click="report(true)"
+                class="px-4 py-2 text-sm rounded-lg bg-green-700 text-white hover:bg-green-600 transition-all">
+                ✓ Correct
+              </button>
+              <button @click="report(false)"
+                class="px-4 py-2 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600 transition-all">
+                ✗ Wrong
+              </button>
+            </template>
+          </div>
+          <div v-if="selfReport !== null" class="text-sm font-medium text-center"
+            :class="selfReport ? 'text-green-700' : 'text-red-600'">
+            {{ selfReport ? 'Marked correct!' : 'Keep practising.' }}
+          </div>
+        </div>
 
       </div>
+      <!-- ── End paper card ──────────────────────────────────────────── -->
 
-      <!-- Navigation: Back on the left, Next on the right. -->
-      <div class="flex justify-between mt-2">
-        <!-- Back button: always visible but disabled on the very first item. -->
-        <!-- :disabled="isFirst" = grayed out and unclickable when on the first unit. -->
-        <button
-          @click="goPrev"
-          :disabled="isFirst"
-          class="text-sm px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 disabled:opacity-30 transition-all"
-        >← Back</button>
-        <!-- Next button: disabled on the very last item (shows "Done ✓" then). -->
-        <button
-          @click="goNext"
-          :disabled="isLast"
-          class="text-sm px-4 py-1.5 rounded-lg bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all"
-        >{{ isLast ? 'Done ✓' : 'Next →' }}</button>
+      <!-- Navigation -->
+      <div class="flex justify-between">
+        <button @click="goPrev" :disabled="isFirst"
+          class="text-sm px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 disabled:opacity-30 transition-all">
+          ← Back
+        </button>
+        <button @click="goNext" :disabled="isLast"
+          class="text-sm px-4 py-1.5 rounded-lg bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">
+          {{ isLast ? 'Done ✓' : 'Next →' }}
+        </button>
       </div>
 
     </div>
@@ -179,11 +114,7 @@
 </template>
 
 <script setup>
-// ref = reactive variable. computed = auto-updating derived value.
-// watch = run code when something changes. onMounted = run after component appears.
-// nextTick = wait for Vue to finish updating the DOM before running code.
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
-// HanziWriter is a library for animating and quizzing Chinese/Japanese character strokes.
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import HanziWriter from 'hanzi-writer'
 import { LANGS } from '../data/stories.js'
 import { isRTL } from '../utils/rtl.js'
@@ -191,55 +122,54 @@ import { t }     from '../utils/i18n.js'
 
 const props = defineProps({ story: Object, lang: String })
 
-// Language classification computed properties.
-// These auto-update when props.lang changes.
-const isCJK    = computed(() => ['zh', 'ja'].includes(props.lang))    // Chinese or Japanese
-const isScript = computed(() => ['ar', 'arz', 'he', 'el', 'ru'].includes(props.lang)) // non-Latin script
-const isLatin  = computed(() => !isCJK.value && !isScript.value)      // everything else
+const isCJK    = computed(() => ['zh', 'ja'].includes(props.lang))
+const isScript = computed(() => ['ar', 'arz', 'he', 'el', 'ru'].includes(props.lang))
+const isLatin  = computed(() => !isCJK.value && !isScript.value)
 
-// ── Navigation state ────────────────────────────────────────────────────────────
+// ── Handwriting font per script ────────────────────────────────────────────────
+const handwritingStyle = computed(() => {
+  if (props.lang === 'zh')               return { fontFamily: "'Zhi Mang Xing', cursive",    fontSize: '4rem' }
+  if (props.lang === 'ja')               return { fontFamily: "'Kaisei Tokumin', serif",      fontSize: '4rem' }
+  if (['ar', 'arz'].includes(props.lang)) return { fontFamily: "'Amiri', serif",               fontSize: '3.5rem' }
+  if (props.lang === 'he')               return { fontFamily: "'Frank Ruhl Libre', serif",     fontSize: '3.5rem' }
+  return { fontFamily: "'Patrick Hand', cursive", fontSize: '4rem' }
+})
 
-// sentenceIdx tracks which sentence we're on (for non-CJK languages).
+// ── Navigation ──────────────────────────────────────────────────────────────────
 const sentenceIdx = ref(0)
-// wordIdx tracks which word within the current sentence.
 const wordIdx     = ref(0)
-// unitIdx tracks which character we're on (for CJK, which goes char-by-char through the whole story).
 const unitIdx     = ref(0)
 
-// sentences splits the story text into an array of sentences.
 const sentences = computed(() => {
   if (!props.story) return []
   return props.story.content
-    .split(/(?<=[.!?؟।。！？])\s+/) // split after sentence-ending punctuation
-    .map(s => s.trim())              // strip whitespace from each sentence
-    .filter(Boolean)                 // remove empty strings
+    .split(/(?<=[.!?؟।。！？])\s+/)
+    .map(s => s.trim()).filter(Boolean)
 })
 
-// wordsInSentence gives the individual words of the current sentence (for non-CJK).
 const wordsInSentence = computed(() =>
-  (sentences.value[sentenceIdx.value] ?? '').trim().split(/\s+/).filter(Boolean)
+  (sentences.value[sentenceIdx.value] || '').trim().split(/\s+/).filter(Boolean)
 )
 
-// cjkChars extracts every letter character from the entire story text (for CJK practice).
-// [...str] spreads a string into an array of individual characters.
-// /\p{L}/u matches any Unicode letter. .filter keeps only letter characters (skips spaces, punctuation).
 const cjkChars = computed(() => {
   if (!props.story || !isCJK.value) return []
   return [...props.story.content].filter(c => /\p{L}/u.test(c))
 })
 
-// currentUnit is the thing currently being practiced: a character (CJK) or a word (other).
 const currentUnit = computed(() => {
-  if (isCJK.value) return cjkChars.value[unitIdx.value] ?? '' // current character
-  return wordsInSentence.value[wordIdx.value] ?? ''            // current word
+  if (isCJK.value) return cjkChars.value[unitIdx.value] || ''
+  return wordsInSentence.value[wordIdx.value] || ''
 })
 
-// isFirst = true when there's nothing before the current position (can't go back).
+const unitLabel = computed(() => {
+  if (isCJK.value) return sentences.value.find(s => s.includes(currentUnit.value)) || ''
+  return sentences.value[sentenceIdx.value] || ''
+})
+
 const isFirst = computed(() =>
   isCJK.value ? unitIdx.value === 0 : sentenceIdx.value === 0 && wordIdx.value === 0
 )
 
-// isLast = true when there's nothing after the current position (finished).
 const isLast = computed(() =>
   isCJK.value
     ? unitIdx.value >= cjkChars.value.length - 1
@@ -247,175 +177,171 @@ const isLast = computed(() =>
       wordIdx.value >= wordsInSentence.value.length - 1
 )
 
-// progressPct calculates how far through the story the user is (0–100%).
 const progressPct = computed(() => {
   if (isCJK.value) {
-    // For CJK: simple fraction of characters done.
     return cjkChars.value.length ? ((unitIdx.value + 1) / cjkChars.value.length) * 100 : 0
   }
-  // For non-CJK: count total words across all sentences, then count how many are done.
-  const total = sentences.value.reduce(
-    // .reduce() accumulates a running total. sum starts at 0, adds each sentence's word count.
-    (sum, s) => sum + s.trim().split(/\s+/).filter(Boolean).length, 0
-  )
-  // Count words in all sentences BEFORE the current one.
-  const done = sentences.value.slice(0, sentenceIdx.value).reduce(
-    // .slice(0, sentenceIdx) gets all sentences before the current one.
-    (sum, s) => sum + s.trim().split(/\s+/).filter(Boolean).length, 0
-  ) + wordIdx.value // add the current word's index within its sentence
+  const total = sentences.value.reduce((s, x) => s + x.trim().split(/\s+/).filter(Boolean).length, 0)
+  const done  = sentences.value.slice(0, sentenceIdx.value).reduce((s, x) => s + x.trim().split(/\s+/).filter(Boolean).length, 0) + wordIdx.value
   return total ? ((done + 1) / total) * 100 : 0
 })
 
-// goNext() advances to the next character (CJK) or word/sentence (other).
 function goNext() {
   if (isCJK.value) {
-    if (unitIdx.value < cjkChars.value.length - 1) unitIdx.value++ // move to next char
+    if (unitIdx.value < cjkChars.value.length - 1) unitIdx.value++
   } else {
-    if (wordIdx.value < wordsInSentence.value.length - 1) {
-      wordIdx.value++ // still words left in this sentence
-    } else if (sentenceIdx.value < sentences.value.length - 1) {
-      sentenceIdx.value++ // jump to the next sentence
-      wordIdx.value = 0   // reset to first word of new sentence
-    }
+    if (wordIdx.value < wordsInSentence.value.length - 1) wordIdx.value++
+    else if (sentenceIdx.value < sentences.value.length - 1) { sentenceIdx.value++; wordIdx.value = 0 }
   }
 }
 
-// goPrev() goes back one step.
 function goPrev() {
   if (isCJK.value) {
-    if (unitIdx.value > 0) unitIdx.value-- // move to previous char
+    if (unitIdx.value > 0) unitIdx.value--
   } else {
-    if (wordIdx.value > 0) {
-      wordIdx.value-- // go back one word within same sentence
-    } else if (sentenceIdx.value > 0) {
-      sentenceIdx.value-- // go to previous sentence
-      // Go to the LAST word of that previous sentence.
-      // wordsInSentence recalculates immediately since sentenceIdx just changed.
-      wordIdx.value = wordsInSentence.value.length - 1
-    }
+    if (wordIdx.value > 0) wordIdx.value--
+    else if (sentenceIdx.value > 0) { sentenceIdx.value--; wordIdx.value = wordsInSentence.value.length - 1 }
   }
 }
 
-// ── Hanzi Writer (CJK only) ─────────────────────────────────────────────────────
+// ── Fullscreen ──────────────────────────────────────────────────────────────────
+const paperCard   = ref(null)
+const isFullscreen = ref(false)
 
-// ref to the div that Hanzi Writer will inject its SVG into.
+function toggleFullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen()
+  else paperCard.value?.requestFullscreen()
+}
+
+function onFullscreenChange() {
+  isFullscreen.value = !!document.fullscreenElement
+  // Re-init canvas/writer after fullscreen change (size may have changed)
+  nextTick(() => {
+    if (isCJK.value) initWriter()
+    else             setupCanvas()
+  })
+}
+
+onMounted(() => document.addEventListener('fullscreenchange', onFullscreenChange))
+onUnmounted(() => document.removeEventListener('fullscreenchange', onFullscreenChange))
+
+// ── Hanzi Writer ────────────────────────────────────────────────────────────────
 const hanziContainer = ref(null)
-// quizActive = true while the interactive tracing quiz is running.
-const quizActive = ref(false)
-// quizDone = true after the user successfully completes a quiz.
-const quizDone   = ref(false)
-// charError = true if Hanzi Writer can't find stroke data for this character.
-const charError  = ref(false)
-// writer holds the HanziWriter instance (created by HanziWriter.create()).
+const quizActive     = ref(false)
+const quizDone       = ref(false)
+const charError      = ref(false)
 let writer = null
 
-// initWriter() creates a new Hanzi Writer for the current character.
 function initWriter() {
-  if (!hanziContainer.value || !currentUnit.value) return // safety check
-  hanziContainer.value.innerHTML = '' // clear any previous writer from the container
-  // Reset state flags.
+  if (!hanziContainer.value || !currentUnit.value) return
+  hanziContainer.value.innerHTML = ''
   quizActive.value = false
   quizDone.value   = false
   charError.value  = false
   writer           = null
+  const size = Math.min(hanziContainer.value.clientWidth || 300, 400)
   try {
-    // HanziWriter.create(element, character, options) creates the writer and injects an SVG.
     writer = HanziWriter.create(hanziContainer.value, currentUnit.value, {
-      width:                210,       // width of the drawing area in pixels
-      height:               210,       // height of the drawing area in pixels
-      padding:              10,        // space around the character inside the box
-      showOutline:          true,      // show a faint gray outline of the correct character shape
-      strokeColor:          '#1a1a1a', // color of the strokes (almost black)
-      outlineColor:         '#d1d5db', // color of the guide outline (light gray)
-      strokeAnimationSpeed: 1,         // animation speed multiplier (1 = normal)
-      delayBetweenStrokes:  300,       // pause between each stroke in milliseconds
-      // Called if character data fails to load (not all characters are in the dataset).
-      onLoadCharDataError: () => { charError.value = true },
+      width:                size,
+      height:               size,
+      padding:              12,
+      showOutline:          true,
+      strokeColor:          '#1a1a2e',
+      outlineColor:         '#c8b99a',
+      strokeAnimationSpeed: 1,
+      delayBetweenStrokes:  300,
+      onLoadCharDataError:  () => { charError.value = true },
     })
-  } catch {
-    // catch {} handles any unexpected errors silently and marks the character as unavailable.
-    charError.value = true
-  }
+  } catch { charError.value = true }
 }
 
-// animate() plays the stroke-order animation for the current character.
-// ?. = optional chaining: only calls .animateCharacter() if writer is not null.
-function animate() { writer?.animateCharacter() }
+function animate()   { writer?.animateCharacter() }
 
-// startQuiz() starts the interactive tracing exercise.
 function startQuiz() {
-  if (!writer || quizActive.value) return // don't start if no writer or already in progress
+  if (!writer || quizActive.value) return
   quizActive.value = true
   quizDone.value   = false
-  // .quiz() overlays an input area over the character. The user draws each stroke.
-  writer.quiz({
-    // onComplete fires when the user successfully draws all strokes.
-    // summaryData contains mistake counts (not used here).
-    onComplete: () => {
-      quizActive.value = false // quiz is over
-      quizDone.value   = true  // show the "✓ Complete!" message
-    },
-  })
+  writer.quiz({ onComplete: () => { quizActive.value = false; quizDone.value = true } })
 }
 
-// ── Canvas drawing (non-CJK) ─────────────────────────────────────────────────────
-
-// ref to the <canvas> HTML element.
+// ── Canvas drawing ──────────────────────────────────────────────────────────────
 const canvas     = ref(null)
-// selfReport is null (not yet reported), true (correct), or false (wrong).
 const selfReport = ref(null)
-// ctx (short for "context") is the drawing API object obtained from the canvas.
 let ctx     = null
-// drawing = true while the user is holding the mouse button / touching the screen.
 let drawing = false
 
-// setupCanvas() initializes the canvas drawing context and clears the canvas.
-// Scales the canvas backing store by devicePixelRatio so strokes are crisp on high-DPR screens.
+const PAPER_COLOR = '#fefce8'
+const INK_COLOR   = '#1a1a2e'
+const GUIDE_COLOR = '#e8dcc8'
+
 function setupCanvas() {
   if (!canvas.value) return
-  const dpr  = window.devicePixelRatio || 1
-  const size = 300
-  canvas.value.width        = size * dpr
-  canvas.value.height       = size * dpr
-  canvas.value.style.width  = size + 'px'
-  canvas.value.style.height = size + 'px'
+  const dpr       = window.devicePixelRatio || 1
+  const cssWidth  = canvas.value.parentElement?.clientWidth - 40 || 320  // account for px-5
+  const cssHeight = isFullscreen.value ? window.innerHeight * 0.55 : Math.max(cssWidth * 0.65, 260)
+  canvas.value.width        = cssWidth  * dpr
+  canvas.value.height       = cssHeight * dpr
+  canvas.value.style.width  = cssWidth  + 'px'
+  canvas.value.style.height = cssHeight + 'px'
   ctx = canvas.value.getContext('2d')
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0) // absolute scale — safe to call repeatedly
-  ctx.strokeStyle = '#e2e8f0'
-  ctx.fillStyle   = '#e2e8f0'
-  ctx.lineWidth   = 4
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.strokeStyle = INK_COLOR
+  ctx.fillStyle   = INK_COLOR
+  ctx.lineWidth   = 3
   ctx.lineCap     = 'round'
   ctx.lineJoin    = 'round'
-  clearCanvas()
+  clearCanvasAndGuides()
 }
 
-// getPos() returns CSS-pixel coordinates within the canvas.
-// After ctx.setTransform(dpr,...), drawing at CSS coords maps to the correct device pixels.
+function drawGuideLines() {
+  if (!ctx || !canvas.value) return
+  const w = parseInt(canvas.value.style.width)
+  const h = parseInt(canvas.value.style.height)
+  ctx.save()
+  ctx.strokeStyle = GUIDE_COLOR
+  ctx.lineWidth   = 0.75
+  const spacing = 38
+  for (let y = spacing; y < h; y += spacing) {
+    ctx.beginPath()
+    ctx.moveTo(0, y)
+    ctx.lineTo(w, y)
+    ctx.stroke()
+  }
+  ctx.restore()
+  // Reset drawing style
+  ctx.strokeStyle = INK_COLOR
+  ctx.fillStyle   = INK_COLOR
+  ctx.lineWidth   = 3
+}
+
+function clearCanvasAndGuides() {
+  if (!ctx || !canvas.value) return
+  const w = parseInt(canvas.value.style.width)
+  const h = parseInt(canvas.value.style.height)
+  ctx.save()
+  ctx.fillStyle = PAPER_COLOR
+  ctx.fillRect(0, 0, w, h)
+  ctx.restore()
+  drawGuideLines()
+}
+
 function getPos(e) {
   const rect = canvas.value.getBoundingClientRect()
   const src  = e.touches ? e.touches[0] : e
-  return {
-    x: src.clientX - rect.left,
-    y: src.clientY - rect.top,
-  }
+  return { x: src.clientX - rect.left, y: src.clientY - rect.top }
 }
 
-// startDraw() begins a new brush stroke when the user presses down.
 function startDraw(e) {
   drawing = true
   const p = getPos(e)
   ctx.beginPath()
   ctx.moveTo(p.x, p.y)
-  // Draw a dot immediately so single taps leave a visible mark.
   ctx.arc(p.x, p.y, ctx.lineWidth / 2, 0, Math.PI * 2)
   ctx.fill()
   ctx.beginPath()
   ctx.moveTo(p.x, p.y)
 }
 
-// moveDraw() extends the stroke as the user drags.
-// After stroking, beginPath+moveTo starts a fresh sub-path so each segment is drawn once
-// (avoids replaying the entire accumulated path on every move event).
 function moveDraw(e) {
   if (!drawing) return
   const p = getPos(e)
@@ -425,62 +351,86 @@ function moveDraw(e) {
   ctx.moveTo(p.x, p.y)
 }
 
-// stopDraw() ends the stroke when the user releases or leaves the canvas.
 function stopDraw() { drawing = false }
 
-// clearCanvas() wipes everything drawn on the canvas.
-// Uses 300×300 CSS coordinates — ctx.setTransform scales to device pixels automatically.
-function clearCanvas() {
-  ctx?.clearRect(0, 0, 300, 300)
-}
-
-// report() records the user's self-assessment of their writing.
-// "correct" is true (they think they got it right) or false (they think they were wrong).
 function report(correct) {
   selfReport.value = correct
   window.clarity?.('event', correct ? 'write_correct' : 'write_incorrect')
 }
 
-// ── Lifecycle hooks & watchers ───────────────────────────────────────────────────
-
-// onMounted runs once after the component's HTML has been added to the page.
-// nextTick() waits until Vue has finished rendering the DOM before running the callback.
-// This is needed because ref("hanziContainer") and ref("canvas") are only set after render.
+// ── Watchers & lifecycle ────────────────────────────────────────────────────────
 onMounted(async () => {
-  await nextTick()                    // wait for the DOM to be ready
-  if (isCJK.value) initWriter()       // set up Hanzi Writer if this is a CJK language
-  else setupCanvas()                  // set up the drawing canvas otherwise
-})
-
-// When the user moves to a different character (unitIdx changes), reinitialize Hanzi Writer.
-watch(unitIdx, async () => {
-  if (!isCJK.value) return            // don't run this for non-CJK languages
-  await nextTick()                    // wait for Vue to render the new container
-  initWriter()                        // create a fresh writer for the new character
-})
-
-// When the user moves to a different word (sentenceIdx or wordIdx changes), clear the canvas.
-watch([sentenceIdx, wordIdx], async () => {
-  if (isCJK.value) return             // not relevant for CJK
-  selfReport.value = null             // reset the self-report buttons
   await nextTick()
-  if (canvas.value) clearCanvas()     // wipe the canvas for the new word
+  if (isCJK.value) initWriter()
+  else setupCanvas()
 })
 
-// When the language or story changes, reset everything and start fresh.
+watch(unitIdx, async () => {
+  if (!isCJK.value) return
+  await nextTick()
+  initWriter()
+})
+
+watch([sentenceIdx, wordIdx], async () => {
+  if (isCJK.value) return
+  selfReport.value = null
+  await nextTick()
+  if (canvas.value) clearCanvasAndGuides()
+})
+
 watch([() => props.lang, () => props.story], async () => {
-  // () => props.lang is an arrow function used as a "getter" -- watch needs a function, not a raw value.
-  sentenceIdx.value = 0  // reset to first sentence
-  wordIdx.value     = 0  // reset to first word
-  unitIdx.value     = 0  // reset to first character
+  sentenceIdx.value = 0
+  wordIdx.value     = 0
+  unitIdx.value     = 0
   selfReport.value  = null
   quizActive.value  = false
   quizDone.value    = false
   charError.value   = false
-  writer            = null // discard the old Hanzi Writer instance
+  writer            = null
   if (props.story) window.clarity?.('event', 'write_started')
   await nextTick()
   if (isCJK.value) initWriter()
   else setupCanvas()
 })
 </script>
+
+<style scoped>
+/* Paper card — light mode (normal) */
+.paper-card {
+  background: #fefce8;
+  border: 1px solid #e8dcc8;
+}
+
+.paper-header {
+  border-bottom: 1px solid #e8dcc8;
+}
+
+.paper-word {
+  color: #1a1a2e;
+}
+
+/* Fullscreen: expand canvas height and center everything */
+.paper-card:fullscreen {
+  display: flex;
+  flex-direction: column;
+  background: #fefce8;
+  overflow-y: auto;
+}
+
+.paper-card:fullscreen .paper-header {
+  flex-shrink: 0;
+}
+
+.paper-card:fullscreen .paper-word {
+  font-size: 5rem;
+}
+
+/* Hanzi container fills its space */
+.hanzi-container {
+  width: 100%;
+  max-width: 380px;
+  aspect-ratio: 1;
+  background: #fefce8;
+  overflow: hidden;
+}
+</style>
