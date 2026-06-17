@@ -476,6 +476,18 @@ export async function discoverPartners(targetLang) {
   return await res.json()
 }
 
+// ── Handwriting checker ───────────────────────────────────────────────────────
+
+export async function checkHandwriting(word, lang, imagePng) {
+  const res = await apiFetch(`${API_URL}/words/write/check`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ word, lang, image_b64: imagePng }),
+  }).catch(() => null)
+  if (!res?.ok) return null
+  return await res.json() // { feedback: string }
+}
+
 // ── AI tutor chat ─────────────────────────────────────────────────────────────
 
 export async function sendChat({ message, storyContent, lang, history, vocab, proficiency }) {
