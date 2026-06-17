@@ -376,7 +376,14 @@ function annotatedImage() {
     oc.textAlign = 'center'; oc.textBaseline = 'middle'
     oc.fillText(String(i + 1), x, y)
   })
-  return off.toDataURL('image/png').split(',')[1]
+  // Downscale to max 320px before encoding — reduces vision token cost ~75%
+  const MAX = 320
+  const scale = Math.min(1, MAX / Math.max(off.width, off.height))
+  const small = document.createElement('canvas')
+  small.width  = Math.round(off.width  * scale)
+  small.height = Math.round(off.height * scale)
+  small.getContext('2d').drawImage(off, 0, 0, small.width, small.height)
+  return small.toDataURL('image/png').split(',')[1]
 }
 
 async function runCheck() {
