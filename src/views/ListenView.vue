@@ -100,12 +100,12 @@
       <div class="flex items-center justify-between gap-2">
         <div class="flex gap-1">
           <button
-            @click="mode = 'dictation'; translationResult = null"
+            @click="mode = 'dictation'; translationResult = null; showTranscript = false"
             :class="['text-xs px-3 py-1.5 rounded-full transition-all',
               mode === 'dictation' ? 'bg-sky-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-white']"
           >Dictation</button>
           <button
-            @click="mode = 'translation'; translationResult = null"
+            @click="mode = 'translation'; translationResult = null; showTranscript = false"
             :class="['text-xs px-3 py-1.5 rounded-full transition-all',
               mode === 'translation' ? 'bg-violet-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-white']"
           >Translation</button>
@@ -259,6 +259,7 @@
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2">
           <button
+            v-if="mode === 'dictation' ? userInput.trim() : translationResult"
             @click="showTranscript = !showTranscript"
             class="text-xs px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 hover:border-emerald-700 hover:text-emerald-400 transition-all"
           >{{ showTranscript ? t(lang, 'hideTranscript') : (mode === 'translation' ? 'Show original' : t(lang, 'showCorrectText')) }}</button>
