@@ -218,7 +218,90 @@ function onFullscreenChange() {
 }
 
 onMounted(() => document.addEventListener('fullscreenchange', onFullscreenChange))
-onUnmounted(() => document.removeEventListener('fullscreenchange', onFullscreenChange))
+onUnmounted(async () => {
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
+  if (_tesseractWorker) { await _tesseractWorker.terminate(); _tesseractWorker = null }
+})
+
+// ── Latin OCR via Tesseract.js ──────────────────────────────────────────────────
+let _tesseractWorker = null
+
+async function _getTesseract() {
+  if (!_tesseractWorker) {
+    const { createWorker } = await import('tesseract.js')
+    _tesseractWorker = await createWorker('eng')
+  }
+  return _tesseractWorker
+}
+
+// Clean ink-on-white canvas for Tesseract (no guide lines, no paper tint)
+function inkCanvas() {
+  if (!canvas.value || !strokes.length) return null
+  const dpr = window.devicePixelRatio || 1
+  const cw  = parseInt(canvas.value.style.width)
+  const ch  = parseInt(canvas.value.style.height)
+  const off = document.createElement('canvas')
+  off.width  = cw * dpr
+  off.height = ch * dpr
+  const oc = off.getContext('2d')
+  oc.setTransform(dpr, 0, 0, dpr, 0, 0)
+  oc.fillStyle = '#ffffff'
+  oc.fillRect(0, 0, cw, ch)
+  oc.strokeStyle = '#000000'
+  oc.lineWidth   = 3
+  oc.lineCap     = 'round'
+  oc.lineJoin    = 'round'
+  for (const stroke of strokes) {
+    if (stroke.length < 2) continue
+    oc.beginPath()
+    oc.moveTo(stroke[0].x, stroke[0].y)
+    for (let i = 1; i < stroke.length; i++) oc.lineTo(stroke[i].x, stroke[i].y)
+    oc.stroke()
+  }
+  return off
+}
+
+// Strip diacritics then lower-case for language-agnostic Latin comparison
+function normLatin(s) {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, '')
+}
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length
+  const d = Array.from({ length: m + 1 }, (_, i) => Array(n + 1).fill(0).map((_, j) => i || j))
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      d[i][j] = a[i-1] === b[j-1] ? d[i-1][j-1] : 1 + Math.min(d[i-1][j], d[i][j-1], d[i-1][j-1])
+  return d[m][n]
+}
+
+async function checkLatin() {
+  try {
+    const worker = await _getTesseract()
+    const off    = inkCanvas()
+    if (!off) return false
+    const { data: { text } } = await worker.recognize(off)
+    const got    = normLatin(text)
+    const target = normLatin(currentUnit.value)
+    if (!got || !target) return false
+    const maxErr = Math.max(1, Math.floor(target.length / 4))
+    return levenshtein(got, target) <= maxErr
+  } catch {
+    // Tesseract unavailable — fall back to LLM
+    const result = await checkHandwriting(currentUnit.value, props.lang, annotatedImage())
+    return result?.passed ?? false
+  }
+}
+
+// ── RTL coordinate check ────────────────────────────────────────────────────────
+// For Arabic/Hebrew: early strokes should have a higher x (more to the right)
+// than late strokes. Compares the average x of the first half vs second half.
+function isRTLStrokeOrder() {
+  if (strokes.length < 3) return true // can't judge with < 3 strokes
+  const half = Math.ceil(strokes.length / 2)
+  const avgX = ss => { const pts = ss.flat(); return pts.reduce((s, p) => s + p.x, 0) / pts.length }
+  return avgX(strokes.slice(0, half)) > avgX(strokes.slice(half))
+}
 
 // ── Hanzi Writer ────────────────────────────────────────────────────────────────
 const hanziContainer = ref(null)
@@ -394,15 +477,33 @@ async function runCheck() {
   if (!canvas.value || aiChecking.value) return
   aiChecking.value  = true
   checkResult.value = null
-  const result = await checkHandwriting(currentUnit.value, props.lang, annotatedImage())
-  checkResult.value = result?.passed ?? null
-  if (result?.passed === false) {
+
+  let passed = false
+  if (isLatin.value) {
+    // Client-side OCR — no backend call
+    passed = await checkLatin()
+  } else if (isRTL(props.lang)) {
+    // Coordinate check for writing direction first
+    if (!isRTLStrokeOrder()) {
+      passed = false
+    } else {
+      const result = await checkHandwriting(currentUnit.value, props.lang, annotatedImage())
+      passed = result?.passed ?? false
+    }
+  } else {
+    // Greek, Russian, etc. — LLM character check
+    const result = await checkHandwriting(currentUnit.value, props.lang, annotatedImage())
+    passed = result?.passed ?? false
+  }
+
+  checkResult.value = passed
+  if (!passed) {
     failCount.value++
     if (failCount.value >= 2) drawTraceGuide()
-  } else if (result?.passed === true) {
+  } else {
     failCount.value = 0
   }
-  aiChecking.value  = false
+  aiChecking.value = false
 }
 
 function getPos(e) {
