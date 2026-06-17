@@ -33,6 +33,12 @@
             :class="mode === 'franco' ? 'bg-gray-800 text-white' : 'bg-gray-800 text-gray-400'"
             class="text-sm px-3 py-1 rounded-full transition-all"
           >{{ francoLabel }}</button>
+          <button
+            v-if="mode === 'native'"
+            @click="showGuide = !showGuide"
+            :class="showGuide ? 'bg-blue-900 text-blue-300' : 'bg-gray-800 text-gray-400'"
+            class="text-sm px-3 py-1 rounded-full transition-all"
+          >{{ francoLabel }} guide</button>
         </template>
         <button
           @click="ignorePunct = !ignorePunct"
@@ -93,7 +99,7 @@
               class="inline whitespace-nowrap rounded transition-colors hover:bg-green-950 active:bg-green-950 select-none bg-transparent border-0 p-0 m-0 font-[inherit] leading-[inherit] cursor-pointer"
               :class="savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-green-500 decoration-dotted underline-offset-2' : ''"
               @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
-            ><ruby v-if="wordNum(word)" class="szol-num"><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span><rt>{{ wordNum(word) }}</rt></ruby><template v-else><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span></template></button>
+            ><ruby v-if="wordNum(word)" class="szol-num"><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span><rt>{{ wordNum(word) }}</rt></ruby><template v-else><template v-for="(c, ci) in word" :key="ci"><ruby v-if="showGuide && lang === 'zh' && charRoman(c.char)"><span :class="charClass(wi, ci)">{{ c.char }}</span><rt class="text-[0.6em] text-blue-300 font-normal not-italic leading-none">{{ charRoman(c.char) }}</rt></ruby><span v-else :class="charClass(wi, ci)">{{ c.char }}</span></template></template></button>
             <span v-if="wi < words.length - 1 && !isCJK" :class="spaceClass(wi)">{{ ' ' }}</span>
           </template>
         </template>
@@ -112,6 +118,13 @@
         @keydown="onKey"
         @input="onMobileInput"
       />
+
+      <!-- Arabic franco guide: full sentence transliteration shown below the box. -->
+      <div
+        v-if="showGuide && ['ar', 'arz'].includes(lang) && mode === 'native' && !done"
+        class="text-xs text-blue-300 font-mono border border-blue-900/50 rounded-lg px-3 py-2 bg-blue-950/20 tracking-wide"
+        dir="ltr"
+      >{{ arabicToFranco(sentences[sentenceIdx] || '') }}</div>
 
       <!-- ── Progress row ────────────────────────────────────────────────── -->
       <div class="flex items-center gap-3">
@@ -144,6 +157,7 @@ import { useVoiceList, voicesForLang, pickVoice } from '../utils/voices.js'
 import { trackWord, saveProgress, getProgress } from '../utils/api.js'
 import ClickableText from '../components/ClickableText.vue'
 import { numToWords } from '../utils/numWords.js'
+import { charPinyin, charFranco, chineseToPinyinText, arabicToFranco } from '../utils/romanization.js'
 
 const props = defineProps({
   story:       Object,
@@ -157,6 +171,7 @@ const emit = defineEmits(['saveWord'])
 // ── Mode (native / franco / pinyin) ──────────────────────────────────────────
 
 const mode        = ref('native')
+const showGuide   = ref(false)
 const ignorePunct = ref(false)
 
 // hasFranco = true for Arabic (both varieties) and Chinese, which have Latin-script alternates.
@@ -170,16 +185,37 @@ const nativeLabel = computed(() => {
 
 const francoLabel = computed(() => props.lang === 'zh' ? 'Pinyin' : 'Franco')
 
+// francoText = auto-generated romanisation when story has no .franco field.
+const francoText = ref('')
+watch([() => props.story, () => props.lang, mode], () => {
+  if (!hasFranco.value || mode.value !== 'franco') { francoText.value = ''; return }
+  if (props.story?.franco) { francoText.value = props.story.franco; return }
+  const content = props.story?.content ?? ''
+  if (props.lang === 'zh') {
+    francoText.value = chineseToPinyinText(content)
+  } else if (['ar', 'arz'].includes(props.lang)) {
+    francoText.value = arabicToFranco(content)
+  }
+}, { immediate: true })
+
 // activeText = the text being practiced: native script or its romanised version.
 const activeText = computed(() => {
-  if (mode.value === 'franco' && props.story?.franco) return props.story.franco
+  if (mode.value === 'franco') return francoText.value || props.story?.content || ''
   return props.story?.content ?? ''
 })
+
+// Per-character romanisation for the guide overlay.
+function charRoman(char) {
+  if (props.lang === 'zh') return charPinyin(char)
+  if (['ar', 'arz'].includes(props.lang)) return charFranco(char)
+  return ''
+}
 
 // ── CJK detection ─────────────────────────────────────────────────────────────
 
 const CJK_LANGS = new Set(['ja', 'zh', 'cmn', 'yue', 'ko'])
-const isCJK = computed(() => CJK_LANGS.has(props.lang))
+// In franco/pinyin mode Chinese text is Latin — behave like a space-separated language.
+const isCJK = computed(() => CJK_LANGS.has(props.lang) && mode.value === 'native')
 
 // ── Sentence splitting ────────────────────────────────────────────────────────
 
