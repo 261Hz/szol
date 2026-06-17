@@ -209,11 +209,11 @@
           class="text-xs text-green-300 hover:text-green-200 underline transition-all"
         >Find video clips</button>
         <div v-else-if="video.loading" class="text-xs text-gray-500">Loading…</div>
-        <div v-else-if="video.results.length" class="flex flex-col gap-4">
+        <div v-else-if="video.results.length" class="flex flex-col gap-3">
           <div
             v-for="clip in video.results"
             :key="`${clip.video_id}-${clip.start_sec}`"
-            class="flex flex-col gap-1.5"
+            class="flex flex-col gap-0.5"
           >
             <!-- Context sentence with the target word highlighted yellow -->
             <span
@@ -233,16 +233,11 @@
                 <span v-else>{{ tok.text }}</span>
               </span>
             </span>
-            <!-- Embedded YouTube player at the exact timestamp -->
-            <div class="relative w-full rounded overflow-hidden bg-black" style="padding-bottom:56.25%">
-              <iframe
-                :src="`https://www.youtube.com/embed/${clip.video_id}?start=${clip.start_sec}`"
-                class="absolute inset-0 w-full h-full"
-                frameborder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowfullscreen
-              />
-            </div>
+            <!-- Watch button — opens the clip in the Listen tab -->
+            <button
+              @click="$emit('openClip', clip)"
+              class="text-xs text-blue-400 hover:text-blue-300 transition-all self-start"
+            >▶ {{ formatTime(clip.start_sec) }} — watch in Listen tab</button>
           </div>
         </div>
         <div v-else-if="video.done" class="text-xs text-gray-500">No video clips found.</div>
@@ -274,7 +269,7 @@ const props = defineProps({
   currentUser: Object, // null if logged out
 })
 
-defineEmits(['tap', 'openAuth'])
+defineEmits(['tap', 'openAuth', 'openClip'])
 
 const tabs = [
   { id: 'corpus',    label: 'Examples' },
