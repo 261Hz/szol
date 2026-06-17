@@ -117,6 +117,15 @@
         @open-auth="showAuth = true"
       />
 
+      <TutorView
+        v-if="activeTab === 'tutor'"
+        :current-user="currentUser"
+        :lang="activeLang"
+        :story="currentStory"
+        :vocab="vocabBank"
+        @open-auth="showAuth = true"
+      />
+
     </main>
 
     <AuthModal
@@ -147,6 +156,7 @@ const SettingsView  = defineAsyncComponent(() => import('./views/SettingsView.vu
 const ListenView    = defineAsyncComponent(() => import('./views/ListenView.vue'))
 const MessagesView  = defineAsyncComponent(() => import('./views/MessagesView.vue'))
 const JournalView   = defineAsyncComponent(() => import('./views/JournalView.vue'))
+const TutorView     = defineAsyncComponent(() => import('./views/TutorView.vue'))
 
 import { LANGS } from './data/stories.js'
 import { getMe, logout, onUnauthorized, getAccountVocab, saveVocabWord, removeVocabWord } from './utils/api.js'

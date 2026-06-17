@@ -68,14 +68,18 @@ const props = defineProps({
 
 defineEmits(['tab', 'lang', 'auth', 'logout'])
 
-const tabs = computed(() => [
-  { key: 'retype',   label: t(props.lang, 'retype') },
-  { key: 'listen',   label: t(props.lang, 'listen') },
-  { key: 'speak',    label: t(props.lang, 'speak') },
-  { key: 'write',    label: t(props.lang, 'write') },
-  { key: 'vocab',    label: t(props.lang, 'vocab') },
-  { key: 'library',  label: t(props.lang, 'library') },
-  { key: 'journal',  label: t(props.lang, 'journal') },
-  { key: 'messages', label: '🎙 Voice' },
-])
+const tabs = computed(() => {
+  const base = [
+    { key: 'retype',   label: t(props.lang, 'retype') },
+    { key: 'listen',   label: t(props.lang, 'listen') },
+    { key: 'speak',    label: t(props.lang, 'speak') },
+    { key: 'write',    label: t(props.lang, 'write') },
+    { key: 'vocab',    label: t(props.lang, 'vocab') },
+    { key: 'library',  label: t(props.lang, 'library') },
+    { key: 'journal',  label: t(props.lang, 'journal') },
+    { key: 'messages', label: '🎙 Voice' },
+  ]
+  if (props.currentUser) base.push({ key: 'tutor', label: '✦ Tutor' })
+  return base
+})
 </script>
