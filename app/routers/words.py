@@ -111,6 +111,43 @@ def lookup_word(word: str, lang: str, db: Session = Depends(get_db)):
     return schemas.WordLookupResponse(**entry.__dict__, frequency_rank=freq_rank)
 
 
+_LANG_NAMES = {
+    "en": "English", "es": "Spanish", "fr": "French", "de": "German",
+    "it": "Italian", "pt": "Portuguese", "ar": "Arabic", "arz": "Egyptian Arabic",
+    "he": "Hebrew",  "ja": "Japanese",  "zh": "Chinese", "ru": "Russian",
+    "nl": "Dutch",   "pl": "Polish",    "tr": "Turkish", "sv": "Swedish",
+    "hu": "Hungarian", "el": "Greek",   "ko": "Korean",
+}
+
+@router.post("/write/check")
+def check_handwriting(payload: schemas.HandwritingCheckIn):
+    """Use a vision LLM to evaluate the user's handwritten attempt."""
+    from groq import Groq
+    from ..config import settings
+    client    = Groq(api_key=settings.GROQ_API_KEY)
+    lang_name = _LANG_NAMES.get(payload.lang, payload.lang)
+    try:
+        resp = client.chat.completions.create(
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": (
+                        f"A language learner is practising writing '{payload.word}' in {lang_name}. "
+                        "Look at their handwriting on the canvas and give 1–2 sentences of encouraging, "
+                        "specific feedback. Note what looks good and one thing to improve if needed. "
+                        "If the canvas appears blank or unclear, just say so gently."
+                    )},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{payload.image_b64}"}},
+                ],
+            }],
+            max_tokens=120,
+        )
+        return {"feedback": resp.choices[0].message.content.strip()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/cache", response_model=schemas.WordCacheResponse)
 def cache_word(payload: schemas.WordCacheCreate, db: Session = Depends(get_db)):
     entry = (

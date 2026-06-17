@@ -186,6 +186,11 @@ class WordCacheResponse(WordCacheBase):
 class WordLookupResponse(WordCacheResponse):
     frequency_rank: Optional[int] = None
 
+class HandwritingCheckIn(BaseModel):
+    word:      str
+    lang:      str
+    image_b64: str  # PNG data URL base64 from canvas.toDataURL()
+
 
 # ── Video stories (Listen feature) ───────────────────────────────────────────
 
