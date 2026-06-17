@@ -251,7 +251,11 @@ async function syncVocabOnLogin() {
   // Push local words that aren't on the server yet (first-time login with existing local vocab)
   for (const local of vocabBank.value) {
     const key = `${local.word.toLowerCase()}::${local.lang}`
-    if (!serverKeys.has(key)) saveVocabWord(local)
+    const w   = local.word.trim()
+    if (serverKeys.has(key)) continue
+    if (w.length < 2 || w.length > 40) continue          // skip single chars and sentences
+    if (w.includes(' ') && w.length > 20) continue       // skip long phrases
+    saveVocabWord(local)
   }
 
   // Merge: server entries first, then any local entries the server doesn't have yet

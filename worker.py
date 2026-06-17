@@ -14,6 +14,7 @@ import io
 import os
 import subprocess
 import sys
+import time
 
 import requests
 
@@ -48,7 +49,7 @@ def yt_search(word, lang):
         },
         timeout=10,
     )
-    ids = [item["id"]["videoId"] for item in r.json().get("items", [])]
+    ids = [item["id"]["videoId"] for item in r.json().get("items", []) if "videoId" in item.get("id", {})]
     print(f"  search '{q}' -> {ids}")
     return ids
 
@@ -81,15 +82,24 @@ def download_audio(video_id):
 def transcribe(audio_data):
     from groq import Groq
     client = Groq(api_key=GROQ_API_KEY)
-    result = client.audio.transcriptions.create(
-        model="whisper-large-v3",
-        file=("audio.m4a", audio_data),
-        response_format="verbose_json",
-        timestamp_granularities=["segment"],
-    )
-    segs = result.segments or []
-    print(f"  transcribed: {len(segs)} segments")
-    return segs
+    for attempt in range(3):
+        try:
+            audio_data.seek(0)
+            result = client.audio.transcriptions.create(
+                model="whisper-large-v3",
+                file=("audio.m4a", audio_data),
+                response_format="verbose_json",
+                timestamp_granularities=["segment"],
+            )
+            segs = result.segments or []
+            print(f"  transcribed: {len(segs)} segments")
+            return segs
+        except Exception as e:
+            if attempt < 2:
+                print(f"  transcription error (attempt {attempt+1}): {e} — retrying in 5s")
+                time.sleep(5)
+            else:
+                raise
 
 
 def find_clips(word, segments, debug=False):
@@ -137,6 +147,12 @@ def process(word, lang):
             return
     except Exception:
         pass
+
+    _CJK = {'ja', 'zh', 'ko', 'cmn', 'yue'}
+    min_len = 1 if lang in _CJK else 2
+    if len(word) < min_len or len(word) > 40 or (' ' in word.strip() and len(word) > 20):
+        print("  skipping — too short, too long, or a sentence/title")
+        return
 
     video_ids = yt_search(word, lang)
     if not video_ids:
