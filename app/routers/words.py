@@ -133,12 +133,12 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
                 "role": "user",
                 "content": [
                     {"type": "text", "text": (
-                        f"You are a handwriting grader. The student is copying the word '{payload.word}' in {lang_name}. "
-                        f"Numbered circles mark where each stroke begins. "
-                        f"PASS if: all characters are present, clearly legible, and recognisably match the target — minor sloppiness or style variation is fine. "
-                        f"For Arabic/Hebrew, the characters must appear in right-to-left order across the canvas (circle 1 should be on the right side). "
-                        f"For CJK, strokes should generally flow top-to-bottom. "
-                        f"FAIL only if: a character is unrecognisable or missing, extra characters were added, or the overall word order is completely backwards. "
+                        f"Handwriting grader. Target word: '{payload.word}' ({lang_name}). "
+                        f"Step 1 — read what is actually written on the canvas, letter by letter. "
+                        f"Step 2 — compare it exactly to '{payload.word}'. "
+                        f"PASS only if the written letters match the target letters exactly (same count, same identity). Neatness and style do not matter. "
+                        f"For Arabic/Hebrew the word must read right-to-left (first letter on the right). "
+                        f"FAIL if any letter is wrong, missing, or added — even one wrong letter is a FAIL. "
                         f"Reply PASS or FAIL only."
                     )},
                     {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{payload.image_b64}"}},
