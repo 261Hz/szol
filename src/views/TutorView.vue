@@ -26,7 +26,7 @@
         <div v-if="status === 'idle'" class="flex flex-col gap-3 border border-gray-800 rounded-xl p-4">
           <div>
             <div class="font-medium text-gray-100">Gemma 2B — local AI tutor</div>
-            <div class="text-xs text-gray-500 mt-0.5">~1.5 GB · runs entirely on your device · works offline after download</div>
+            <div class="text-xs text-gray-500 mt-0.5">~900 MB · runs entirely on your device · works offline after download · Chrome required</div>
           </div>
           <button
             @click="startLoad"
@@ -59,9 +59,17 @@
         </div>
 
         <!-- Error -->
-        <div v-else-if="status === 'error'" class="flex items-center justify-between px-4 py-3 border border-red-900 rounded-xl">
-          <span class="text-sm text-red-400">{{ errorMsg }}</span>
-          <button @click="startLoad" class="text-xs text-gray-400 hover:text-white ml-3">Retry</button>
+        <div v-else-if="status === 'error'" class="flex flex-col gap-3">
+          <div class="flex items-center justify-between px-4 py-3 border border-red-900 rounded-xl">
+            <span class="text-sm text-red-400">{{ errorMsg }}</span>
+            <button @click="startLoad" class="text-xs text-gray-400 hover:text-white ml-3">Retry</button>
+          </div>
+          <div v-if="cacheHint" class="text-xs text-gray-500 border border-gray-800 rounded-xl px-4 py-3 flex flex-col gap-1.5">
+            <div class="text-gray-300 font-medium">To fix: clear this site's storage</div>
+            <div>1. Open <span class="font-mono text-gray-400">chrome://settings/content/siteDetails?site=https%3A%2F%2Fszol.vercel.app</span></div>
+            <div>2. Click <strong>Delete data</strong>, then retry.</div>
+            <div class="text-gray-600">Also make sure you have at least 2 GB free on your system drive and are using Chrome (not incognito).</div>
+          </div>
         </div>
 
         <!-- ── Chat (only when ready) ── -->
@@ -149,12 +157,13 @@ const gpuOk = typeof navigator !== 'undefined' && 'gpu' in navigator
 const langName = computed(() => LANGS[props.lang]?.name || props.lang || 'the language')
 
 // ── Model state ───────────────────────────────────────────────────────────────
-const MODEL_ID = 'gemma-2-2b-it-q4f32_1-MLC'
+const MODEL_ID = 'gemma-2-2b-it-q4f16_1-MLC'
 
 const status       = ref('idle')   // idle | loading | ready | error
 const loadProgress = ref(0)
 const loadText     = ref('')
 const errorMsg     = ref('')
+const cacheHint    = ref(false)
 
 let engine = null
 
@@ -163,6 +172,7 @@ async function startLoad() {
   loadProgress.value = 0
   loadText.value     = 'Initialising…'
   errorMsg.value     = ''
+  cacheHint.value    = false
   try {
     const { MLCEngine } = await import('@mlc-ai/web-llm')
     engine = new MLCEngine()
@@ -175,8 +185,14 @@ async function startLoad() {
     status.value = 'ready'
   } catch (e) {
     status.value   = 'error'
-    errorMsg.value = e?.message?.slice(0, 120) || 'Failed to load model.'
-    engine         = null
+    const msg = e?.message || ''
+    if (msg.includes('Cache') || msg.includes('cache') || msg.includes('storage') || msg.includes('quota')) {
+      cacheHint.value = true
+      errorMsg.value  = 'Browser storage error — see below.'
+    } else {
+      errorMsg.value = msg.slice(0, 120) || 'Failed to load model.'
+    }
+    engine = null
   }
 }
 
