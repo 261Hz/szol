@@ -62,36 +62,6 @@
         </button>
       </div>
 
-      <!-- LibriVox curated books -->
-      <div v-if="lvBooks.length" class="flex flex-col gap-2 mt-2">
-        <div class="text-xs text-gray-600 uppercase tracking-wider px-1">LibriVox — public domain</div>
-        <div v-for="(book, bi) in lvBooks" :key="book.librivox_url" class="flex flex-col">
-          <button
-            @click="toggleLVBook(bi)"
-            class="w-full text-left bg-slate-900 border border-gray-700 hover:border-amber-700 rounded-lg px-4 py-3 transition-all"
-            :class="lvExpanded === bi ? 'border-amber-700' : ''"
-          >
-            <div class="font-medium text-sm text-gray-100 leading-snug">{{ book.title }}</div>
-            <div class="text-xs text-gray-500 mt-0.5 flex gap-2">
-              <span>{{ book.author }}</span>
-              <span class="text-amber-700/60">{{ book.chapters.length }} chapters</span>
-            </div>
-          </button>
-          <!-- Chapter list -->
-          <div v-if="lvExpanded === bi" class="mt-1 ml-3 flex flex-col gap-1">
-            <div v-if="lvChaptersLoading" class="text-xs text-gray-500 py-2 px-2">Loading chapters…</div>
-            <button
-              v-for="(ch, ci) in book.chapters"
-              :key="ci"
-              @click="loadLVChapter(bi, ci)"
-              class="text-left text-xs px-3 py-2 rounded-md bg-slate-800 border border-gray-700 hover:border-amber-700 text-gray-300 transition-all"
-            >
-              {{ ch.title }}
-              <span v-if="!lvChapters[ci]?.url && !lvChaptersLoading" class="text-gray-600 ml-1">(audio loading…)</span>
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- Player -->
@@ -286,31 +256,6 @@
         :dir="isRTL(props.lang) ? 'rtl' : 'ltr'"
       >{{ currentSegment.text }}</div>
 
-      <!-- Parallel text (LibriVox translation comparison) -->
-      <div v-if="selectedStory?.parallel && Object.keys(selectedStory.parallel).length" class="flex flex-col gap-1.5">
-        <div class="flex items-center gap-2 flex-wrap">
-          <button
-            @click="showParallel = !showParallel"
-            :class="['text-xs px-3 py-1 rounded-md border transition-all',
-              showParallel ? 'border-amber-600 text-amber-400' : 'border-gray-700 text-gray-500 hover:border-amber-700 hover:text-amber-400']"
-          >{{ showParallel ? 'Hide parallel' : 'Show parallel text' }}</button>
-          <select
-            v-if="showParallel"
-            v-model="parallelLang"
-            class="text-xs bg-slate-800 border border-gray-700 rounded px-2 py-1 text-gray-300 outline-none"
-          >
-            <option
-              v-for="(_, lc) in selectedStory.parallel"
-              :key="lc"
-              :value="lc"
-            >{{ { en:'English', fr:'French', de:'German', es:'Spanish', it:'Italian', ru:'Russian', ja:'Japanese', zh:'Chinese', el:'Greek' }[lc] ?? lc }}</option>
-          </select>
-        </div>
-        <div
-          v-if="showParallel && selectedStory.parallel[parallelLang]?.[segmentIdx]"
-          class="bg-slate-900 border border-amber-800/50 rounded-lg px-4 py-3 text-sm text-amber-100/80 leading-relaxed"
-        >{{ selectedStory.parallel[parallelLang][segmentIdx].text }}</div>
-      </div>
 
       <!-- Action row -->
       <div class="flex items-center justify-between gap-2">
@@ -347,8 +292,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import Fuse from 'fuse.js'
 import { LANGS } from '../data/stories.js'
-import { fetchListenStories, checkTranslation, fetchLibrivoxChapters } from '../utils/api.js'
-import { LIBRIVOX_BOOKS } from '../data/librivox.js'
+import { fetchListenStories, checkTranslation } from '../utils/api.js'
 import { t } from '../utils/i18n.js'
 import { isRTL } from '../utils/rtl.js'
 import { spokenNumbers } from '../utils/spokenNumbers.js'
@@ -394,39 +338,6 @@ watch(() => props.lang, () => {
   loadStories()
 })
 
-// ── LibriVox curated books ────────────────────────────────────────────────────
-
-const lvBooks         = computed(() => LIBRIVOX_BOOKS.filter(b => b.lang === props.lang))
-const lvExpanded      = ref(null)  // which book is open (index)
-const lvChapters      = ref([])    // chapters fetched from RSS for the open book
-const lvChaptersLoading = ref(false)
-
-async function toggleLVBook(idx) {
-  if (lvExpanded.value === idx) { lvExpanded.value = null; lvChapters.value = []; return }
-  lvExpanded.value       = idx
-  lvChapters.value       = []
-  lvChaptersLoading.value = true
-  lvChapters.value        = await fetchLibrivoxChapters(lvBooks.value[idx].librivox_url)
-  lvChaptersLoading.value = false
-}
-
-async function loadLVChapter(bookIdx, chapterIdx) {
-  const book    = lvBooks.value[bookIdx]
-  const chapter = book.chapters[chapterIdx]
-  const audioUrl = lvChapters.value[chapterIdx]?.url ?? null
-  const story = {
-    id:          `lv_${book.lang}_${bookIdx}_${chapterIdx}`,
-    title:       chapter.title,
-    author:      book.author,
-    lang:        book.lang,
-    source_type: 'librivox',
-    audio_url:   audioUrl,
-    segments:    chapter.segments ?? [],
-    parallel:    chapter.parallel ?? {},
-  }
-  loadStory(story)
-}
-
 // ── Load a story into the player ──────────────────────────────────────────────
 
 const segments       = ref([])
@@ -440,8 +351,6 @@ const translateTo    = ref(props.lang === 'en' ? 'es' : 'en')
 
 const translationResult   = ref(null) // { score, feedback }
 const translationChecking = ref(false)
-const showParallel        = ref(false)
-const parallelLang        = ref('en')
 
 const TRANSLATE_TO_OPTIONS = [
   { code: 'en', label: 'English' },
@@ -653,7 +562,6 @@ function nextSegment() {
   userInput.value         = ''
   showTranscript.value    = false
   translationResult.value = null
-  showParallel.value      = false
 }
 
 // ── Teardown ──────────────────────────────────────────────────────────────────

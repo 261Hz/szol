@@ -75,6 +75,7 @@ const tabs = computed(() => {
     { key: 'speak',    label: t(props.lang, 'speak') },
     { key: 'write',    label: t(props.lang, 'write') },
     { key: 'vocab',    label: t(props.lang, 'vocab') },
+    { key: 'parallel', label: 'Parallel' },
     { key: 'library',  label: t(props.lang, 'library') },
     { key: 'journal',  label: t(props.lang, 'journal') },
     { key: 'messages', label: '🎙 Voice' },
