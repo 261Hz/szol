@@ -96,8 +96,9 @@
             :class="selfReport ? 'text-green-700' : 'text-red-600'">
             {{ selfReport ? 'Marked correct!' : 'Keep practising.' }}
           </div>
-          <div v-if="aiFeedback" class="text-sm text-amber-900 bg-amber-100 border border-amber-200 rounded-lg px-3 py-2 leading-snug">
-            {{ aiFeedback }}
+          <div v-if="checkResult !== null" class="text-center text-2xl font-bold py-1"
+            :class="checkResult ? 'text-green-700' : 'text-red-600'">
+            {{ checkResult ? '✓ Pass' : '✗ Fail' }}
           </div>
         </div>
 
@@ -278,10 +279,12 @@ function startQuiz() {
 // ── Canvas drawing ──────────────────────────────────────────────────────────────
 const canvas       = ref(null)
 const selfReport   = ref(null)
-const aiFeedback   = ref(null)
+const checkResult  = ref(null)  // null | true | false
 const aiChecking   = ref(false)
-let ctx     = null
-let drawing = false
+let ctx           = null
+let drawing       = false
+let strokes       = []          // [[{x,y},...], ...] — one array per pen-down→up
+let currentStroke = null
 
 const PAPER_COLOR = '#fefce8'
 const INK_COLOR   = '#1a1a2e'
@@ -336,19 +339,45 @@ function clearCanvasAndGuides() {
   ctx.fillRect(0, 0, w, h)
   ctx.restore()
   drawGuideLines()
-  aiFeedback.value = null
+  strokes       = []
+  currentStroke = null
+  checkResult.value = null
+}
+
+// Offscreen copy of the canvas with coloured numbered circles at each stroke's
+// start point so the vision model can assess stroke order.
+function annotatedImage() {
+  if (!canvas.value) return null
+  const dpr = window.devicePixelRatio || 1
+  const cw  = parseInt(canvas.value.style.width)
+  const ch  = parseInt(canvas.value.style.height)
+  const off = document.createElement('canvas')
+  off.width  = cw * dpr
+  off.height = ch * dpr
+  const oc   = off.getContext('2d')
+  oc.setTransform(dpr, 0, 0, dpr, 0, 0)
+  oc.drawImage(canvas.value, 0, 0, cw, ch)
+  const palette = ['#e53e3e','#dd6b20','#d69e2e','#38a169','#3182ce','#805ad5']
+  strokes.forEach((stroke, i) => {
+    if (!stroke.length) return
+    const { x, y } = stroke[0]
+    const color    = palette[i % palette.length]
+    oc.beginPath(); oc.arc(x, y, 9, 0, Math.PI * 2)
+    oc.fillStyle = color; oc.fill()
+    oc.fillStyle = '#fff'; oc.font = 'bold 11px sans-serif'
+    oc.textAlign = 'center'; oc.textBaseline = 'middle'
+    oc.fillText(String(i + 1), x, y)
+  })
+  return off.toDataURL('image/png').split(',')[1]
 }
 
 async function runCheck() {
   if (!canvas.value || aiChecking.value) return
-  aiChecking.value = true
-  aiFeedback.value = null
-  // Export canvas as base64 PNG (strip the data: prefix)
-  const dataUrl = canvas.value.toDataURL('image/png')
-  const b64     = dataUrl.split(',')[1]
-  const result  = await checkHandwriting(currentUnit.value, props.lang, b64)
-  aiFeedback.value = result?.feedback || 'Could not get feedback — try again.'
-  aiChecking.value = false
+  aiChecking.value  = true
+  checkResult.value = null
+  const result = await checkHandwriting(currentUnit.value, props.lang, annotatedImage())
+  checkResult.value = result?.passed ?? null
+  aiChecking.value  = false
 }
 
 function getPos(e) {
@@ -360,6 +389,8 @@ function getPos(e) {
 function startDraw(e) {
   drawing = true
   const p = getPos(e)
+  currentStroke = [p]
+  strokes.push(currentStroke)
   ctx.beginPath()
   ctx.moveTo(p.x, p.y)
   ctx.arc(p.x, p.y, ctx.lineWidth / 2, 0, Math.PI * 2)
@@ -371,13 +402,14 @@ function startDraw(e) {
 function moveDraw(e) {
   if (!drawing) return
   const p = getPos(e)
+  currentStroke?.push(p)
   ctx.lineTo(p.x, p.y)
   ctx.stroke()
   ctx.beginPath()
   ctx.moveTo(p.x, p.y)
 }
 
-function stopDraw() { drawing = false }
+function stopDraw() { drawing = false; currentStroke = null }
 
 function report(correct) {
   selfReport.value = correct
@@ -400,7 +432,7 @@ watch(unitIdx, async () => {
 watch([sentenceIdx, wordIdx], async () => {
   if (isCJK.value) return
   selfReport.value  = null
-  aiFeedback.value  = null
+  checkResult.value = null
   await nextTick()
   if (canvas.value) clearCanvasAndGuides()
 })
