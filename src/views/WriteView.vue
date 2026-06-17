@@ -72,10 +72,14 @@
             @mousedown="startDraw" @mousemove="moveDraw" @mouseup="stopDraw" @mouseleave="stopDraw"
             @touchstart="startDraw" @touchmove.prevent="moveDraw" @touchend="stopDraw" @touchcancel="stopDraw"
           />
-          <div class="flex gap-3 justify-center">
+          <div class="flex gap-3 justify-center flex-wrap">
             <button @click="clearCanvasAndGuides"
               class="px-4 py-2 text-sm rounded-lg border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 transition-all">
               Clear
+            </button>
+            <button @click="runCheck" :disabled="aiChecking"
+              class="px-4 py-2 text-sm rounded-lg bg-amber-700 text-amber-50 hover:bg-amber-600 disabled:opacity-50 transition-all">
+              {{ aiChecking ? 'Checking…' : '✦ Check' }}
             </button>
             <template v-if="isScript">
               <button @click="report(true)"
@@ -91,6 +95,9 @@
           <div v-if="selfReport !== null" class="text-sm font-medium text-center"
             :class="selfReport ? 'text-green-700' : 'text-red-600'">
             {{ selfReport ? 'Marked correct!' : 'Keep practising.' }}
+          </div>
+          <div v-if="aiFeedback" class="text-sm text-amber-900 bg-amber-100 border border-amber-200 rounded-lg px-3 py-2 leading-snug">
+            {{ aiFeedback }}
           </div>
         </div>
 
@@ -119,6 +126,7 @@ import HanziWriter from 'hanzi-writer'
 import { LANGS } from '../data/stories.js'
 import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
+import { checkHandwriting } from '../utils/api.js'
 
 const props = defineProps({ story: Object, lang: String })
 
@@ -131,7 +139,7 @@ const handwritingStyle = computed(() => {
   if (props.lang === 'zh')               return { fontFamily: "'Zhi Mang Xing', cursive",    fontSize: '4rem' }
   if (props.lang === 'ja')               return { fontFamily: "'Kaisei Tokumin', serif",      fontSize: '4rem' }
   if (['ar', 'arz'].includes(props.lang)) return { fontFamily: "'Amiri', serif",               fontSize: '3.5rem' }
-  if (props.lang === 'he')               return { fontFamily: "'Frank Ruhl Libre', serif",     fontSize: '3.5rem' }
+  if (props.lang === 'he')               return { fontFamily: "'Rubik', sans-serif",            fontSize: '3.5rem' }
   return { fontFamily: "'Patrick Hand', cursive", fontSize: '4rem' }
 })
 
@@ -162,8 +170,11 @@ const currentUnit = computed(() => {
 })
 
 const unitLabel = computed(() => {
-  if (isCJK.value) return sentences.value.find(s => s.includes(currentUnit.value)) || ''
-  return sentences.value[sentenceIdx.value] || ''
+  if (isLatin.value) return ''
+  const sentence = isCJK.value
+    ? (sentences.value.find(s => s.includes(currentUnit.value)) || '')
+    : (sentences.value[sentenceIdx.value] || '')
+  return sentence.length > 60 ? sentence.slice(0, 58) + '…' : sentence
 })
 
 const isFirst = computed(() =>
@@ -265,8 +276,10 @@ function startQuiz() {
 }
 
 // ── Canvas drawing ──────────────────────────────────────────────────────────────
-const canvas     = ref(null)
-const selfReport = ref(null)
+const canvas       = ref(null)
+const selfReport   = ref(null)
+const aiFeedback   = ref(null)
+const aiChecking   = ref(false)
 let ctx     = null
 let drawing = false
 
@@ -323,6 +336,19 @@ function clearCanvasAndGuides() {
   ctx.fillRect(0, 0, w, h)
   ctx.restore()
   drawGuideLines()
+  aiFeedback.value = null
+}
+
+async function runCheck() {
+  if (!canvas.value || aiChecking.value) return
+  aiChecking.value = true
+  aiFeedback.value = null
+  // Export canvas as base64 PNG (strip the data: prefix)
+  const dataUrl = canvas.value.toDataURL('image/png')
+  const b64     = dataUrl.split(',')[1]
+  const result  = await checkHandwriting(currentUnit.value, props.lang, b64)
+  aiFeedback.value = result?.feedback || 'Could not get feedback — try again.'
+  aiChecking.value = false
 }
 
 function getPos(e) {
@@ -373,7 +399,8 @@ watch(unitIdx, async () => {
 
 watch([sentenceIdx, wordIdx], async () => {
   if (isCJK.value) return
-  selfReport.value = null
+  selfReport.value  = null
+  aiFeedback.value  = null
   await nextTick()
   if (canvas.value) clearCanvasAndGuides()
 })
