@@ -152,6 +152,50 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+_LANG_NAMES_FULL = {
+    "en": "English", "es": "Spanish", "fr": "French", "de": "German",
+    "it": "Italian", "ru": "Russian", "he": "Hebrew", "ar": "Arabic",
+    "arz": "Egyptian Arabic", "ja": "Japanese", "zh": "Chinese",
+    "hu": "Hungarian", "el": "Greek",
+}
+
+@router.post("/tutor/chat")
+def tutor_chat(
+    payload: schemas.TutorChatIn,
+    current_user: models.User = Depends(oauth2.get_current_user),
+):
+    """Streaming-optional tutor chat using Groq. Requires auth."""
+    from groq import Groq
+    from ..config import settings
+    client    = Groq(api_key=settings.GROQ_API_KEY)
+    lang_name = _LANG_NAMES_FULL.get(payload.lang, payload.lang)
+
+    system_lines = [
+        f"You are a concise, encouraging language tutor. The user is learning {lang_name}.",
+        "Respond in English unless the user asks you to use the target language.",
+        "Keep replies brief (2–4 sentences) unless more detail is clearly needed.",
+    ]
+    if payload.story_title and payload.story_excerpt:
+        system_lines.append(
+            f'\nThe user is currently reading "{payload.story_title}":\n"{payload.story_excerpt}"'
+        )
+    if payload.vocab_sample:
+        system_lines.append(f"\nUser's saved vocabulary includes: {payload.vocab_sample}")
+
+    messages = [{"role": "system", "content": "\n".join(system_lines)}]
+    messages += [{"role": m.role, "content": m.content} for m in payload.messages]
+
+    try:
+        resp = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=messages,
+            max_tokens=512,
+        )
+        return {"reply": resp.choices[0].message.content.strip()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/cache", response_model=schemas.WordCacheResponse)
 def cache_word(payload: schemas.WordCacheCreate, db: Session = Depends(get_db)):
     entry = (

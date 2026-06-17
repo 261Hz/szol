@@ -191,6 +191,17 @@ class HandwritingCheckIn(BaseModel):
     lang:      str
     image_b64: str  # PNG data URL base64 from canvas.toDataURL()
 
+class TutorMessage(BaseModel):
+    role:    str   # 'user' | 'assistant'
+    content: str
+
+class TutorChatIn(BaseModel):
+    lang:         str
+    messages:     List[TutorMessage]
+    story_title:  Optional[str] = None
+    story_excerpt: Optional[str] = None
+    vocab_sample: Optional[str] = None  # comma-separated words
+
 
 # ── Video stories (Listen feature) ───────────────────────────────────────────
 
