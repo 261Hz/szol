@@ -195,51 +195,58 @@
     </div>
 
     <!-- ── VIDEO TAB ── -->
-    <!-- Crawls YouTube for clips containing this word; cached 7 days server-side. -->
-    <!-- Not auto-loaded — first crawl can take ~20 s for an unseen word. -->
+    <!-- Clips are populated by the local worker.py and cached 7 days server-side. -->
     <div v-else-if="activeTab === 'video'">
-      <button
-        v-if="!video.done && !video.loading"
-        @click="loadVideo"
-        class="text-xs text-green-300 hover:text-green-200 underline transition-all"
-      >Find video clips</button>
-      <div v-else-if="video.loading" class="text-xs text-gray-500">
-        Searching YouTube… <span class="text-gray-600">(may take ~20 s on first search)</span>
+      <!-- Login gate -->
+      <div v-if="!currentUser" class="text-xs text-gray-500">
+        <button @click="$emit('openAuth')" class="underline hover:text-green-400 transition-all">Login</button>
+        to see video clips
       </div>
-      <div v-else-if="video.results.length" class="flex flex-col gap-3">
-        <div
-          v-for="clip in video.results"
-          :key="`${clip.video_id}-${clip.start_sec}`"
-          class="flex flex-col gap-0.5"
-        >
-          <!-- Context sentence with the target word highlighted yellow -->
-          <span
-            class="text-sm text-gray-300 leading-snug"
-            :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+      <template v-else>
+        <button
+          v-if="!video.done && !video.loading"
+          @click="loadVideo"
+          class="text-xs text-green-300 hover:text-green-200 underline transition-all"
+        >Find video clips</button>
+        <div v-else-if="video.loading" class="text-xs text-gray-500">Loading…</div>
+        <div v-else-if="video.results.length" class="flex flex-col gap-4">
+          <div
+            v-for="clip in video.results"
+            :key="`${clip.video_id}-${clip.start_sec}`"
+            class="flex flex-col gap-1.5"
           >
-            <span v-for="(tok, i) in tokenize(clip.context)" :key="i">
-              <span
-                v-if="tok.type === 'word'"
-                @click="$emit('tap', { word: tok.text, sentence: clip.context })"
-                :class="[
-                  'cursor-pointer rounded px-0.5 transition-all hover:bg-green-950',
-                  savedWords && savedWords.has(normalize(tok.text)) ? 'bg-green-900 text-green-300' : '',
-                  normalize(tok.text) === normalize(props.word) ? 'text-yellow-300 font-semibold' : '',
-                ]"
-              >{{ tok.text }}</span>
-              <span v-else>{{ tok.text }}</span>
+            <!-- Context sentence with the target word highlighted yellow -->
+            <span
+              class="text-sm text-gray-300 leading-snug"
+              :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+            >
+              <span v-for="(tok, i) in tokenize(clip.context)" :key="i">
+                <span
+                  v-if="tok.type === 'word'"
+                  @click="$emit('tap', { word: tok.text, sentence: clip.context })"
+                  :class="[
+                    'cursor-pointer rounded px-0.5 transition-all hover:bg-green-950',
+                    savedWords && savedWords.has(normalize(tok.text)) ? 'bg-green-900 text-green-300' : '',
+                    normalize(tok.text) === normalize(props.word) ? 'text-yellow-300 font-semibold' : '',
+                  ]"
+                >{{ tok.text }}</span>
+                <span v-else>{{ tok.text }}</span>
+              </span>
             </span>
-          </span>
-          <!-- YouTube deeplink to the exact timestamp -->
-          <a
-            :href="`https://www.youtube.com/watch?v=${clip.video_id}&t=${clip.start_sec}s`"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-xs text-blue-400 hover:text-blue-300 transition-all self-start"
-          >▶ {{ formatTime(clip.start_sec) }}</a>
+            <!-- Embedded YouTube player at the exact timestamp -->
+            <div class="relative w-full rounded overflow-hidden bg-black" style="padding-bottom:56.25%">
+              <iframe
+                :src="`https://www.youtube.com/embed/${clip.video_id}?start=${clip.start_sec}`"
+                class="absolute inset-0 w-full h-full"
+                frameborder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen
+              />
+            </div>
+          </div>
         </div>
-      </div>
-      <div v-else-if="video.done" class="text-xs text-gray-500">No video clips found.</div>
+        <div v-else-if="video.done" class="text-xs text-gray-500">No video clips found.</div>
+      </template>
     </div>
 
   </div>
@@ -261,14 +268,13 @@ import { getWordExamples, getVocabClips } from '../utils/api.js'
 // savedWords = a Set of normalize()'d words already in the vocab bank for this language.
 //              Used to highlight saved words green across all three example sources.
 const props = defineProps({
-  word:       String,
-  lang:       String,
-  savedWords: Object, // Set<string>
+  word:        String,
+  lang:        String,
+  savedWords:  Object, // Set<string>
+  currentUser: Object, // null if logged out
 })
 
-// This component can send one event to its parent:
-// 'tap' = user clicked a word inside an example. Payload: { word, sentence }.
-defineEmits(['tap'])
+defineEmits(['tap', 'openAuth'])
 
 const tabs = [
   { id: 'corpus',    label: 'Examples' },

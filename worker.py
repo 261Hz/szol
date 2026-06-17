@@ -15,7 +15,6 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 import urllib.parse
 import urllib.request
 
@@ -64,6 +63,9 @@ def download_audio(video_id, outdir):
     # Groq Whisper accepts m4a/webm/mp4 natively.
     cmd = [
         sys.executable, "-m", "yt_dlp",
+        "--js-runtimes", "node",
+        "--remote-components", "ejs:github",
+        "--no-cache-dir",
         "-f", "bestaudio[ext=m4a]/bestaudio",
         "-o", out,
         f"https://www.youtube.com/watch?v={video_id}",
@@ -151,7 +153,9 @@ def process(word, lang):
         return
 
     total = 0
-    with tempfile.TemporaryDirectory() as tmpdir:
+    tmpdir = os.path.join(os.path.dirname(__file__), "_audio_tmp")
+    os.makedirs(tmpdir, exist_ok=True)
+    if True:
         for vid in video_ids:
             if total >= MAX_CLIPS:
                 break
@@ -164,6 +168,11 @@ def process(word, lang):
             except Exception as e:
                 print(f"  transcription error: {e}")
                 continue
+            finally:
+                try:
+                    os.remove(audio)
+                except OSError:
+                    pass
             clips = find_clips(word, segs)
             print(f"  clips containing '{word}': {len(clips)}")
             if clips:
