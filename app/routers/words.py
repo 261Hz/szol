@@ -194,19 +194,40 @@ def tutor_chat(
     from ..config import settings
     lang_name = _LANG_NAMES_FULL.get(payload.lang, payload.lang)
 
-    # ── RAG: inject relevant story excerpts from the DB ───────────────────────
     last_user = next((m.content for m in reversed(payload.messages) if m.role == "user"), "")
+
+    # ── User's saved vocab for this language ──────────────────────────────────
+    saved = (
+        db.query(models.UserVocab)
+        .filter(models.UserVocab.user_id == current_user.id,
+                models.UserVocab.lang    == payload.lang)
+        .order_by(models.UserVocab.saved_at.desc())
+        .limit(100)
+        .all()
+    )
+    vocab_ctx = ""
+    if saved:
+        entries = "; ".join(
+            f"{v.word}" + (f" ({v.definition})" if v.definition else "")
+            for v in saved
+        )
+        vocab_ctx = f"\n\nThe student's saved vocabulary ({len(saved)} words): {entries}"
+
+    # ── RAG: relevant story excerpts ──────────────────────────────────────────
     stories   = _search_stories(last_user, payload.lang, db)
     story_ctx = ""
     if stories:
         excerpts  = "\n\n".join(f'"{s.title}":\n{s.content[:500]}' for s in stories)
-        story_ctx = f"\n\nRelevant texts from the app you may reference:\n{excerpts}"
+        story_ctx = f"\n\nRelevant texts from the app:\n{excerpts}"
 
-    # ── System prompt: full immersion ─────────────────────────────────────────
+    # ── System prompt ─────────────────────────────────────────────────────────
     system = (
-        f"You are a friendly, patient language tutor. The student is learning {lang_name}.\n"
-        f"IMPORTANT: You MUST respond ONLY in {lang_name}. Never use English or any other language, "
-        f"even if the student writes to you in English. Keep replies brief and natural."
+        f"You are a friendly, immersive language tutor. The student is learning {lang_name}. "
+        f"Always respond in {lang_name} only — never switch languages, never explain why, just stay in {lang_name}. "
+        f"Keep replies brief (2–3 sentences). "
+        f"When the student asks about words in their vocabulary list, answer from that list. "
+        f"When they ask if they've seen something before, check the vocab list and say yes or no."
+        f"{vocab_ctx}"
         f"{story_ctx}"
     )
 
