@@ -161,6 +161,7 @@ _LANG_NAMES_FULL = {
 
 _HF_MODEL   = "google/gemma-4-12B-it"
 _HF_API_URL = f"https://api-inference.huggingface.co/models/{_HF_MODEL}/v1/chat/completions"
+_GROQ_FALLBACK = "gemma2-9b-it"
 
 
 def _search_stories(query: str, lang: str, db: Session, limit: int = 2):
@@ -215,22 +216,42 @@ def tutor_chat(
     messages = [{"role": "system", "content": system}]
     messages += [{"role": m.role, "content": m.content} for m in payload.messages]
 
-    # ── Call Gemma 4 via HuggingFace Inference API ────────────────────────────
+    # ── Try Gemma 4 via HuggingFace; fall back to Groq Gemma 2 ──────────────
+    hf_error = None
+    if settings.HF_TOKEN:
+        try:
+            resp = req.post(
+                _HF_API_URL,
+                headers={
+                    "Authorization": f"Bearer {settings.HF_TOKEN}",
+                    "Content-Type": "application/json",
+                },
+                json={"model": _HF_MODEL, "messages": messages, "max_tokens": 512},
+                timeout=25,
+            )
+            if resp.ok:
+                reply = resp.json()["choices"][0]["message"]["content"].strip()
+                return {"reply": reply, "model": "gemma-4"}
+            hf_error = f"HF {resp.status_code}: {resp.text[:200]}"
+        except Exception as e:
+            hf_error = str(e)
+
+    # Fallback: Groq Gemma 2 9B
     try:
-        resp = req.post(
-            _HF_API_URL,
-            headers={
-                "Authorization": f"Bearer {settings.HF_TOKEN}",
-                "Content-Type": "application/json",
-            },
-            json={"model": _HF_MODEL, "messages": messages, "max_tokens": 512},
-            timeout=30,
+        from groq import Groq
+        client = Groq(api_key=settings.GROQ_API_KEY)
+        resp2  = client.chat.completions.create(
+            model=_GROQ_FALLBACK,
+            messages=messages,
+            max_tokens=512,
         )
-        resp.raise_for_status()
-        reply = resp.json()["choices"][0]["message"]["content"].strip()
-        return {"reply": reply}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        reply = resp2.choices[0].message.content.strip()
+        return {"reply": reply, "model": "gemma2-9b", "hf_error": hf_error}
+    except Exception as e2:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Both models failed. HF: {hf_error} | Groq: {e2}"
+        )
 
 
 @router.post("/cache", response_model=schemas.WordCacheResponse)
