@@ -133,17 +133,19 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
                 "role": "user",
                 "content": [
                     {"type": "text", "text": (
-                        f"A language learner is practising writing '{payload.word}' in {lang_name}. "
-                        "Look at their handwriting on the canvas and give 1–2 sentences of encouraging, "
-                        "specific feedback. Note what looks good and one thing to improve if needed. "
-                        "If the canvas appears blank or unclear, just say so gently."
+                        f"A learner is practising writing '{payload.word}' in {lang_name}. "
+                        f"The image shows their handwriting with numbered circles marking each stroke in the order it was drawn. "
+                        f"Assess: (1) does the writing clearly show '{payload.word}'? "
+                        f"(2) is the stroke order reasonable for {lang_name} script? "
+                        "Reply with exactly one word: PASS or FAIL."
                     )},
                     {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{payload.image_b64}"}},
                 ],
             }],
-            max_tokens=120,
+            max_tokens=5,
         )
-        return {"feedback": resp.choices[0].message.content.strip()}
+        answer = resp.choices[0].message.content.strip().upper()
+        return {"passed": answer.startswith("PASS")}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
