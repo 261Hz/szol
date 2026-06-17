@@ -217,7 +217,17 @@
 
         <!-- Translation: check button + result -->
         <template v-else>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs text-gray-500">Translate to:</span>
+            <select
+              v-model="translateTo"
+              class="text-xs bg-slate-800 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+            >
+              <option v-for="opt in TRANSLATE_TO_OPTIONS" :key="opt.code" :value="opt.code">{{ opt.label }}</option>
+            </select>
+          </div>
+          <div v-if="sameLang" class="text-xs text-yellow-400">Source and target language are the same — pick a different language to translate to.</div>
+          <div v-else class="flex items-center gap-2">
             <button
               @click="runTranslationCheck"
               :disabled="!userInput.trim() || translationChecking"
@@ -335,18 +345,35 @@ const showTranscript = ref(false)
 const resumeSegment  = ref(null)
 const difficulty     = ref('medium')
 const mode           = ref('dictation') // 'dictation' | 'translation'
+const translateTo    = ref('en')
 
 const translationResult   = ref(null) // { score, feedback }
 const translationChecking = ref(false)
 
+const TRANSLATE_TO_OPTIONS = [
+  { code: 'en', label: 'English' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'fr', label: 'French' },
+  { code: 'de', label: 'German' },
+  { code: 'it', label: 'Italian' },
+  { code: 'he', label: 'Hebrew' },
+  { code: 'ar', label: 'Arabic' },
+  { code: 'ru', label: 'Russian' },
+  { code: 'ja', label: 'Japanese' },
+  { code: 'zh', label: 'Chinese' },
+]
+
+const sameLang = computed(() => props.lang === translateTo.value)
+
 async function runTranslationCheck() {
-  if (!currentSegment.value || !userInput.value.trim() || translationChecking.value) return
+  if (!currentSegment.value || !userInput.value.trim() || translationChecking.value || sameLang.value) return
   translationChecking.value = true
   translationResult.value   = null
   const result = await checkTranslation(
     currentSegment.value.text,
     userInput.value.trim(),
     props.lang,
+    translateTo.value,
   )
   translationResult.value   = result
   translationChecking.value = false
