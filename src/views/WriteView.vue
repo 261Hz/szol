@@ -126,7 +126,7 @@ const handwritingStyle = computed(() => {
   if (props.lang === 'zh')               return { fontFamily: "'Zhi Mang Xing', cursive",    fontSize: '4rem' }
   if (props.lang === 'ja')               return { fontFamily: "'Kaisei Tokumin', serif",      fontSize: '4rem' }
   if (['ar', 'arz'].includes(props.lang)) return { fontFamily: "'Amiri', serif",               fontSize: '3.5rem' }
-  if (props.lang === 'he')               return { fontFamily: "'Noto Rashi Hebrew', serif",       fontSize: '4rem' }
+  if (props.lang === 'he')               return { fontFamily: "'Playpen Sans Hebrew', cursive",   fontSize: '4rem' }
   return { fontFamily: "'Patrick Hand', cursive", fontSize: '4rem' }
 })
 
@@ -376,14 +376,21 @@ function annotatedImage() {
     oc.textAlign = 'center'; oc.textBaseline = 'middle'
     oc.fillText(String(i + 1), x, y)
   })
-  // Downscale to max 320px before encoding — reduces vision token cost ~75%
-  const MAX = 320
-  const scale = Math.min(1, MAX / Math.max(off.width, off.height))
-  const small = document.createElement('canvas')
-  small.width  = Math.round(off.width  * scale)
-  small.height = Math.round(off.height * scale)
-  small.getContext('2d').drawImage(off, 0, 0, small.width, small.height)
-  return small.toDataURL('image/png').split(',')[1]
+  // Crop to bounding box of drawn strokes — sends only what was written
+  const allPts = strokes.flat()
+  if (!allPts.length) return off.toDataURL('image/png').split(',')[1]
+  const PAD  = 20
+  const minX = Math.max(0,          Math.min(...allPts.map(p => p.x)) - PAD) * dpr
+  const minY = Math.max(0,          Math.min(...allPts.map(p => p.y)) - PAD) * dpr
+  const maxX = Math.min(off.width,  Math.max(...allPts.map(p => p.x)) + PAD) * dpr
+  const maxY = Math.min(off.height, Math.max(...allPts.map(p => p.y)) + PAD) * dpr
+  const cropW = maxX - minX
+  const cropH = maxY - minY
+  const crop  = document.createElement('canvas')
+  crop.width  = cropW
+  crop.height = cropH
+  crop.getContext('2d').drawImage(off, minX, minY, cropW, cropH, 0, 0, cropW, cropH)
+  return crop.toDataURL('image/png').split(',')[1]
 }
 
 async function runCheck() {
