@@ -196,11 +196,8 @@ class TutorMessage(BaseModel):
     content: str
 
 class TutorChatIn(BaseModel):
-    lang:         str
-    messages:     List[TutorMessage]
-    story_title:  Optional[str] = None
-    story_excerpt: Optional[str] = None
-    vocab_sample: Optional[str] = None  # comma-separated words
+    lang:     str
+    messages: List[TutorMessage]
 
 
 # ── Video stories (Listen feature) ───────────────────────────────────────────

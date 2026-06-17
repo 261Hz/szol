@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     TURNSTILE_SECRET:  str = ""   # Cloudflare Turnstile secret key
     YOUTUBE_API_KEY:   str = ""   # YouTube Data API v3 key (same one used in Vite frontend)
     WORKER_SECRET:     str = ""   # shared secret for local worker.py
+    HF_TOKEN:          str = ""   # Hugging Face API token (for Gemma 4 inference)
 
     class Config:
         env_file = ".env"

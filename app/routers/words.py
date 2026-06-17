@@ -159,39 +159,76 @@ _LANG_NAMES_FULL = {
     "hu": "Hungarian", "el": "Greek",
 }
 
+_HF_MODEL   = "google/gemma-4-12B-it"
+_HF_API_URL = f"https://api-inference.huggingface.co/models/{_HF_MODEL}/v1/chat/completions"
+
+
+def _search_stories(query: str, lang: str, db: Session, limit: int = 2):
+    """Return up to `limit` curated stories whose title or content match any word in `query`."""
+    from sqlalchemy import or_
+    words = [w.strip() for w in query.split() if len(w.strip()) > 2][:6]
+    if not words:
+        return []
+    conditions = [
+        or_(
+            models.CuratedStory.content.ilike(f"%{w}%"),
+            models.CuratedStory.title.ilike(f"%{w}%"),
+        )
+        for w in words
+    ]
+    return (
+        db.query(models.CuratedStory)
+        .filter(models.CuratedStory.lang == lang, or_(*conditions))
+        .limit(limit)
+        .all()
+    )
+
+
 @router.post("/tutor/chat")
 def tutor_chat(
     payload: schemas.TutorChatIn,
+    db: Session = Depends(get_db),
     current_user: models.User = Depends(oauth2.get_current_user),
 ):
-    """Streaming-optional tutor chat using Groq. Requires auth."""
-    from groq import Groq
+    """Language tutor using Gemma 4 via HuggingFace Inference API.
+    Auto-retrieves relevant story excerpts from the DB (RAG). Requires auth."""
+    import requests as req
     from ..config import settings
-    client    = Groq(api_key=settings.GROQ_API_KEY)
     lang_name = _LANG_NAMES_FULL.get(payload.lang, payload.lang)
 
-    system_lines = [
-        f"You are a concise, encouraging language tutor. The user is learning {lang_name}.",
-        "Respond in English unless the user asks you to use the target language.",
-        "Keep replies brief (2–4 sentences) unless more detail is clearly needed.",
-    ]
-    if payload.story_title and payload.story_excerpt:
-        system_lines.append(
-            f'\nThe user is currently reading "{payload.story_title}":\n"{payload.story_excerpt}"'
-        )
-    if payload.vocab_sample:
-        system_lines.append(f"\nUser's saved vocabulary includes: {payload.vocab_sample}")
+    # ── RAG: find relevant stories based on the latest user message ───────────
+    last_user = next((m.content for m in reversed(payload.messages) if m.role == "user"), "")
+    stories   = _search_stories(last_user, payload.lang, db)
+    story_ctx = ""
+    if stories:
+        excerpts  = "\n\n".join(f'"{s.title}":\n{s.content[:500]}' for s in stories)
+        story_ctx = f"\n\nRelevant texts from the app you may draw on:\n{excerpts}"
 
-    messages = [{"role": "system", "content": "\n".join(system_lines)}]
+    # ── System prompt: immersion mode ─────────────────────────────────────────
+    system = (
+        f"You are a friendly, patient language tutor. The student is learning {lang_name}.\n"
+        f"IMPORTANT: You MUST respond ONLY in {lang_name}. Never use English or any other language, "
+        f"even if the student writes to you in English. Keep replies brief and natural."
+        f"{story_ctx}"
+    )
+
+    messages = [{"role": "system", "content": system}]
     messages += [{"role": m.role, "content": m.content} for m in payload.messages]
 
+    # ── Call Gemma 4 via HuggingFace Inference API ────────────────────────────
     try:
-        resp = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=messages,
-            max_tokens=512,
+        resp = req.post(
+            _HF_API_URL,
+            headers={
+                "Authorization": f"Bearer {settings.HF_TOKEN}",
+                "Content-Type": "application/json",
+            },
+            json={"model": _HF_MODEL, "messages": messages, "max_tokens": 512},
+            timeout=30,
         )
-        return {"reply": resp.choices[0].message.content.strip()}
+        resp.raise_for_status()
+        reply = resp.json()["choices"][0]["message"]["content"].strip()
+        return {"reply": reply}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
