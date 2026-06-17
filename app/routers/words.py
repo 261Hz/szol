@@ -134,9 +134,9 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
                 "content": [
                     {"type": "text", "text": (
                         f"A learner is practising writing '{payload.word}' in {lang_name}. "
-                        f"The image shows their handwriting with numbered circles marking each stroke in the order it was drawn. "
-                        f"Assess: (1) does the writing clearly show '{payload.word}'? "
-                        f"(2) is the stroke order reasonable for {lang_name} script? "
+                        f"The image shows their attempt on a lined paper canvas. "
+                        f"Be generous: PASS if the writing is a reasonable attempt at '{payload.word}', "
+                        f"even if messy or imperfect. Only FAIL if it is clearly unrecognisable or blank. "
                         "Reply with exactly one word: PASS or FAIL."
                     )},
                     {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{payload.image_b64}"}},
