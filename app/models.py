@@ -221,6 +221,18 @@ class UserBlock(Base):
     __table_args__ = (UniqueConstraint("blocker_id", "blocked_id"),)
 
 
+class VocabWordRequest(Base):
+    """Words submitted by guests (or anyone) to be queued for clip generation."""
+    __tablename__ = "vocab_word_requests"
+
+    id         = Column(BigInteger, primary_key=True, autoincrement=True)
+    word       = Column(String, nullable=False)
+    lang       = Column(String(10), nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
+
+    __table_args__ = (UniqueConstraint("word", "lang"),)
+
+
 class VocabClip(Base):
     __tablename__ = "vocab_clips"
 

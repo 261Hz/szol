@@ -81,6 +81,13 @@ class UserProgressResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ── Vocab word clip request (guest / unauthenticated) ────────────────────────
+
+class VocabWordRequestIn(BaseModel):
+    word: str
+    lang: str
+
+
 # ── Vocab clips (shared YouTube corpus) ──────────────────────────────────────
 
 class VocabClipOut(BaseModel):

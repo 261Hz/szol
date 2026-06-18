@@ -5,13 +5,16 @@
 #   POST   /vocab/user              save a word to the current user's vocab bank
 #   GET    /vocab/user              return all saved words (all languages)
 #   DELETE /vocab/user?word=&lang=  remove a word from the bank
+#   POST   /vocab/words/request     (public via Vercel proxy) queue a word for clip generation
 #   GET    /vocab/clips?word=&lang= return cached clips (populated by local worker.py)
 #   POST   /vocab/clips             accept clips from local worker.py
+#   GET    /vocab/all-words         (worker) return all (word,lang) pairs that need clips
 
 from datetime import datetime, timezone, timedelta
 from typing import List
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
+from sqlalchemy import union
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
@@ -98,6 +101,40 @@ def remove_vocab_word(
         db.commit()
 
 
+# -- Public word-clip request (guests + logged-in users) ----------------------
+
+@router.post("/words/request", status_code=status.HTTP_204_NO_CONTENT)
+def request_word_clip(
+    payload: schemas.VocabWordRequestIn,
+    x_worker_secret: str = Header(None),
+    db: Session = Depends(get_db),
+):
+    """Queue a (word, lang) pair for clip generation. Callers must supply
+    X-Worker-Secret — the Vercel api/queue-word.js proxy adds it so guests
+    never need to know the secret."""
+    if not settings.WORKER_SECRET or x_worker_secret != settings.WORKER_SECRET:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "invalid worker secret")
+
+    word = payload.word.strip()
+    lang = payload.lang.strip()
+    _CJK = {'ja', 'zh', 'ko', 'cmn', 'yue'}
+    min_len = 1 if lang in _CJK else 2
+    if not word or len(word) < min_len or len(word) > 40:
+        return  # silently ignore junk
+
+    existing = (
+        db.query(models.VocabWordRequest)
+        .filter_by(word=word, lang=lang)
+        .first()
+    )
+    if not existing:
+        db.add(models.VocabWordRequest(word=word, lang=lang))
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()  # unique constraint race — that's fine
+
+
 # -- Shared YouTube clips corpus ----------------------------------------------
 
 _CLIP_TTL_DAYS = 7
@@ -135,12 +172,10 @@ def get_all_words(
 
     stale_cutoff = datetime.now(timezone.utc) - timedelta(days=_CLIP_TTL_DAYS)
 
-    # All unique (word, lang) in the vocab bank
-    all_pairs = (
-        db.query(models.UserVocab.word, models.UserVocab.lang)
-        .distinct()
-        .all()
-    )
+    # All unique (word, lang) from logged-in users' vocab banks + guest requests
+    user_pairs = db.query(models.UserVocab.word, models.UserVocab.lang).distinct()
+    guest_pairs = db.query(models.VocabWordRequest.word, models.VocabWordRequest.lang).distinct()
+    all_pairs = db.execute(union(user_pairs, guest_pairs)).fetchall()
 
     # Which ones already have fresh clips
     cached = set(
