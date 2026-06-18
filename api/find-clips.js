@@ -1,19 +1,55 @@
-// api/find-clips.js — calls filmot to find YouTube clips for a word in captions.
-// Falls back when backend DB has no pre-cached clips for this word.
+// api/find-clips.js — returns YouTube clips for a word in captions.
+// Strategy (fastest-first, cheapest-first):
+//   1. Backend DB  — pre-populated by worker.py context indexing (no filmot quota)
+//   2. Filmot API  — live search; result is CDN-cached 24 h so repeats are free
 
 const FILMOT_LANGS = new Set(['nl','en','fr','de','id','it','ko','pt','ru','es','tr','vi','ja','hi','iw','ar'])
+const BACKEND      = 'https://szol.onrender.com'
+
+// Check if worker.py already indexed clips for this word (or a word from the same
+// transcript segment). Render may be sleeping — 500 ms hard timeout so we don't
+// add visible latency; cold-start takes ~30 s and falls through to filmot.
+async function fromBackend(word, lang) {
+  try {
+    const r = await fetch(
+      `${BACKEND}/vocab/clips?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}&limit=5`,
+      { signal: AbortSignal.timeout(500) }
+    )
+    if (!r.ok) return null
+    const data = await r.json()
+    if (!Array.isArray(data) || !data.length) return null
+    return data.map(c => ({
+      video_id:  c.video_id,
+      start_sec: c.start_sec,
+      end_sec:   c.end_sec,
+      context:   c.context ?? '',
+    }))
+  } catch {
+    return null
+  }
+}
 
 export default async function handler(req, res) {
   const { word, lang = 'en' } = req.query
   if (!word?.trim()) return res.status(400).json({ detail: 'word required' })
 
+  const w        = word.trim()
+  const langCode = lang.slice(0, 2)
+
+  // ── 1. Backend cache (worker.py context index) ────────────────────────────
+  const cached = await fromBackend(w, langCode)
+  if (cached) {
+    res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=3600')
+    return res.status(200).json(cached)
+  }
+
+  // ── 2. Filmot live search ─────────────────────────────────────────────────
   const params = new URLSearchParams({
-    query:        word.trim(),
+    query:        w,
     hitFormat:    '0',
     maxQueryTime: '100',
     page:         '1',
   })
-  const langCode = lang.slice(0, 2)
   if (FILMOT_LANGS.has(langCode)) params.set('lang', langCode)
 
   try {
@@ -49,7 +85,7 @@ export default async function handler(req, res) {
       if (clips.length >= 5) break
     }
 
-    // Cache at CDN edge for 24 h so the same word doesn't burn filmot quota on repeat visits
+    // CDN-cache for 24 h so the same word never hits filmot again within a day
     res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=3600')
     return res.status(200).json(clips)
   } catch (e) {

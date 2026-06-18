@@ -13,6 +13,7 @@ Usage:
 
 import json
 import os
+import re
 import sqlite3
 import sys
 from pathlib import Path
@@ -44,6 +45,14 @@ _FILMOT_LANGS = {
     "nl", "en", "fr", "de", "id", "it", "ko", "pt", "ru", "es",
     "tr", "vi", "ja", "hi", "iw", "ar",
 }
+
+# ── Context tokenizer ─────────────────────────────────────────────────────────
+# Matches Unicode letter/digit runs 3–40 chars — covers Latin, CJK, Arabic, etc.
+_TOKEN_RE = re.compile(r'[\wÀ-ɏЀ-ӿ؀-ۿ一-鿿]{3,40}', re.UNICODE)
+
+def _context_tokens(text):
+    """Extract unique lowercase content words from a filmot context string."""
+    return {m.lower() for m in _TOKEN_RE.findall(text) if not m.isdigit()}
 
 # ── Cache ─────────────────────────────────────────────────────────────────────
 
@@ -153,7 +162,21 @@ def filmot_search(word, lang):
 
     clips = clips[:MAX_CLIPS]
     _cache(word, lang, clips)
-    print(f"  '{word}': {len(clips)} clips (filmot total: {data.get('totalresultcount', '?')})")
+
+    # Build inverted index: every token in the context gets the same clips cached.
+    # One filmot call → ~40 extra words pre-filled for free.
+    ctx_tokens = set()
+    for clip in clips:
+        ctx_tokens |= _context_tokens(clip.get('context', ''))
+    ctx_tokens.discard(word.lower())
+
+    new_ctx = 0
+    for tok in ctx_tokens:
+        if valid_word(tok, lang) and _get_cached(tok, lang) is None:
+            _cache(tok, lang, clips[:3])
+            new_ctx += 1
+
+    print(f"  '{word}': {len(clips)} clips (filmot total: {data.get('totalresultcount', '?')}), +{new_ctx} ctx tokens cached")
     return clips
 
 # ── Backend helpers ───────────────────────────────────────────────────────────
@@ -177,6 +200,34 @@ def post_clips(word, lang, clips):
         timeout=10,
     )
     print(f"  posted {len(clips)} clips for '{word}': {r.text[:80]}")
+
+def post_context_clips(word, lang, clips):
+    """Batch-POST clips for all context tokens to pre-populate the backend index.
+    The same video+timestamp works for nearby words — they appear within the same
+    ~50-word transcript segment returned by filmot."""
+    tokens = set()
+    for clip in clips:
+        tokens |= _context_tokens(clip.get('context', ''))
+    tokens.discard(word.lower())
+    tokens = {t for t in tokens if valid_word(t, lang)}
+    if not tokens:
+        return
+
+    payload = []
+    for tok in tokens:
+        for clip in clips[:2]:
+            payload.append({"word": tok, "lang": lang, **clip})
+
+    try:
+        r = requests.post(
+            f"{BACKEND_URL}/vocab/clips",
+            json=payload,
+            headers={"X-Worker-Secret": WORKER_SECRET},
+            timeout=20,
+        )
+        print(f"  context index -> backend: {len(tokens)} tokens, {len(payload)} rows: {r.status_code}")
+    except Exception as e:
+        print(f"  context index skipped: {e}")
 
 def fetch_pending():
     return requests.get(
@@ -222,6 +273,7 @@ def run_all():
             continue
         try:
             post_clips(word, lang, clips)
+            post_context_clips(word, lang, clips)
         except Exception as e:
             print(f"  post error: {e}")
 
@@ -234,6 +286,7 @@ def run_single(word, lang):
         print("No clips found.")
         return
     post_clips(word, lang, clips)
+    post_context_clips(word, lang, clips)
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
