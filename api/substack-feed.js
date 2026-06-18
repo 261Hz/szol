@@ -119,17 +119,22 @@ export default async function handler(req, res) {
 
   // Get publication slugs — leaderboard first, language-specific seeds as fallback
   let slugs = await leaderboardSlugs(50)
+  console.log(`substack-feed lang=${lang} leaderboard=${slugs.length} slugs`)
   const langSeeds = SEEDS[lang] ?? []
   const seen = new Set(slugs)
   for (const s of langSeeds) if (!seen.has(s)) slugs.push(s)
+  console.log(`substack-feed total slugs to fetch: ${Math.min(slugs.length, 20)}`)
 
   // Fetch up to 20 feeds in parallel (Vercel function has ~10s budget)
   const feeds = await Promise.all(slugs.slice(0, 20).map(fetchRSS))
+  const fetched = feeds.filter(Boolean)
+  console.log(`substack-feed fetched ${fetched.length}/${Math.min(slugs.length, 20)} feeds`)
 
   const articles = []
   for (const feed of feeds) {
     if (!feed || !feed.items.length) continue
     const feedLang = feed.lang || detectLang(feed.items.map(i => i.title + ' ' + i.description).join(' '))
+    console.log(`  ${feed.slug}: detected=${feedLang} items=${feed.items.length}`)
     if (feedLang !== lang) continue
     for (const item of feed.items.slice(0, 2)) {
       articles.push({
@@ -145,6 +150,7 @@ export default async function handler(req, res) {
     if (articles.length >= n) break
   }
 
+  console.log(`substack-feed returning ${articles.length} articles for lang=${lang}`)
   res.setHeader('Cache-Control', 's-maxage=14400, stale-while-revalidate=3600')
   return res.status(200).json(articles.slice(0, n))
 }
