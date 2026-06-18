@@ -217,9 +217,10 @@ export function removeVocabWord(word, lang) {
 }
 
 export async function getVocabClips(word, lang, limit = 5) {
-  // Check backend DB first (pre-cached by worker)
+  // Check backend DB first (3s timeout — Render free tier may be sleeping)
   const cached = await fetch(
-    `${API_URL}/vocab/clips?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}&limit=${limit}`
+    `${API_URL}/vocab/clips?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}&limit=${limit}`,
+    { signal: AbortSignal.timeout(3000) }
   ).catch(() => null)
   if (cached?.ok) {
     const clips = await cached.json().catch(() => [])
