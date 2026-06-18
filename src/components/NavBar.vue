@@ -12,11 +12,21 @@
         <Transition name="tooltip">
           <div
             v-if="showTooltip"
-            class="absolute top-full left-0 mt-1.5 z-50 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 shadow-lg min-w-max"
+            class="absolute top-full left-0 mt-1.5 z-50 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 shadow-xl min-w-[180px]"
           >
-            <div class="text-xs text-gray-400 font-mono">[soːl]</div>
-            <div class="text-sm text-gray-200">{{ tooltipMeaning }}</div>
-            <div class="text-xs text-gray-500 mt-0.5">Hungarian · szól</div>
+            <div class="flex items-baseline gap-2 mb-1">
+              <span class="text-base font-semibold text-gray-100">Szól</span>
+              <span class="text-xs text-gray-500 font-mono">[soːl]</span>
+            </div>
+            <div class="text-xs text-gray-400 mb-2">🇭🇺 {{ tooltipInfo.label }}</div>
+            <div class="text-xs text-gray-500 mb-1">{{ tooltipInfo.intro }}</div>
+            <ul class="space-y-0.5">
+              <li
+                v-for="m in tooltipInfo.meanings"
+                :key="m"
+                class="text-sm text-gray-200 flex items-center gap-1.5"
+              ><span class="text-violet-400">•</span>{{ m }}</li>
+            </ul>
           </div>
         </Transition>
       </div>
@@ -86,42 +96,38 @@ const voices      = useVoiceList()
 const showTooltip = ref(false)
 let   tooltipTimer = null
 
-// "szól" means "speaks / says / sounds" in Hungarian
-const SZOL_MEANING = {
-  en: 'speaks · says · sounds',
-  de: 'spricht · sagt · tönt',
-  fr: 'parle · dit · sonne',
-  es: 'habla · dice · suena',
-  it: 'parla · dice · suona',
-  pt: 'fala · diz · soa',
-  ru: 'говорит · звучит',
-  ja: '話す・言う',
-  zh: '说话・发声',
-  ar: 'يتكلم · يقول',
-  ko: '말하다 · 소리나다',
-  nl: 'spreekt · zegt · klinkt',
-  pl: 'mówi · brzmi',
-  sv: 'talar · säger · låter',
-  he: 'מדבר · אומר',
-  el: 'μιλά · λέει',
-  hu: 'szól · mond · hangzik',
+const SZOL_INFO = {
+  en: { label: 'Hungarian verb.',        intro: 'Can mean:',           meanings: ['to speak', 'to say', 'to sound', 'to be about'] },
+  de: { label: 'Ungarisches Verb.',      intro: 'Kann bedeuten:',      meanings: ['sprechen', 'sagen', 'klingen', 'handeln von'] },
+  fr: { label: 'Verbe hongrois.',        intro: 'Peut signifier :',    meanings: ['parler', 'dire', 'résonner', 'parler de'] },
+  es: { label: 'Verbo húngaro.',         intro: 'Puede significar:',   meanings: ['hablar', 'decir', 'sonar', 'tratar de'] },
+  it: { label: 'Verbo ungherese.',       intro: 'Può significare:',    meanings: ['parlare', 'dire', 'suonare', 'riguardare'] },
+  pt: { label: 'Verbo húngaro.',         intro: 'Pode significar:',    meanings: ['falar', 'dizer', 'soar', 'tratar de'] },
+  ru: { label: 'Венгерский глагол.',     intro: 'Может означать:',     meanings: ['говорить', 'сказать', 'звучать', 'быть о чём-то'] },
+  ja: { label: 'ハンガリー語の動詞。',    intro: '意味：',               meanings: ['話す', '言う', '響く', '〜について'] },
+  zh: { label: '匈牙利语动词。',          intro: '含义：',               meanings: ['说话', '说', '发声', '关于'] },
+  ar: { label: 'فعل هنغاري.',            intro: 'يمكن أن يعني:',       meanings: ['يتكلم', 'يقول', 'يصدر صوتًا', 'يدور حول'] },
+  ko: { label: '헝가리어 동사.',          intro: '의미:',                meanings: ['말하다', '말하다', '소리나다', '~에 관하다'] },
+  nl: { label: 'Hongaars werkwoord.',    intro: 'Kan betekenen:',      meanings: ['spreken', 'zeggen', 'klinken', 'gaan over'] },
+  pl: { label: 'Węgierski czasownik.',   intro: 'Może oznaczać:',      meanings: ['mówić', 'powiedzieć', 'brzmieć', 'dotyczyć'] },
+  sv: { label: 'Ungerskt verb.',         intro: 'Kan betyda:',         meanings: ['tala', 'säga', 'låta', 'handla om'] },
+  he: { label: 'פועל הונגרי.',           intro: 'יכול לאמור:',         meanings: ['לדבר', 'לומר', 'להישמע', 'לעסוק ב'] },
+  el: { label: 'Ουγγρικό ρήμα.',        intro: 'Μπορεί να σημαίνει:', meanings: ['μιλώ', 'λέω', 'ηχώ', 'αφορά'] },
+  hu: { label: 'Magyar ige.',            intro: 'Jelentése:',          meanings: ['szól', 'mond', 'hangzik', 'szól vmiről'] },
 }
 
-const tooltipMeaning = computed(() =>
-  SZOL_MEANING[props.lang] ?? SZOL_MEANING.en
-)
+const tooltipInfo = computed(() => SZOL_INFO[props.lang] ?? SZOL_INFO.en)
 
 function tapLogo() {
-  // Speak with Hungarian voice (the word is Hungarian); fall back to target-lang voice
-  const huVoice  = pickVoice(voices.value, 'hu-HU', 'hu')
-  const fallback = pickVoice(voices.value, LANGS[props.lang]?.bcp47 ?? props.lang, props.lang)
-  const utt      = new SpeechSynthesisUtterance('szól')
-  utt.lang       = 'hu-HU'
-  if (huVoice)   utt.voice = huVoice
-  else if (fallback) { utt.voice = fallback; utt.lang = LANGS[props.lang]?.bcp47 ?? props.lang }
-  speechSynthesis.cancel()
-  speechSynthesis.resume()
-  speechSynthesis.speak(utt)
+  const huVoice = pickVoice(voices.value, 'hu-HU', 'hu')
+  if (huVoice) {
+    const utt = new SpeechSynthesisUtterance('szól')
+    utt.lang  = 'hu-HU'
+    utt.voice = huVoice
+    speechSynthesis.cancel()
+    speechSynthesis.resume()
+    speechSynthesis.speak(utt)
+  }
 
   // Show tooltip for 3 seconds
   showTooltip.value = true
