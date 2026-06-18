@@ -92,6 +92,7 @@
         :current-user="currentUser"
         :clip="activeClip"
         @close-clip="activeClip = null"
+        @open-auth="showAuth = true"
       />
 
       <SettingsView
