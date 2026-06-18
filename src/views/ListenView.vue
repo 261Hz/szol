@@ -18,42 +18,115 @@
 
   <!-- Clip viewer: opened from Vocab → Video tab -->
   <div v-if="activeClip" class="flex flex-col gap-2 mb-4 bg-slate-900 border border-blue-800 rounded-xl p-3">
+
+    <!-- Header: title + test toggle + close -->
     <div class="flex items-center justify-between">
       <span class="text-xs text-blue-400 font-medium">Video clip</span>
-      <button @click="closeClip" class="text-xs text-gray-500 hover:text-white transition-all">✕ close</button>
+      <div class="flex items-center gap-3">
+        <button
+          @click="toggleTest"
+          :class="testMode ? 'text-emerald-400 font-medium' : 'text-gray-500 hover:text-emerald-400'"
+          class="text-xs transition-all"
+          title="Listening comprehension test — hides transcript and disables CC"
+        >🎧 Test</button>
+        <button @click="closeClip" class="text-xs text-gray-500 hover:text-white transition-all">✕</button>
+      </div>
     </div>
+
+    <!-- YouTube player — cc_load_policy=0 always (test mode) or by default -->
     <div class="relative w-full rounded-lg overflow-hidden bg-black" style="padding-bottom:56.25%">
       <iframe
-        :src="`https://www.youtube.com/embed/${activeClip.video_id}?start=${activeClip.start_sec}`"
+        :src="`https://www.youtube.com/embed/${activeClip.video_id}?start=${activeClip.start_sec}&cc_load_policy=0&rel=0`"
         class="absolute inset-0 w-full h-full"
         frameborder="0"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowfullscreen
       />
-    </div>
-    <div class="flex items-start justify-between gap-2 px-1">
-      <p v-if="activeClip.context" class="text-sm text-gray-300 leading-snug flex-1">{{ activeClip.context }}</p>
-      <div class="flex-shrink-0 flex flex-col items-end gap-1">
-        <button
-          v-if="!clipReportSent"
-          @click="clipReportOpen = !clipReportOpen; clipReportNote = ''"
-          class="text-xs text-gray-600 hover:text-red-400 transition-all"
-          title="Report a transcript error"
-        >⚑ report</button>
-        <span v-if="clipReportSent" class="text-xs text-green-500">Reported ✓</span>
-        <div v-if="clipReportOpen && !clipReportSent" class="flex items-center gap-1">
-          <input
-            v-model="clipReportNote"
-            type="text"
-            placeholder="What's wrong?"
-            class="text-xs bg-gray-800 border border-gray-700 rounded px-2 py-0.5 text-gray-300 placeholder-gray-600 w-40 focus:outline-none focus:border-red-700"
-            @keydown.enter="submitClipReport"
-            @keydown.escape="clipReportOpen = false"
-          />
-          <button @click="submitClipReport" class="text-xs text-red-400 hover:text-red-300">Send</button>
-        </div>
+      <!-- Overlay to block the CC button in the YouTube controls bar -->
+      <div
+        v-if="testMode"
+        class="absolute inset-0 pointer-events-none"
+        style="z-index:1"
+      >
+        <!-- Covers the right side of the bottom control bar where CC lives -->
+        <div class="absolute bottom-0 right-0 pointer-events-auto" style="width:22%;height:48px;background:transparent" />
       </div>
     </div>
+
+    <!-- Normal view: transcript + report -->
+    <template v-if="!testMode">
+      <div class="flex items-start justify-between gap-2 px-1">
+        <p v-if="activeClip.context" class="text-sm text-gray-300 leading-snug flex-1">{{ activeClip.context }}</p>
+        <div class="flex-shrink-0 flex flex-col items-end gap-1">
+          <button
+            v-if="!clipReportSent"
+            @click="clipReportOpen = !clipReportOpen; clipReportNote = ''"
+            class="text-xs text-gray-600 hover:text-red-400 transition-all"
+            title="Report a transcript error"
+          >⚑ report</button>
+          <span v-if="clipReportSent" class="text-xs text-green-500">Reported ✓</span>
+          <div v-if="clipReportOpen && !clipReportSent" class="flex items-center gap-1">
+            <input
+              v-model="clipReportNote"
+              type="text"
+              placeholder="What's wrong?"
+              class="text-xs bg-gray-800 border border-gray-700 rounded px-2 py-0.5 text-gray-300 placeholder-gray-600 w-40 focus:outline-none focus:border-red-700"
+              @keydown.enter="submitClipReport"
+              @keydown.escape="clipReportOpen = false"
+            />
+            <button @click="submitClipReport" class="text-xs text-red-400 hover:text-red-300">Send</button>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Test mode: type what you hear -->
+    <template v-else>
+      <!-- Input phase -->
+      <template v-if="!testResult">
+        <textarea
+          v-model="testInput"
+          placeholder="Listen and type what you hear…"
+          rows="2"
+          class="w-full text-sm bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:border-emerald-700"
+          @keydown.meta.enter.prevent="checkAnswer"
+          @keydown.ctrl.enter.prevent="checkAnswer"
+        />
+        <div class="flex items-center gap-2">
+          <button
+            @click="checkAnswer"
+            :disabled="!testInput.trim()"
+            class="text-xs px-3 py-1 rounded-md bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white transition-all"
+          >Check</button>
+          <span class="text-xs text-gray-600">Ctrl/Cmd+Enter</span>
+        </div>
+      </template>
+
+      <!-- Results phase -->
+      <template v-else>
+        <div class="flex items-center gap-3 text-xs">
+          <span :class="testResult.pct >= 80 ? 'text-green-400' : testResult.pct >= 50 ? 'text-yellow-400' : 'text-red-400'" class="font-medium">
+            {{ testResult.correct }}/{{ testResult.total }} words
+          </span>
+          <button @click="testResult = null; testInput = ''" class="text-gray-600 hover:text-blue-400 transition-all">Try again</button>
+        </div>
+        <!-- Word-by-word colouring -->
+        <p class="text-sm leading-relaxed">
+          <template v-for="(s, i) in testResult.scored" :key="i">
+            <span :class="s.ok ? 'text-green-400' : 'text-red-400 line-through opacity-60'">{{ s.w }}</span>
+            <span> </span>
+          </template>
+        </p>
+        <!-- Reveal transcript -->
+        <button
+          v-if="!showTranscript"
+          @click="showTranscript = true"
+          class="text-xs text-blue-400 hover:text-blue-300 transition-all self-start"
+        >Reveal transcript</button>
+        <p v-if="showTranscript" class="text-xs text-gray-400 leading-snug border-t border-gray-700 pt-2">{{ activeClip.context }}</p>
+      </template>
+    </template>
+
   </div>
 
   <!-- Auth gate: stories + player require login -->
@@ -351,7 +424,37 @@ const clipReportOpen = ref(false)
 const clipReportNote = ref('')
 const clipReportSent = ref(false)
 
-watch(activeClip, () => { clipReportOpen.value = false; clipReportSent.value = false })
+// ── Listening test ────────────────────────────────────────────────────────────
+const testMode       = ref(false)
+const testInput      = ref('')
+const testResult     = ref(null)
+const showTranscript = ref(false)
+
+function toggleTest() {
+  testMode.value = !testMode.value
+  testInput.value = ''
+  testResult.value = null
+  showTranscript.value = false
+}
+
+function checkAnswer() {
+  if (!testInput.value.trim() || !activeClip.value?.context) return
+  const norm = s => s.toLowerCase().replace(/[^\p{L}\p{M}\s]/gu, '').trim()
+  const words  = norm(testInput.value).split(/\s+/).filter(Boolean)
+  const refSet = new Set(norm(activeClip.value.context).split(/\s+/).filter(Boolean))
+  const scored = words.map(w => ({ w, ok: refSet.has(w) }))
+  const correct = scored.filter(s => s.ok).length
+  testResult.value = { scored, correct, total: words.length, pct: words.length ? Math.round(correct / words.length * 100) : 0 }
+}
+
+watch(activeClip, () => {
+  clipReportOpen.value = false
+  clipReportSent.value = false
+  testMode.value = false
+  testInput.value = ''
+  testResult.value = null
+  showTranscript.value = false
+})
 
 async function submitClipReport() {
   const clip = activeClip.value
