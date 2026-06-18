@@ -440,6 +440,18 @@ export async function fetchFeed(lang, skip = 0, limit = 20) {
   return await res.json()
 }
 
+export async function fetchPodcasts(lang) {
+  const res = await apiFetch(`${API_URL}/podcasts/?lang=${encodeURIComponent(lang)}`).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json()
+}
+
+export async function transcribeEpisode(episodeId) {
+  const res = await apiFetch(`${API_URL}/podcasts/${episodeId}/transcript`, { method: 'POST' }).catch(() => null)
+  if (!res?.ok) return null
+  return await res.json().catch(() => null)
+}
+
 export async function suggestSource(url, lang, note = '') {
   const res = await apiFetch(`${API_URL}/feed/suggest`, {
     method: 'POST',
