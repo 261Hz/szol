@@ -276,10 +276,32 @@
               <span v-else>{{ tok.text }}</span>
             </span>
           </span>
-          <button
-            @click="$emit('openClip', clip)"
-            class="text-xs text-blue-400 hover:text-blue-300 transition-all self-start"
-          >▶ {{ formatTime(clip.start_sec) }} — watch in Listen tab</button>
+          <div class="flex items-center gap-3">
+            <button
+              @click="$emit('openClip', clip)"
+              class="text-xs text-blue-400 hover:text-blue-300 transition-all"
+            >▶ {{ formatTime(clip.start_sec) }} — watch in Listen tab</button>
+            <button
+              v-if="reportKey !== clipKey(clip)"
+              @click="reportKey = clipKey(clip); reportNote = ''; reportSent = false"
+              class="text-xs text-gray-600 hover:text-red-400 transition-all"
+              title="Report a transcript error"
+            >⚑ report</button>
+            <span v-if="reportSent && reportKey === clipKey(clip)" class="text-xs text-green-500">Reported ✓</span>
+          </div>
+          <!-- Inline report form -->
+          <div v-if="reportKey === clipKey(clip) && !reportSent" class="flex items-center gap-1.5 mt-0.5">
+            <input
+              v-model="reportNote"
+              type="text"
+              placeholder="What's wrong? (optional)"
+              class="text-xs bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-gray-300 placeholder-gray-600 flex-1 focus:outline-none focus:border-red-700"
+              @keydown.enter="submitReport(clip)"
+              @keydown.escape="reportKey = null"
+            />
+            <button @click="submitReport(clip)" class="text-xs text-red-400 hover:text-red-300 transition-all">Send</button>
+            <button @click="reportKey = null" class="text-xs text-gray-600 hover:text-gray-400 transition-all">✕</button>
+          </div>
         </div>
       </div>
       <div v-else-if="video.done" class="text-xs text-gray-500">No YouTube clips found for "{{ props.word }}".</div>
@@ -425,10 +447,34 @@ async function loadVideo() {
   video.value.done    = true
 }
 
-// formatTime converts seconds to MM:SS for the YouTube deeplink label.
 function formatTime(sec) {
   const m = Math.floor(sec / 60)
   const s = String(sec % 60).padStart(2, '0')
   return `${m}:${s}`
+}
+
+// ── Clip reporting ─────────────────────────────────────────────────────────────
+const reportKey  = ref(null)  // clipKey of the clip whose report form is open
+const reportNote = ref('')
+const reportSent = ref(false)
+
+function clipKey(clip) {
+  return `${clip.video_id}:${clip.start_sec}`
+}
+
+async function submitReport(clip) {
+  await fetch('/api/report-clip', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({
+      video_id:  clip.video_id,
+      start_sec: clip.start_sec,
+      word:      props.word,
+      lang:      props.lang,
+      note:      reportNote.value.trim(),
+    }),
+  }).catch(() => {})
+  reportSent.value = true
+  setTimeout(() => { if (reportKey.value === clipKey(clip)) reportKey.value = null }, 2000)
 }
 </script>
