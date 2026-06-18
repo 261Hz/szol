@@ -252,41 +252,41 @@
 
     <!-- ── VIDEO TAB ── -->
     <div v-else-if="activeTab === 'video'">
-      <template>
-        <div v-if="video.loading" class="text-xs text-gray-500">Loading…</div>
-        <div v-else-if="video.results.length" class="flex flex-col gap-3">
-          <div
-            v-for="clip in video.results"
-            :key="`${clip.video_id}-${clip.start_sec}`"
-            class="flex flex-col gap-0.5"
+      <div v-if="video.loading" class="text-xs text-gray-500">Searching YouTube clips for "{{ props.word }}"…</div>
+      <div v-else-if="video.results.length" class="flex flex-col gap-3">
+        <div
+          v-for="clip in video.results"
+          :key="`${clip.video_id}-${clip.start_sec}`"
+          class="flex flex-col gap-0.5"
+        >
+          <span
+            class="text-sm text-gray-300 leading-snug"
+            :dir="isRTL(lang) ? 'rtl' : 'ltr'"
           >
-            <!-- Context sentence with the target word highlighted yellow -->
-            <span
-              class="text-sm text-gray-300 leading-snug"
-              :dir="isRTL(lang) ? 'rtl' : 'ltr'"
-            >
-              <span v-for="(tok, i) in tokenize(clip.context)" :key="i">
-                <span
-                  v-if="tok.type === 'word'"
-                  @click="$emit('tap', { word: tok.text, sentence: clip.context })"
-                  :class="[
-                    'cursor-pointer rounded px-0.5 transition-all hover:bg-green-950',
-                    savedWords && savedWords.has(normalize(tok.text)) ? 'bg-green-900 text-green-300' : '',
-                    normalize(tok.text) === normalize(props.word) ? 'text-yellow-300 font-semibold' : '',
-                  ]"
-                >{{ tok.text }}</span>
-                <span v-else>{{ tok.text }}</span>
-              </span>
+            <span v-for="(tok, i) in tokenize(clip.context)" :key="i">
+              <span
+                v-if="tok.type === 'word'"
+                @click="$emit('tap', { word: tok.text, sentence: clip.context })"
+                :class="[
+                  'cursor-pointer rounded px-0.5 transition-all hover:bg-green-950',
+                  savedWords && savedWords.has(normalize(tok.text)) ? 'bg-green-900 text-green-300' : '',
+                  normalize(tok.text) === normalize(props.word) ? 'text-yellow-300 font-semibold' : '',
+                ]"
+              >{{ tok.text }}</span>
+              <span v-else>{{ tok.text }}</span>
             </span>
-            <!-- Watch button — opens the clip in the Listen tab -->
-            <button
-              @click="$emit('openClip', clip)"
-              class="text-xs text-blue-400 hover:text-blue-300 transition-all self-start"
-            >▶ {{ formatTime(clip.start_sec) }} — watch in Listen tab</button>
-          </div>
+          </span>
+          <button
+            @click="$emit('openClip', clip)"
+            class="text-xs text-blue-400 hover:text-blue-300 transition-all self-start"
+          >▶ {{ formatTime(clip.start_sec) }} — watch in Listen tab</button>
         </div>
-        <div v-else-if="video.done" class="text-xs text-gray-500">No video clips found.</div>
-      </template>
+      </div>
+      <div v-else-if="video.done" class="text-xs text-gray-500">No YouTube clips found for "{{ props.word }}".</div>
+      <div v-else class="text-xs text-gray-400">
+        <button @click="loadVideo()" class="underline hover:text-green-400">Load video clips</button>
+        for "{{ props.word }}"
+      </div>
     </div>
 
   </div>
@@ -411,12 +411,16 @@ async function loadWikiquote() {
   wq.value.done    = true
 }
 
-// loadVideo() fetches YouTube clips from the shared corpus endpoint.
-// Results are cached 7 days server-side; first call for an unseen word crawls yt-dlp (~20 s).
 async function loadVideo() {
+  console.log('[video] word=', JSON.stringify(props.word), 'lang=', props.lang, 'loading=', video.value.loading, 'done=', video.value.done)
   if (!props.word || video.value.loading || video.value.done) return
   video.value.loading = true
-  video.value.results = await getVocabClips(props.word, props.lang)
+  try {
+    video.value.results = await getVocabClips(props.word, props.lang)
+  } catch (e) {
+    console.error('[video] error:', e)
+    video.value.results = []
+  }
   video.value.loading = false
   video.value.done    = true
 }
