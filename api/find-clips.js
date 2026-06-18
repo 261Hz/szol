@@ -6,24 +6,35 @@
 const FILMOT_LANGS = new Set(['nl','en','fr','de','id','it','ko','pt','ru','es','tr','vi','ja','hi','iw','ar'])
 const BACKEND      = 'https://szol.onrender.com'
 
+function dedup(clips) {
+  const seen = new Set()
+  return clips.filter(c => {
+    const key = `${c.video_id}:${c.start_sec}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 // Check if worker.py already indexed clips for this word (or a word from the same
 // transcript segment). Render may be sleeping — 500 ms hard timeout so we don't
 // add visible latency; cold-start takes ~30 s and falls through to filmot.
 async function fromBackend(word, lang) {
   try {
     const r = await fetch(
-      `${BACKEND}/vocab/clips?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}&limit=5`,
+      `${BACKEND}/vocab/clips?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}&limit=10`,
       { signal: AbortSignal.timeout(500) }
     )
     if (!r.ok) return null
     const data = await r.json()
     if (!Array.isArray(data) || !data.length) return null
-    return data.map(c => ({
+    const clips = dedup(data.map(c => ({
       video_id:  c.video_id,
       start_sec: c.start_sec,
       end_sec:   c.end_sec,
       context:   c.context ?? '',
-    }))
+    }))).slice(0, 5)
+    return clips.length ? clips : null
   } catch {
     return null
   }
@@ -87,7 +98,7 @@ export default async function handler(req, res) {
 
     // CDN-cache for 24 h so the same word never hits filmot again within a day
     res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=3600')
-    return res.status(200).json(clips)
+    return res.status(200).json(dedup(clips))
   } catch (e) {
     return res.status(500).json({ detail: String(e) })
   }
