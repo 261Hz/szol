@@ -207,13 +207,26 @@ async function searchWikisource() {
   searchResults.value = []
   loadError.value     = ''
   try {
-    const url  = `https://${readLang.value}.wikisource.org/w/api.php?action=opensearch&search=${encodeURIComponent(searchQuery.value)}&limit=10&namespace=0&format=json&origin=*`
-    const data = await fetch(url).then(r => r.json())
-    searchResults.value = (data[1] ?? []).map((title, i) => ({
-      title,
-      description: data[2]?.[i] ?? '',
-    }))
-    if (!searchResults.value.length) loadError.value = 'No results on Wikisource for this language.'
+    const url    = `https://${readLang.value}.wikisource.org/w/api.php?action=opensearch&search=${encodeURIComponent(searchQuery.value)}&limit=10&namespace=0&format=json&origin=*`
+    const data   = await fetch(url).then(r => r.json())
+    const titles = data[1] ?? []
+    if (!titles.length) { loadError.value = 'No results.'; return }
+
+    // Batch-check which results have a translation in toLang
+    const llUrl  = `https://${readLang.value}.wikisource.org/w/api.php?action=query&prop=langlinks&lllang=${toLang.value}&titles=${titles.map(encodeURIComponent).join('|')}&format=json&origin=*`
+    const llData = await fetch(llUrl).then(r => r.json())
+    const withTx = new Set(
+      Object.values(llData.query?.pages ?? {})
+        .filter(p => p.langlinks?.length)
+        .map(p => p.title)
+    )
+
+    searchResults.value = titles
+      .filter(t => withTx.has(t))
+      .map(title => ({ title }))
+
+    if (!searchResults.value.length)
+      loadError.value = `No results with a ${LANGS[toLang.value]?.name} translation on Wikisource.`
   } catch {
     loadError.value = 'Search failed.'
   } finally {
@@ -260,18 +273,26 @@ async function loadWikisourcePage(result) {
   loadError.value = ''
   article.value   = null
   try {
-    // prop=text gives fully-rendered HTML, which includes ProofreadPage transcluded content
-    const url  = `https://${readLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(result.title)}&prop=text&disableeditsection=1&format=json&origin=*`
+    // Fetch L2 text + langlink to L1 in one call
+    const url  = `https://${readLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(result.title)}&prop=text|langlinks&lllang=${toLang.value}&disableeditsection=1&format=json&origin=*`
     const data = await fetch(url).then(r => r.json())
     if (data.error) { loadError.value = data.error.info ?? 'Page not found.'; return }
 
-    const html  = data.parse?.text?.['*'] ?? ''
-    const paras = parseWikisourceHTML(html)
-    if (!paras.length) { loadError.value = 'No readable text found. Try searching for a chapter page.'; return }
+    const l2Paras = parseWikisourceHTML(data.parse?.text?.['*'] ?? '')
+    if (!l2Paras.length) { loadError.value = 'No readable text found. Try a chapter page.'; return }
+
+    // Fetch L1 translation in parallel if langlink exists
+    const l1Title = data.parse?.langlinks?.find(l => l.lang === toLang.value)?.['*'] ?? null
+    let l1Paras = []
+    if (l1Title) {
+      const l1Url  = `https://${toLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(l1Title)}&prop=text&disableeditsection=1&format=json&origin=*`
+      const l1Data = await fetch(l1Url).then(r => r.json()).catch(() => null)
+      if (l1Data?.parse) l1Paras = parseWikisourceHTML(l1Data.parse.text?.['*'] ?? '')
+    }
 
     article.value = {
       title:      data.parse.title,
-      paragraphs: paras.map(l2 => ({ l2, l1: null })),
+      paragraphs: l2Paras.map((l2, i) => ({ l2, l1: l1Paras[i] ?? null })),
     }
     resetExercise()
   } catch {
