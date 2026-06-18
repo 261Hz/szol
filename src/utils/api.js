@@ -217,11 +217,20 @@ export function removeVocabWord(word, lang) {
 }
 
 export async function getVocabClips(word, lang, limit = 5) {
-  const res = await fetch(
+  // Check backend DB first (pre-cached by worker)
+  const cached = await fetch(
     `${API_URL}/vocab/clips?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}&limit=${limit}`
   ).catch(() => null)
+  if (cached?.ok) {
+    const clips = await cached.json().catch(() => [])
+    if (clips?.length) return clips
+  }
+  // Live filmot search — returns clips directly, no worker needed
+  const res = await fetch(
+    `/api/find-clips?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}`
+  ).catch(() => null)
   if (!res?.ok) return []
-  return await res.json()
+  return await res.json().catch(() => [])
 }
 
 // Fire-and-forget: ask the backend to queue a word for clip generation.

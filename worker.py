@@ -2,62 +2,60 @@
 """
 worker.py — vocabulary clip generator for Szól
 
-Architecture:
-  1. Fetch all pending (word, lang) pairs from backend
-  2. For each lang group, search YouTube and collect unique video IDs
-  3. Fetch transcript once per video (captions first, Whisper fallback)
-  4. Cache transcripts locally in SQLite — reused across words and runs
-  5. Match ALL pending words against each transcript in one pass
-  6. Post found clips to backend
-
-One transcript fetch can satisfy hundreds of word requests.
-Whisper is only used when YouTube has no captions at all.
-
-Dependencies:
-  pip install requests yt-dlp
-  pip install groq        # optional — only needed for uncaptioned videos (Whisper fallback)
+Uses filmot.com API to search YouTube captions and find exact timestamps
+where each vocab word appears. Results are cached locally in SQLite so
+the 2000 req/month free tier limit is not hit repeatedly.
 
 Usage:
   python worker.py            # process all pending words
   python worker.py guitar en  # single word
 """
 
-import io
 import json
 import os
 import sqlite3
-import subprocess
 import sys
-from collections import defaultdict
 from pathlib import Path
 
 import requests
 
-BACKEND_URL   = os.getenv("SZOL_BACKEND_URL", "https://szol.onrender.com")
-YT_API_KEY    = os.getenv("YOUTUBE_API_KEY", "")
-GROQ_API_KEY  = os.getenv("GROQ_API_KEY", "")
-WORKER_SECRET = os.getenv("WORKER_SECRET", "")
+# Load .env if present (local dev)
+_env_file = Path(__file__).parent / ".env"
+if _env_file.exists():
+    for _line in _env_file.read_text(encoding="utf-8").splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _, _v = _line.partition("=")
+            os.environ.setdefault(_k.strip(), _v.strip())
 
-MAX_VIDEOS = 5  # YouTube search results per word
-MAX_CLIPS  = 5  # clips stored per (word, video)
+BACKEND_URL    = os.getenv("SZOL_BACKEND_URL", "https://szol.onrender.com")
+FILMOT_API_KEY = os.getenv("FILMOT_API_KEY", "")
+WORKER_SECRET  = os.getenv("WORKER_SECRET", "")
+
+MAX_CLIPS = 5
 
 CACHE_DB  = Path(__file__).parent / "worker_cache.db"
 SKIP_FILE = Path(__file__).parent / "clips_skipped.txt"
 
 _CJK = {"ja", "zh", "ko", "cmn", "yue"}
 
-# ── Local transcript cache (SQLite) ───────────────────────────────────────────
+# Languages filmot supports for the lang= filter
+_FILMOT_LANGS = {
+    "nl", "en", "fr", "de", "id", "it", "ko", "pt", "ru", "es",
+    "tr", "vi", "ja", "hi", "iw", "ar",
+}
+
+# ── Cache ─────────────────────────────────────────────────────────────────────
 
 def _init_db():
     conn = sqlite3.connect(CACHE_DB)
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS transcripts (
-            video_id   TEXT NOT NULL,
+        CREATE TABLE IF NOT EXISTS filmot_cache (
+            word       TEXT NOT NULL,
             lang       TEXT NOT NULL,
-            segments   TEXT NOT NULL,
-            source     TEXT NOT NULL,
+            clips      TEXT NOT NULL,
             fetched_at REAL NOT NULL DEFAULT (unixepoch()),
-            PRIMARY KEY (video_id, lang)
+            PRIMARY KEY (word, lang)
         )
     """)
     conn.commit()
@@ -65,17 +63,17 @@ def _init_db():
 
 _db = _init_db()
 
-def _get_cached(video_id, lang):
+def _get_cached(word, lang):
     row = _db.execute(
-        "SELECT segments FROM transcripts WHERE video_id=? AND lang=?",
-        (video_id, lang)
+        "SELECT clips FROM filmot_cache WHERE word=? AND lang=?",
+        (word.lower(), lang)
     ).fetchone()
     return json.loads(row[0]) if row else None
 
-def _cache(video_id, lang, segs, source):
+def _cache(word, lang, clips):
     _db.execute(
-        "INSERT OR REPLACE INTO transcripts (video_id, lang, segments, source) VALUES (?,?,?,?)",
-        (video_id, lang, json.dumps(segs), source)
+        "INSERT OR REPLACE INTO filmot_cache (word, lang, clips) VALUES (?,?,?)",
+        (word.lower(), lang, json.dumps(clips))
     )
     _db.commit()
 
@@ -96,200 +94,66 @@ def _mark_skipped(word, lang):
         with open(SKIP_FILE, "a", encoding="utf-8") as f:
             f.write(key + "\n")
 
-# ── YouTube search ────────────────────────────────────────────────────────────
+# ── Filmot search ─────────────────────────────────────────────────────────────
 
-class QuotaExceeded(Exception):
-    pass
-
-def yt_search(word, lang):
-    # Search the stem so we find videos even when the word only appears in inflected form
-    query = _stem(word.lower().replace("-", "").replace(" ", ""), lang)
-    r = requests.get(
-        "https://www.googleapis.com/youtube/v3/search",
-        params={
-            "q": query, "type": "video",
-            "relevanceLanguage": lang[:2],
-            "videoDuration": "medium",
-            "maxResults": str(MAX_VIDEOS),
-            "part": "id",
-            "key": YT_API_KEY,
-        },
-        timeout=10,
-    )
-    data = r.json()
-    if any(e.get("reason") == "quotaExceeded" for e in data.get("error", {}).get("errors", [])):
-        raise QuotaExceeded("YouTube Data API daily quota exceeded — try again tomorrow")
-    ids = [item["id"]["videoId"] for item in data.get("items", []) if "videoId" in item.get("id", {})]
-    label = f"'{query}'" if query != word else f"'{word}'"
-    print(f"  search {label} → {ids}")
-    return ids
-
-# ── Transcript fetching ───────────────────────────────────────────────────────
-
-def _fetch_captions(video_id, lang):
-    """Fetch captions via yt-dlp info + curl_cffi (browser-impersonating) download.
-    Uses yt-dlp -J to get the timedtext URL, then curl_cffi to fetch it as a browser would."""
-    try:
-        # Get video metadata including caption track URLs
-        cmd = [
-            sys.executable, "-m", "yt_dlp",
-            "--js-runtimes", "node", "--remote-components", "ejs:github",
-            "--impersonate", "chrome",
-            "--no-cache-dir", "--cookies-from-browser", "chrome",
-            "--no-playlist", "-J", "--quiet",
-            f"https://www.youtube.com/watch?v={video_id}",
-        ]
-        r = subprocess.run(cmd, capture_output=True, timeout=60)
-        if r.returncode != 0:
-            raise RuntimeError(r.stderr.decode(errors="ignore").strip()[:120])
-
-        info = json.loads(r.stdout)
-        lang_base = lang[:2]
-
-        # Find the best caption URL: prefer manual subtitles, fall back to auto-captions
-        url = None
-        for bucket in ("subtitles", "automatic_captions"):
-            tracks = info.get(bucket, {})
-            for l in (lang, lang_base, "en"):
-                fmts = tracks.get(l, [])
-                url = next((f["url"] for f in fmts if f.get("ext") == "json3"), None)
-                if url:
-                    break
-            if url:
-                break
-
-        if not url:
-            print("  captions unavailable: no caption track in video info")
-            return None, None
-
-        # Download the timedtext URL with browser impersonation
-        try:
-            from curl_cffi import requests as curl_req
-            resp = curl_req.get(url, impersonate="chrome", timeout=15)
-        except ImportError:
-            resp = requests.get(url, timeout=15)
-
-        if resp.status_code == 429:
-            print("  captions unavailable: rate-limited (timedtext) — will fall back to Whisper")
-            return None, None
-        if not resp.ok:
-            print(f"  captions unavailable: HTTP {resp.status_code}")
-            return None, None
-
-        cap = resp.json()
-        segs = []
-        for ev in cap.get("events", []):
-            t0  = ev.get("tStartMs", 0)
-            dur = ev.get("dDurationMs", 3000)
-            text = "".join(s.get("utf8", "") for s in ev.get("segs", [])).strip()
-            if text and text != "\n":
-                segs.append({"text": text, "start": t0 / 1000, "end": (t0 + dur) / 1000})
-
-        if not segs:
-            print("  captions unavailable: empty caption track")
-            return None, None
-
-        print(f"  captions OK — {len(segs)} segments")
-        return segs, "captions"
-    except Exception as e:
-        print(f"  captions unavailable: {type(e).__name__}: {e}")
-        return None, None
-
-def _fetch_whisper(video_id):
-    """Download audio + Groq Whisper. Only used when YouTube has no captions."""
-    if not GROQ_API_KEY:
-        print("  GROQ_API_KEY not set — skipping Whisper fallback")
-        return None
-    cmd = [
-        sys.executable, "-m", "yt_dlp",
-        "--js-runtimes", "node", "--remote-components", "ejs:github",
-        "--no-cache-dir", "--cookies-from-browser", "chrome",
-        "-f", "bestaudio[ext=m4a]/bestaudio",
-        "-o", "-", "--quiet",
-        f"https://www.youtube.com/watch?v={video_id}",
-    ]
-    r = subprocess.run(cmd, capture_output=True)
-    if r.returncode != 0:
-        print(f"  yt-dlp failed: {r.stderr.decode(errors='ignore').strip()[:200]}")
-        return None
-    mb = len(r.stdout) / 1e6
-    print(f"  downloaded {mb:.1f} MB")
-    if mb > 24:
-        print("  too large for Groq (>24 MB) — skipping")
-        return None
-    try:
-        from groq import Groq
-        audio = io.BytesIO(r.stdout)
-        result = Groq(api_key=GROQ_API_KEY).audio.transcriptions.create(
-            model="whisper-large-v3",
-            file=("audio.m4a", audio),
-            response_format="verbose_json",
-            timestamp_granularities=["segment"],
-        )
-        segs = [
-            {"text": s.get("text", ""), "start": float(s.get("start", 0)), "end": float(s.get("end", 0))}
-            for s in (result.segments or [])
-        ]
-        print(f"  Whisper: {len(segs)} segments")
-        return segs
-    except Exception as e:
-        print(f"  Whisper error: {e}")
-        return None
-
-def get_transcript(video_id, lang):
-    """Return segments from cache, or fetch and cache them."""
-    cached = _get_cached(video_id, lang)
+def filmot_search(word, lang):
+    """Return up to MAX_CLIPS clip dicts for word, hitting filmot API (cached)."""
+    cached = _get_cached(word, lang)
     if cached is not None:
-        print(f"  [{video_id}] ✓ cached ({len(cached)} segs)")
+        print(f"  '{word}': cached ({len(cached)} clips)")
         return cached
 
-    print(f"  [{video_id}] fetching…")
-    segs, source = _fetch_captions(video_id, lang)
-    if segs is None:
-        segs = _fetch_whisper(video_id)
-        source = "whisper" if segs else None
+    lang_code = lang[:2]
+    params = {
+        "query":        word,
+        "hitFormat":    "0",
+        "maxQueryTime": "100",
+        "page":         "1",
+    }
+    if lang_code in _FILMOT_LANGS:
+        params["lang"] = lang_code
 
-    if segs:
-        _cache(video_id, lang, segs, source)
-    return segs
-
-# ── Word matching ─────────────────────────────────────────────────────────────
-
-# Common inflectional suffixes per language (longest first so we strip the most specific one).
-# Used to find stems that match across noun/adjective declensions and verb conjugations.
-_SUFFIXES = {
-    "de": ["esten", "sten", "erns", "ern", "ens", "em", "en", "er", "es", "e"],
-    "fr": ["tion", "ment", "ons", "ent", "ant", "aux", "als", "ez", "es", "er", "e"],
-    "es": ["ción", "mente", "ando", "iendo", "ados", "idas", "idos", "ado", "ida", "ido", "an", "as", "os", "a", "o"],
-    "pt": ["ção", "mente", "ando", "endo", "ados", "idas", "ido", "ada", "as", "os", "a", "o"],
-    "it": ["zione", "mente", "ando", "endo", "ati", "ite", "iti", "ate", "ano", "ono", "i", "e", "a", "o"],
-    "nl": ["sten", "eren", "ers", "en", "es", "e"],
-    "ru": ["ого", "его", "ому", "ему", "ых", "их", "ым", "им", "ой", "ей", "ий", "ая", "ое", "ые", "ый", "ами", "ах"],
-    "pl": ["owych", "owego", "owym", "owe", "owy", "owa", "ią", "ie", "ę", "ą"],
-}
-
-def _stem(word, lang):
-    """Strip the longest matching inflectional suffix; return root if ≥ 5 chars, else word."""
-    w = word.lower().replace("-", "").replace(" ", "")
-    for suf in _SUFFIXES.get(lang[:2], []):
-        if w.endswith(suf) and len(w) - len(suf) >= 5:
-            return w[:-len(suf)]
-    return w
-
-def find_clips(word, segments, lang=""):
-    target   = word.lower()
-    target_c = target.replace(" ", "").replace("-", "")
-    stem     = _stem(target_c, lang)
+    try:
+        r = requests.get(
+            "https://filmot-tube-metadata-archive.p.rapidapi.com/getsearchsubtitles",
+            params=params,
+            headers={
+                "x-rapidapi-host": "filmot-tube-metadata-archive.p.rapidapi.com",
+                "x-rapidapi-key":  FILMOT_API_KEY,
+            },
+            timeout=15,
+        )
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        print(f"  filmot error: {e}")
+        return []
 
     clips = []
-    for seg in segments:
-        text = (seg.get("text") or "").strip()
-        tl   = text.lower()
-        tl_c = tl.replace(" ", "").replace("-", "")
-        if target in tl or target_c in tl_c or (len(stem) >= 5 and stem in tl_c):
-            start = int(float(seg.get("start", 0)))
-            end   = int(float(seg.get("end",   start + 3)))
-            clips.append({"start_sec": start, "end_sec": end, "context": text})
+    for result in data.get("result", []):
+        video_id = result.get("id", "")
+        if not video_id:
+            continue
+        for hit in result.get("hits", []):
+            start = float(hit.get("start", 0))
+            dur   = float(hit.get("dur", 3))
+            ctx   = " ".join(filter(None, [
+                hit.get("ctx_before", "").strip(),
+                hit.get("token",      "").strip(),
+                hit.get("ctx_after",  "").strip(),
+            ]))
+            clips.append({
+                "video_id":  video_id,
+                "start_sec": int(start),
+                "end_sec":   int(start + max(dur, 3)),
+                "context":   ctx,
+            })
+        if len(clips) >= MAX_CLIPS:
+            break
+
+    clips = clips[:MAX_CLIPS]
+    _cache(word, lang, clips)
+    print(f"  '{word}': {len(clips)} clips (filmot total: {data.get('totalresultcount', '?')})")
     return clips
 
 # ── Backend helpers ───────────────────────────────────────────────────────────
@@ -304,15 +168,15 @@ def already_has_clips(word, lang):
     except Exception:
         return False
 
-def post_clips(word, lang, video_id, clips):
-    payload = [{"word": word, "lang": lang, "video_id": video_id, **c} for c in clips]
+def post_clips(word, lang, clips):
+    payload = [{"word": word, "lang": lang, **c} for c in clips]
     r = requests.post(
         f"{BACKEND_URL}/vocab/clips",
         json=payload,
         headers={"X-Worker-Secret": WORKER_SECRET},
         timeout=10,
     )
-    print(f"  → posted {len(clips)} clips for '{word}': {r.text[:80]}")
+    print(f"  posted {len(clips)} clips for '{word}': {r.text[:80]}")
 
 def fetch_pending():
     return requests.get(
@@ -339,7 +203,6 @@ def run_all():
         print("Nothing to do — all vocab words already have clips.")
         return
 
-    # Filter before doing any network work
     todo = [
         (item["word"], item["lang"])
         for item in pending
@@ -348,90 +211,34 @@ def run_all():
         and not already_has_clips(item["word"], item["lang"])
     ]
 
-    print(f"{len(pending)} pending → {len(todo)} after filtering\n")
+    print(f"{len(pending)} pending -> {len(todo)} after filtering\n")
     if not todo:
         return
 
-    # Group by language
-    by_lang = defaultdict(list)
     for word, lang in todo:
-        by_lang[lang].append(word)
-
-    for lang, words in by_lang.items():
-        print(f"\n══ {lang.upper()} — {len(words)} words ══════════════════════════")
-
-        # Map: video_id → set of words that found it via search
-        video_words = defaultdict(set)
-        words_searched = set()  # words that had at least one YouTube result
-        for word in words:
-            try:
-                ids = yt_search(word, lang)
-            except QuotaExceeded as e:
-                print(f"\n⚠  {e}")
-                sys.exit(1)
-            if not ids:
-                _mark_skipped(word, lang)
-                print(f"  no videos found for '{word}' — skipped")
-                continue
-            words_searched.add(word)
-            for vid in ids:
-                video_words[vid].add(word)
-
-        if not video_words:
-            continue
-
-        # One transcript fetch per unique video, matched against ALL candidate words
-        words_with_clips = set()
-        for video_id, candidate_words in video_words.items():
-            print(f"\n[{video_id}] — candidates: {', '.join(sorted(candidate_words))}")
-            segs = get_transcript(video_id, lang)
-            if not segs:
-                print("  no transcript available — skipping")
-                continue
-
-            for word in sorted(candidate_words):
-                if already_has_clips(word, lang):
-                    words_with_clips.add(word)
-                    print(f"  '{word}': already done")
-                    continue
-                clips = find_clips(word, segs, lang)
-                print(f"  '{word}': {len(clips)} clip(s) found")
-                if clips:
-                    words_with_clips.add(word)
-                    try:
-                        post_clips(word, lang, video_id, clips[:MAX_CLIPS])
-                    except Exception as e:
-                        print(f"  post error: {e}")
-
-        # Words that had search results but no clips in any video → skip permanently
-        for word in words_searched - words_with_clips:
+        clips = filmot_search(word, lang)
+        if not clips:
             _mark_skipped(word, lang)
-            print(f"  '{word}': no clips in any video — skipped")
+            continue
+        try:
+            post_clips(word, lang, clips)
+        except Exception as e:
+            print(f"  post error: {e}")
 
     print("\nAll done.")
 
 def run_single(word, lang):
     print(f"Processing '{word}' ({lang})\n")
-    try:
-        ids = yt_search(word, lang)
-    except QuotaExceeded as e:
-        sys.exit(str(e))
-    if not ids:
-        print("No videos found.")
+    clips = filmot_search(word, lang)
+    if not clips:
+        print("No clips found.")
         return
-    for vid in ids:
-        segs = get_transcript(vid, lang)
-        if not segs:
-            continue
-        clips = find_clips(word, segs, lang)
-        print(f"  [{vid}] {len(clips)} clip(s)")
-        if clips:
-            post_clips(word, lang, vid, clips[:MAX_CLIPS])
+    post_clips(word, lang, clips)
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    missing = [v for v in ("YOUTUBE_API_KEY", "WORKER_SECRET") if not os.getenv(v)]
+    missing = [v for v in ("FILMOT_API_KEY", "WORKER_SECRET") if not os.getenv(v)]
     if missing:
         sys.exit(f"Missing env vars: {', '.join(missing)}")
 
