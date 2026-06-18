@@ -185,13 +185,14 @@ class WordCacheCreate(WordCacheBase):
     pass
 
 class WordCacheResponse(WordCacheBase):
-    id:         UUID
-    created_at: datetime
+    id:             UUID
+    frequency_rank: Optional[int] = None
+    created_at:     datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 class WordLookupResponse(WordCacheResponse):
-    frequency_rank: Optional[int] = None
+    pass
 
 class HandwritingCheckIn(BaseModel):
     word:      str

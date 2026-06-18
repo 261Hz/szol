@@ -72,14 +72,15 @@ class CuratedStory(Base):
 class WordCache(Base):
     __tablename__ = "word_cache"
 
-    id         = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
-    word       = Column(String, nullable=False, index=True)
-    lang       = Column(String, nullable=False, index=True)
-    pos        = Column(String)
-    definition = Column(String)
-    example    = Column(String)
-    source     = Column(String, server_default='wiktionary')
-    created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'))
+    id             = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
+    word           = Column(String, nullable=False, index=True)
+    lang           = Column(String, nullable=False, index=True)
+    pos            = Column(String)
+    definition     = Column(String)
+    example        = Column(String)
+    source         = Column(String, server_default='wiktionary')
+    frequency_rank = Column(Integer)
+    created_at     = Column(TIMESTAMP(timezone=True), server_default=text('now()'))
 
 class VideoStory(Base):
     __tablename__ = "video_stories"

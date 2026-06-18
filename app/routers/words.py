@@ -10,13 +10,10 @@
 #   POST /words/user                  (auth) upsert a word into the user's seen-word log
 #   GET  /words/user?lang=            (auth) return user's word log for a language
 
-import re
-import unicodedata
 from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .. import models, schemas, oauth2
@@ -24,38 +21,18 @@ from ..database import get_db
 from ..leipzig_api import get_word_rank, get_sentences as leipzig_sentences, get_similar
 
 
-# ── Word normalization (mirrors frequency_import.py) ─────────────────────────
-
-_HEBREW_NIQQUD     = re.compile(r"[֑-ׇ]")
-_ARABIC_DIACRITICS = re.compile(r"[ؐ-ًؚ-ٰٟۖ-ۜ۟-۪ۤۧۨ-ۭ]")
-
-def _base(word: str) -> str:
-    return unicodedata.normalize("NFKC", word).strip().lower()
-
-_NORMALIZERS = {
-    "he":  lambda w: _HEBREW_NIQQUD.sub("", _base(w)),
-    "ar":  lambda w: _ARABIC_DIACRITICS.sub("", _base(w)),
-    "arz": lambda w: _ARABIC_DIACRITICS.sub("", _base(w)),
-}
-
-def _normalize(lang: str, word: str) -> str:
-    return _NORMALIZERS.get(lang, _base)(word)
-
-
-def _rank_map(lang: str, words: list[str], db: Session) -> dict[str, int]:
-    """Return {normalized_lemma: rank} for a batch of words in one query."""
-    if not words:
-        return {}
-    normed = list({_normalize(lang, w) for w in words})
-    rows = db.execute(text("""
-        SELECT fl.normalized_lemma, MIN(fe.rank) AS rank
-        FROM   frequency_lemmas fl
-        JOIN   frequency_entries fe ON fe.lemma_id = fl.id
-        WHERE  fl.language_code = :lang
-          AND  fl.normalized_lemma = ANY(:words)
-        GROUP  BY fl.normalized_lemma
-    """), {"lang": lang, "words": normed}).fetchall()
-    return {row[0]: row[1] for row in rows}
+def _cache_rank(word: str, lang: str, rank: int | None, db: Session) -> None:
+    """Write frequency_rank into word_cache, creating a stub row if needed."""
+    entry = (
+        db.query(models.WordCache)
+        .filter(models.WordCache.word == word, models.WordCache.lang == lang)
+        .first()
+    )
+    if entry:
+        entry.frequency_rank = rank
+    else:
+        db.add(models.WordCache(word=word, lang=lang, frequency_rank=rank))
+    db.commit()
 
 router = APIRouter(
     prefix="/words",
@@ -69,14 +46,20 @@ router = APIRouter(
 def word_frequency(word: str, lang: str, db: Session = Depends(get_db)):
     """
     Return corpus frequency rank. Always 200; frequency_rank is null if unknown.
-    Fast path: local frequency_entries table.
-    Fallback: Leipzig API (covers inflected forms like 'bailed' independently).
+    Fast path: word_cache.frequency_rank.
+    Fallback: Leipzig API — result written back to word_cache for future calls.
     """
-    ranks = _rank_map(lang, [word], db)
-    rank  = ranks.get(_normalize(lang, word))
+    entry = (
+        db.query(models.WordCache)
+        .filter(models.WordCache.word == word, models.WordCache.lang == lang)
+        .first()
+    )
+    if entry and entry.frequency_rank is not None:
+        return {"word": word, "lang": lang, "frequency_rank": entry.frequency_rank}
 
-    if rank is None:
-        rank = get_word_rank(word, lang)
+    rank = get_word_rank(word, lang)
+    if rank is not None:
+        _cache_rank(word, lang, rank, db)
 
     return {"word": word, "lang": lang, "frequency_rank": rank}
 
@@ -106,9 +89,7 @@ def lookup_word(word: str, lang: str, db: Session = Depends(get_db)):
     )
     if not entry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Word not in cache")
-    ranks = _rank_map(lang, [word], db)
-    freq_rank = ranks.get(_normalize(lang, word))
-    return schemas.WordLookupResponse(**entry.__dict__, frequency_rank=freq_rank)
+    return schemas.WordLookupResponse(**entry.__dict__)
 
 
 _LANG_NAMES = {
@@ -380,11 +361,30 @@ def get_user_words(
         .order_by(models.UserWord.seen_count.desc())
         .all()
     )
-    ranks = _rank_map(lang, [r.word for r in rows], db)
+    if not rows:
+        return []
+
+    # Batch-fetch cached ranks from word_cache
+    word_list = [r.word for r in rows]
+    cached_ranks: dict[str, int | None] = {
+        e.word.lower(): e.frequency_rank
+        for e in db.query(models.WordCache).filter(
+            models.WordCache.lang == lang,
+            models.WordCache.word.in_(word_list),
+        ).all()
+    }
+
+    # For uncached words, call Leipzig and write back (capped to avoid slow responses)
+    misses = [w for w in word_list if w.lower() not in cached_ranks]
+    for w in misses[:20]:
+        rank = get_word_rank(w, lang)
+        cached_ranks[w.lower()] = rank
+        _cache_rank(w, lang, rank, db)
+
     return [
         schemas.UserWordResponse(
             **{c.key: getattr(row, c.key) for c in models.UserWord.__table__.columns},
-            frequency_rank=ranks.get(_normalize(lang, row.word)),
+            frequency_rank=cached_ranks.get(row.word.lower()),
         )
         for row in rows
     ]
