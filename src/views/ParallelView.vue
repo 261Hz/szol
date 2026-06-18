@@ -299,29 +299,43 @@ async function loadWikisourcePage(result) {
   loadError.value = ''
   article.value   = null
   try {
-    // lllang is not supported in action=parse — fetch all langlinks + internal links to detect chapters
-    const url  = `https://${readLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(result.title)}&prop=text|langlinks|links&disableeditsection=1&format=json&origin=*`
+    // Fetch rendered HTML + all langlinks (lllang not supported in action=parse)
+    const url  = `https://${readLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(result.title)}&prop=text|langlinks&disableeditsection=1&format=json&origin=*`
     const data = await fetch(url).then(r => r.json())
     if (data.error) { loadError.value = data.error.info ?? 'Page not found.'; return }
 
     const pageTitle = data.parse.title
-    const l2Paras   = parseWikisourceHTML(data.parse?.text?.['*'] ?? '')
+    const html      = data.parse?.text?.['*'] ?? ''
+    const l2Paras   = parseWikisourceHTML(html)
 
-    // Detect chapter sub-pages: links in NS 0 that start with "{title}/"
-    const chapterLinks = (data.parse?.links ?? [])
-      .filter(l => l.ns === 0 && l['*']?.startsWith(pageTitle + '/'))
-      .map(l => ({ title: l['*'], label: l['*'].split('/').slice(1).join(' / ') }))
+    // Extract chapter links in document order from the rendered HTML
+    const chapterLinks = extractChapterLinks(html, pageTitle)
+
+    // Langlink to target language (only root/index pages usually have these)
+    const l1RootTitle = (data.parse?.langlinks ?? []).find(l => l.lang === toLang.value)?.['*'] ?? null
 
     if (chapterLinks.length && l2Paras.length < 4) {
-      // Index/ToC page — show chapter picker instead
-      article.value = { title: pageTitle, isIndex: true, chapters: chapterLinks, parent: result }
+      // Index/ToC page — pre-fetch L1 chapter list so each chapter knows its L1 counterpart
+      let mappedChapters = chapterLinks
+      if (l1RootTitle) {
+        const l1IdxUrl  = `https://${toLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(l1RootTitle)}&prop=text&disableeditsection=1&format=json&origin=*`
+        const l1IdxData = await fetch(l1IdxUrl).then(r => r.json()).catch(() => null)
+        if (l1IdxData?.parse) {
+          const l1Chapters = extractChapterLinks(l1IdxData.parse.text?.['*'] ?? '', l1RootTitle)
+          mappedChapters = chapterLinks.map((ch, i) => ({ ...ch, l1Title: l1Chapters[i]?.title ?? null }))
+        }
+      }
+      article.value = { title: pageTitle, isIndex: true, chapters: mappedChapters }
       return
     }
 
     if (!l2Paras.length) { loadError.value = 'No readable text found. Try a chapter page.'; return }
 
-    // Find L1 translation via langlinks and fetch it
-    const l1Title = (data.parse?.langlinks ?? []).find(l => l.lang === toLang.value)?.['*'] ?? null
+    // Chapter pages rarely have langlinks — use pre-computed l1Title from index, or direct langlink
+    const l1Title = result.l1Title
+      ?? l1RootTitle
+      ?? null
+
     let l1Paras = []
     if (l1Title) {
       const l1Url  = `https://${toLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(l1Title)}&prop=text&disableeditsection=1&format=json&origin=*`
@@ -340,6 +354,22 @@ async function loadWikisourcePage(result) {
   } finally {
     loading.value = false
   }
+}
+
+function extractChapterLinks(html, pageTitle) {
+  const doc  = new DOMParser().parseFromString(html, 'text/html')
+  const seen = new Set()
+  return [...doc.querySelectorAll('.mw-parser-output a[href]')]
+    .map(a => {
+      const m = a.getAttribute('href')?.match(/\/wiki\/(.+)/)
+      if (!m) return null
+      const title = decodeURIComponent(m[1]).replace(/_/g, ' ').split('#')[0]
+      if (!title.startsWith(pageTitle + '/')) return null
+      if (seen.has(title)) return null
+      seen.add(title)
+      return { title, label: a.textContent.trim() || title.split('/').pop() }
+    })
+    .filter(Boolean)
 }
 
 function parseWikisourceHTML(html) {
