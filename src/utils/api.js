@@ -440,9 +440,9 @@ export async function fetchFeed(lang, skip = 0, limit = 20) {
   return await res.json()
 }
 
-export async function fetchSubstackFeed(lang, category, limit = 10) {
+export async function fetchSubstackFeed(lang, limit = 10) {
   const res = await fetch(
-    `/api/substack-feed?lang=${encodeURIComponent(lang)}&category=${encodeURIComponent(category)}&limit=${limit}`
+    `/api/substack-feed?lang=${encodeURIComponent(lang)}&limit=${limit}`
   ).catch(() => null)
   if (!res?.ok) return []
   return await res.json().catch(() => [])

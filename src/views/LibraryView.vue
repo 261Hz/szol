@@ -147,18 +147,6 @@
         <span class="text-gray-500 text-xs">{{ open.substack ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.substack" class="px-4 pb-4 pt-2 flex flex-col gap-3">
-        <!-- Category pills -->
-        <div class="flex flex-wrap gap-1.5">
-          <button
-            v-for="cat in SUBSTACK_CATS"
-            :key="cat"
-            @click="pickSubstackCat(cat)"
-            :class="['text-xs px-2.5 py-1 rounded-full border transition-all capitalize',
-              substackCat === cat
-                ? 'bg-green-700 border-green-600 text-white'
-                : 'border-gray-700 text-gray-400 hover:border-green-700 hover:text-gray-200']"
-          >{{ cat }}</button>
-        </div>
         <!-- Article list -->
         <div v-if="substackLoading" class="text-gray-500 text-sm text-center py-6">Loading…</div>
         <div v-else-if="!substackArticles.length" class="text-xs text-gray-500 py-4 text-center">No results — try another category or come back later.</div>
@@ -615,22 +603,15 @@ async function loadFeed(reset = false) {
 
 
 // ── Substack feed ──────────────────────────────────────────────────────────────
-const SUBSTACK_CATS = ['sports','gaming','anime','manga','culture','fashion','history','tech','science','food','music','film','comedy']
-const substackCat      = ref('culture')
-const substackArticles = ref([])
-const substackLoading  = ref(false)
-const substackImporting = ref(null) // URL being imported
+const substackArticles  = ref([])
+const substackLoading   = ref(false)
+const substackImporting = ref(null)
 
 async function loadSubstack() {
   substackLoading.value  = true
   substackArticles.value = []
-  substackArticles.value = await fetchSubstackFeed(props.lang, substackCat.value, 10)
+  substackArticles.value = await fetchSubstackFeed(props.lang, 10)
   substackLoading.value  = false
-}
-
-async function pickSubstackCat(cat) {
-  substackCat.value = cat
-  await loadSubstack()
 }
 
 async function importSubstack(article) {
