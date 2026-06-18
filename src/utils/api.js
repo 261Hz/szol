@@ -440,6 +440,15 @@ export async function fetchFeed(lang, skip = 0, limit = 20) {
   return await res.json()
 }
 
+export async function suggestSource(url, lang, note = '') {
+  const res = await apiFetch(`${API_URL}/feed/suggest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, lang: lang || null, note: note || null }),
+  }).catch(() => null)
+  return res?.ok ?? false
+}
+
 export async function fetchSubstackFeed(lang, limit = 10) {
   const res = await fetch(
     `/api/substack-feed?lang=${encodeURIComponent(lang)}&limit=${limit}`
