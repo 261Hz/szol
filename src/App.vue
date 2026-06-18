@@ -165,7 +165,7 @@ const ParallelView   = defineAsyncComponent(() => import('./views/ParallelView.v
 const TutorView     = defineAsyncComponent(() => import('./views/TutorView.vue'))
 
 import { LANGS } from './data/stories.js'
-import { getMe, logout, onUnauthorized, getAccountVocab, saveVocabWord, removeVocabWord } from './utils/api.js'
+import { getMe, logout, onUnauthorized, getAccountVocab, saveVocabWord, removeVocabWord, requestWordClip } from './utils/api.js'
 import { updateSEO } from './utils/seo.js'
 
 const activeTab    = ref('library')
@@ -300,6 +300,7 @@ function addToVocab(entry) {
   if (vocabBank.value.some(v => v.word.toLowerCase().replace(/[^\p{L}\p{M}]/gu, '') === key)) return
   vocabBank.value.push(entry)
   if (currentUser.value) saveVocabWord(entry)
+  requestWordClip(entry.word, entry.lang)
 }
 
 function removeFromVocab(index) {
