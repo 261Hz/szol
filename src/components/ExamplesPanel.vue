@@ -251,15 +251,9 @@
     </div>
 
     <!-- ── VIDEO TAB ── -->
-    <!-- Clips are populated by the local worker.py and cached 7 days server-side. -->
     <div v-else-if="activeTab === 'video'">
       <template>
-        <button
-          v-if="!video.done && !video.loading"
-          @click="loadVideo"
-          class="text-xs text-green-300 hover:text-green-200 underline transition-all"
-        >Find video clips</button>
-        <div v-else-if="video.loading" class="text-xs text-gray-500">Loading…</div>
+        <div v-if="video.loading" class="text-xs text-gray-500">Loading…</div>
         <div v-else-if="video.results.length" class="flex flex-col gap-3">
           <div
             v-for="clip in video.results"
@@ -356,9 +350,9 @@ watch(() => props.word, () => {
   loadCorpus()
 }, { immediate: true })
 
-// setTab() switches the active tab.
 function setTab(tab) {
   activeTab.value = tab
+  if (tab === 'video') loadVideo()
 }
 
 // tokenize() splits a sentence string into an array of word and space tokens.
