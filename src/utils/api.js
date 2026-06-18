@@ -193,7 +193,6 @@ export async function getAccountVocab() {
 
 export function saveVocabWord(entry) {
   if (!getToken()) return
-  // fire-and-forget
   fetch(`${API_URL}/vocab/user`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -204,7 +203,9 @@ export function saveVocabWord(entry) {
       definition: entry.def        || null,
       example:    entry.ex         || null,
     }),
-  }).catch(() => {})
+  })
+    .then(r => { if (!r.ok) console.warn(`[vocab] save failed ${r.status}`, entry.word) })
+    .catch(e => console.warn('[vocab] save error', e.message, entry.word))
 }
 
 export function removeVocabWord(word, lang) {
