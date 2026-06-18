@@ -32,30 +32,36 @@ function detectLang(text) {
 }
 
 
-// Fetch posts via Substack's public JSON API — less rate-limited than RSS from server IPs
-async function fetchPosts(slug) {
+const STRIP = s => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+
+// rss2json.com is a neutral proxy — fetches Substack RSS from their own IPs,
+// which are not blocked by Substack the way Vercel's egress IPs are.
+async function fetchViaProxy(slug) {
+  const feedUrl = `https://${slug}.substack.com/feed`
   try {
-    const r = await fetch(`https://${slug}.substack.com/api/v1/posts?limit=5`, {
-      headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
-      signal: AbortSignal.timeout(4000),
-    })
+    const r = await fetch(
+      `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}&count=5`,
+      { signal: AbortSignal.timeout(5000) }
+    )
     if (!r.ok) return null
-    const posts = await r.json()
-    if (!Array.isArray(posts) || !posts.length) return null
+    const data = await r.json()
+    if (data.status !== 'ok' || !data.items?.length) return null
 
-    const items = posts.map(p => ({
-      title:       p.title ?? '',
-      description: (p.subtitle ?? p.description ?? '').slice(0, 220),
-      url:         p.canonical_url ?? `https://${slug}.substack.com/p/${p.slug}`,
-      date:        p.post_date ?? '',
-    })).filter(i => i.title && i.url)
+    const items = data.items
+      .map(p => ({
+        title:       p.title ?? '',
+        description: STRIP(p.description ?? '').slice(0, 220),
+        url:         p.link ?? '',
+        date:        p.pubDate ?? '',
+      }))
+      .filter(i => i.title && i.url)
 
-    const sample = items.map(i => i.title + ' ' + i.description).join(' ')
-    const lang   = detectLang(sample)
-    const pub    = posts[0]?.publication?.name ?? slug
-    const author = posts[0]?.publishedBylines?.[0]?.name ?? ''
+    if (!items.length) return null
 
-    return { slug, items, lang, title: pub, author }
+    const feedLang = data.feed?.language?.slice(0, 2) ?? ''
+    const lang = feedLang || detectLang(items.map(i => i.title + ' ' + i.description).join(' '))
+
+    return { slug, items, lang, title: data.feed?.title ?? slug, author: data.feed?.author ?? '' }
   } catch {
     return null
   }
@@ -89,8 +95,8 @@ export default async function handler(req, res) {
   const slugs = SEEDS[lang] ?? SEEDS['en']
   console.log(`substack-feed lang=${lang} slugs=${slugs.length}`)
 
-  // Fetch up to 8 publications in parallel
-  const feeds = await Promise.all(slugs.slice(0, 8).map(fetchPosts))
+  // Fetch up to 8 publications via rss2json proxy
+  const feeds = await Promise.all(slugs.slice(0, 8).map(fetchViaProxy))
   const ok = feeds.filter(Boolean)
   console.log(`substack-feed fetched ${ok.length}/${Math.min(slugs.length, 8)} pubs`)
   ok.forEach(f => console.log(`  ${f.slug}: lang=${f.lang} items=${f.items.length}`))
