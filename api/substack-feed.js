@@ -31,51 +31,31 @@ function detectLang(text) {
   return best
 }
 
-function parseRSS(xml) {
-  const get = (src, tag) => {
-    const m = new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/${tag}>`, 'i').exec(src)
-    return m ? m[1].trim() : ''
-  }
-  const stripHtml = s => s.replace(/<[^>]+>/g, ' ').replace(/&(?:amp|lt|gt|quot|#\d+);/g, ' ').replace(/\s+/g, ' ').trim()
 
-  const items = []
-  const itemRe = /<item>([\s\S]*?)<\/item>/g
-  let m
-  while ((m = itemRe.exec(xml)) !== null) {
-    const chunk = m[1]
-    const title = get(chunk, 'title')
-    const url   = get(chunk, 'link')
-    if (!title || !url) continue
-    items.push({
-      title,
-      description: stripHtml(get(chunk, 'description')).slice(0, 220),
-      url,
-      date: get(chunk, 'pubDate'),
-    })
-  }
-
-  const chanPart  = xml.slice(0, xml.indexOf('<item>') || xml.length)
-  const chanLang  = (/<language>(.*?)<\/language>/i.exec(chanPart) ?? [])[1]?.slice(0, 2) ?? ''
-  const chanTitle = stripHtml(get(chanPart, 'title'))
-  const chanEd    = (/<managingEditor>(.*?)<\/managingEditor>/i.exec(chanPart) ?? [])[1] ?? ''
-
-  return { items, lang: chanLang, title: chanTitle, author: chanEd }
-}
-
-// 3s timeout — fast enough to finish within Vercel's 10s limit when fetching 8 in parallel
-async function fetchRSS(slug) {
+// Fetch posts via Substack's public JSON API — less rate-limited than RSS from server IPs
+async function fetchPosts(slug) {
   try {
-    const r = await fetch(`https://${slug}.substack.com/feed`, {
-      headers: { 'User-Agent': 'Mozilla/5.0' },
-      signal: AbortSignal.timeout(3000),
+    const r = await fetch(`https://${slug}.substack.com/api/v1/posts?limit=5`, {
+      headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
+      signal: AbortSignal.timeout(4000),
     })
     if (!r.ok) return null
-    const xml = await r.text()
-    const p   = parseRSS(xml)
-    if (!p.lang && p.items.length) {
-      p.lang = detectLang(p.items.slice(0, 3).map(i => i.title + ' ' + i.description).join(' '))
-    }
-    return { ...p, slug }
+    const posts = await r.json()
+    if (!Array.isArray(posts) || !posts.length) return null
+
+    const items = posts.map(p => ({
+      title:       p.title ?? '',
+      description: (p.subtitle ?? p.description ?? '').slice(0, 220),
+      url:         p.canonical_url ?? `https://${slug}.substack.com/p/${p.slug}`,
+      date:        p.post_date ?? '',
+    })).filter(i => i.title && i.url)
+
+    const sample = items.map(i => i.title + ' ' + i.description).join(' ')
+    const lang   = detectLang(sample)
+    const pub    = posts[0]?.publication?.name ?? slug
+    const author = posts[0]?.publishedBylines?.[0]?.name ?? ''
+
+    return { slug, items, lang, title: pub, author }
   } catch {
     return null
   }
@@ -109,10 +89,10 @@ export default async function handler(req, res) {
   const slugs = SEEDS[lang] ?? SEEDS['en']
   console.log(`substack-feed lang=${lang} slugs=${slugs.length}`)
 
-  // Fetch up to 8 feeds in parallel — leaves headroom within Vercel's 10s limit
-  const feeds = await Promise.all(slugs.slice(0, 8).map(fetchRSS))
+  // Fetch up to 8 publications in parallel
+  const feeds = await Promise.all(slugs.slice(0, 8).map(fetchPosts))
   const ok = feeds.filter(Boolean)
-  console.log(`substack-feed fetched ${ok.length}/${Math.min(slugs.length, 8)} feeds`)
+  console.log(`substack-feed fetched ${ok.length}/${Math.min(slugs.length, 8)} pubs`)
   ok.forEach(f => console.log(`  ${f.slug}: lang=${f.lang} items=${f.items.length}`))
 
   const articles = []
