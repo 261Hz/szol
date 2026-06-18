@@ -165,6 +165,51 @@
       </div>
     </div>
 
+    <!-- ─── 🎙 PODCASTS ─── -->
+    <div class="border border-gray-700 rounded-lg overflow-hidden">
+      <button @click="toggle('podcasts')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
+        <span>🎙 Podcasts</span>
+        <span class="text-gray-500 text-xs">{{ open.podcasts ? '▲' : '▼' }}</span>
+      </button>
+      <div v-if="open.podcasts" class="px-4 pb-4 pt-1 flex flex-col gap-2">
+        <div v-if="podcastLoading && !podcastEpisodes.length" class="text-gray-500 text-sm text-center py-6">Loading…</div>
+        <div v-else-if="!podcastEpisodes.length" class="text-xs text-gray-500 py-4 text-center">No podcast episodes for this language yet.</div>
+        <div v-else class="flex flex-col gap-1.5">
+          <div
+            v-for="ep in podcastEpisodes"
+            :key="ep.id"
+            :class="['p-3 rounded-lg border transition-all',
+              current?.id === ep.id ? 'border-green-600 bg-green-950' : 'border-gray-700']"
+          >
+            <div class="font-medium text-sm text-gray-100 leading-snug">{{ ep.title }}</div>
+            <div class="flex gap-2 flex-wrap items-center mt-1">
+              <span class="text-xs text-gray-500">{{ ep.podcast_name }}</span>
+              <span v-if="ep.duration_sec" class="text-xs text-gray-600">
+                · {{ Math.round(ep.duration_sec / 60) }} min
+              </span>
+              <span v-if="ep.has_transcript" class="text-xs text-green-600">· transcript ready</span>
+            </div>
+            <div v-if="ep.description" class="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{{ ep.description }}</div>
+            <div class="mt-2 flex items-center gap-2">
+              <button
+                @click="openEpisode(ep)"
+                :disabled="transcribingId === ep.id"
+                :class="['text-xs px-3 py-1.5 rounded-md transition-all disabled:opacity-50',
+                  ep.has_transcript
+                    ? 'bg-green-700 text-white hover:bg-green-600'
+                    : 'border border-gray-600 text-gray-300 hover:border-gray-400']"
+              >
+                <span v-if="transcribingId === ep.id">Transcribing… (may take a minute)</span>
+                <span v-else-if="ep.has_transcript">Read transcript →</span>
+                <span v-else>Transcribe + read →</span>
+              </button>
+              <span v-if="transcribeError === ep.id" class="text-xs text-red-400">Transcription failed</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ─── ✍️ SUBSTACK ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('substack')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
@@ -426,7 +471,7 @@ import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import ClickableText from '../components/ClickableText.vue'
 // Supabase functions: fetch/submit stories from the remote database.
-import { fetchCommunityStories, submitStory, fetchCuratedStories, saveUserStory, getUserStories, deleteUserStory, fetchFeed, fetchSubstackFeed, suggestSource } from '../utils/api.js'
+import { fetchCommunityStories, submitStory, fetchCuratedStories, saveUserStory, getUserStories, deleteUserStory, fetchFeed, fetchSubstackFeed, suggestSource, fetchPodcasts, transcribeEpisode } from '../utils/api.js'
 import { getAllProgress } from '../utils/api.js'
 // Wikipedia helpers for the Today and On This Day sections.
 import { fetchFeaturedArticle, fetchOnThisDay, fetchQuoteOfDay } from '../utils/wikipedia.js'
@@ -538,6 +583,7 @@ watch(() => props.lang, async (newLang) => {
   feedStories.value      = []
   feedPage.value         = 0
   feedExhausted.value    = false
+  podcastEpisodes.value  = []
   substackArticles.value = []
   todayArticle.value     = null
   quoteOfDay.value       = null
@@ -553,6 +599,7 @@ watch(() => props.lang, async (newLang) => {
 
   // Reload whichever lazy sections the user already had open
   if (open.value.feed)      loadFeed(true)
+  if (open.value.podcasts)  loadPodcasts()
   if (open.value.substack)  loadSubstack()
   if (open.value.today)     loadToday()
   if (open.value.quote)     loadQuote()
@@ -648,6 +695,45 @@ async function submitSuggestion() {
   }
 }
 
+// ── Podcasts ──────────────────────────────────────────────────────────────────
+const podcastEpisodes  = ref([])
+const podcastLoading   = ref(false)
+const transcribingId   = ref(null)   // episode ID currently being transcribed
+const transcribeError  = ref(null)
+
+async function loadPodcasts() {
+  podcastLoading.value = true
+  podcastEpisodes.value = await fetchPodcasts(props.lang)
+  podcastLoading.value = false
+}
+
+async function openEpisode(ep) {
+  if (ep.has_transcript) {
+    // Transcript already cached — fetch and load immediately
+    transcribingId.value = ep.id
+    transcribeError.value = null
+    const data = await transcribeEpisode(ep.id)
+    transcribingId.value = null
+    if (data?.transcript) {
+      emitLoad({ id: ep.id, title: ep.title, content: data.transcript, lang: ep.lang, source: ep.podcast_name })
+    }
+    return
+  }
+  // Trigger Whisper transcription (may take 30-90s)
+  transcribingId.value  = ep.id
+  transcribeError.value = null
+  const data = await transcribeEpisode(ep.id)
+  transcribingId.value  = null
+  if (!data?.transcript) {
+    transcribeError.value = ep.id
+    return
+  }
+  // Mark episode as having transcript so UI updates
+  const idx = podcastEpisodes.value.findIndex(e => e.id === ep.id)
+  if (idx !== -1) podcastEpisodes.value[idx] = { ...podcastEpisodes.value[idx], has_transcript: true }
+  emitLoad({ id: ep.id, title: ep.title, content: data.transcript, lang: ep.lang, source: ep.podcast_name })
+}
+
 // ── Substack feed ──────────────────────────────────────────────────────────────
 const substackArticles  = ref([])
 const substackLoading   = ref(false)
@@ -680,6 +766,7 @@ const open = ref({
   inprogress: true,
   curated:    true,
   feed:       false,
+  podcasts:   false,
   substack:   false,
   today:      false,
   quote:      false,
@@ -698,6 +785,7 @@ async function toggle(section) {
   if (open.value[section]) {
     // Only fetch if: the section just opened AND we don't already have data AND not currently loading.
     if (section === 'feed'      && !feedStories.value.length   && !feedLoading.value)    await loadFeed(true)
+    if (section === 'podcasts'  && !podcastEpisodes.value.length && !podcastLoading.value) await loadPodcasts()
     if (section === 'substack'  && !substackArticles.value.length && !substackLoading.value) await loadSubstack()
     if (section === 'today'     && !todayArticle.value && !todayLoading.value) await loadToday()
     if (section === 'quote'     && !quoteOfDay.value   && !quoteLoading.value) await loadQuote()
