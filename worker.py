@@ -14,8 +14,8 @@ One transcript fetch can satisfy hundreds of word requests.
 Whisper is only used when YouTube has no captions at all.
 
 Dependencies:
-  pip install requests youtube-transcript-api
-  pip install groq yt-dlp   # optional — only needed for uncaptioned videos
+  pip install requests yt-dlp
+  pip install groq        # optional — only needed for uncaptioned videos (Whisper fallback)
 
 Usage:
   python worker.py            # process all pending words
@@ -127,16 +127,68 @@ def yt_search(word, lang):
 # ── Transcript fetching ───────────────────────────────────────────────────────
 
 def _fetch_captions(video_id, lang):
-    """youtube-transcript-api v1.x: free, no download, no Whisper cost."""
+    """Fetch captions via yt-dlp info + curl_cffi (browser-impersonating) download.
+    Uses yt-dlp -J to get the timedtext URL, then curl_cffi to fetch it as a browser would."""
     try:
-        from youtube_transcript_api import YouTubeTranscriptApi
-        ytt = YouTubeTranscriptApi()
-        lang_base = lang[:2]
-        transcript = ytt.fetch(video_id, languages=[lang, lang_base, "en"])
-        segs = [
-            {"text": e.text, "start": e.start, "end": e.start + e.duration}
-            for e in transcript
+        # Get video metadata including caption track URLs
+        cmd = [
+            sys.executable, "-m", "yt_dlp",
+            "--js-runtimes", "node", "--remote-components", "ejs:github",
+            "--impersonate", "chrome",
+            "--no-cache-dir", "--cookies-from-browser", "chrome",
+            "--no-playlist", "-J", "--quiet",
+            f"https://www.youtube.com/watch?v={video_id}",
         ]
+        r = subprocess.run(cmd, capture_output=True, timeout=60)
+        if r.returncode != 0:
+            raise RuntimeError(r.stderr.decode(errors="ignore").strip()[:120])
+
+        info = json.loads(r.stdout)
+        lang_base = lang[:2]
+
+        # Find the best caption URL: prefer manual subtitles, fall back to auto-captions
+        url = None
+        for bucket in ("subtitles", "automatic_captions"):
+            tracks = info.get(bucket, {})
+            for l in (lang, lang_base, "en"):
+                fmts = tracks.get(l, [])
+                url = next((f["url"] for f in fmts if f.get("ext") == "json3"), None)
+                if url:
+                    break
+            if url:
+                break
+
+        if not url:
+            print("  captions unavailable: no caption track in video info")
+            return None, None
+
+        # Download the timedtext URL with browser impersonation
+        try:
+            from curl_cffi import requests as curl_req
+            resp = curl_req.get(url, impersonate="chrome", timeout=15)
+        except ImportError:
+            resp = requests.get(url, timeout=15)
+
+        if resp.status_code == 429:
+            print("  captions unavailable: rate-limited (timedtext) — will fall back to Whisper")
+            return None, None
+        if not resp.ok:
+            print(f"  captions unavailable: HTTP {resp.status_code}")
+            return None, None
+
+        cap = resp.json()
+        segs = []
+        for ev in cap.get("events", []):
+            t0  = ev.get("tStartMs", 0)
+            dur = ev.get("dDurationMs", 3000)
+            text = "".join(s.get("utf8", "") for s in ev.get("segs", [])).strip()
+            if text and text != "\n":
+                segs.append({"text": text, "start": t0 / 1000, "end": (t0 + dur) / 1000})
+
+        if not segs:
+            print("  captions unavailable: empty caption track")
+            return None, None
+
         print(f"  captions OK — {len(segs)} segments")
         return segs, "captions"
     except Exception as e:

@@ -4,8 +4,21 @@
     <!-- Top row: brand + language selector + controls -->
     <div class="flex items-center justify-between px-4 py-2.5">
 
-      <div class="text-xl font-semibold tracking-tight flex-shrink-0">
-        Sz<span class="text-violet-400">ó</span>l
+      <div class="relative flex-shrink-0">
+        <button
+          @click="tapLogo"
+          class="text-xl font-semibold tracking-tight select-none hover:opacity-75 transition-opacity"
+        >Sz<span class="text-violet-400">ó</span>l</button>
+        <Transition name="tooltip">
+          <div
+            v-if="showTooltip"
+            class="absolute top-full left-0 mt-1.5 z-50 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 shadow-lg min-w-max"
+          >
+            <div class="text-xs text-gray-400 font-mono">[soːl]</div>
+            <div class="text-sm text-gray-200">{{ tooltipMeaning }}</div>
+            <div class="text-xs text-gray-500 mt-0.5">Hungarian · szól</div>
+          </div>
+        </Transition>
       </div>
 
       <div class="flex items-center gap-2">
@@ -56,9 +69,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { LANGS } from '../data/stories.js'
 import { t }     from '../utils/i18n.js'
+import { useVoiceList, pickVoice } from '../utils/voices.js'
 
 const props = defineProps({
   active:      String,
@@ -67,6 +81,53 @@ const props = defineProps({
 })
 
 defineEmits(['tab', 'lang', 'auth', 'logout'])
+
+const voices      = useVoiceList()
+const showTooltip = ref(false)
+let   tooltipTimer = null
+
+// "szól" means "speaks / says / sounds" in Hungarian
+const SZOL_MEANING = {
+  en: 'speaks · says · sounds',
+  de: 'spricht · sagt · tönt',
+  fr: 'parle · dit · sonne',
+  es: 'habla · dice · suena',
+  it: 'parla · dice · suona',
+  pt: 'fala · diz · soa',
+  ru: 'говорит · звучит',
+  ja: '話す・言う',
+  zh: '说话・发声',
+  ar: 'يتكلم · يقول',
+  ko: '말하다 · 소리나다',
+  nl: 'spreekt · zegt · klinkt',
+  pl: 'mówi · brzmi',
+  sv: 'talar · säger · låter',
+  he: 'מדבר · אומר',
+  el: 'μιλά · λέει',
+  hu: 'szól · mond · hangzik',
+}
+
+const tooltipMeaning = computed(() =>
+  SZOL_MEANING[props.lang] ?? SZOL_MEANING.en
+)
+
+function tapLogo() {
+  // Speak with Hungarian voice (the word is Hungarian); fall back to target-lang voice
+  const huVoice  = pickVoice(voices.value, 'hu-HU', 'hu')
+  const fallback = pickVoice(voices.value, LANGS[props.lang]?.bcp47 ?? props.lang, props.lang)
+  const utt      = new SpeechSynthesisUtterance('szól')
+  utt.lang       = 'hu-HU'
+  if (huVoice)   utt.voice = huVoice
+  else if (fallback) { utt.voice = fallback; utt.lang = LANGS[props.lang]?.bcp47 ?? props.lang }
+  speechSynthesis.cancel()
+  speechSynthesis.resume()
+  speechSynthesis.speak(utt)
+
+  // Show tooltip for 3 seconds
+  showTooltip.value = true
+  clearTimeout(tooltipTimer)
+  tooltipTimer = setTimeout(() => { showTooltip.value = false }, 3000)
+}
 
 const tabs = computed(() => {
   const base = [
@@ -83,3 +144,8 @@ const tabs = computed(() => {
   return base
 })
 </script>
+
+<style scoped>
+.tooltip-enter-active, .tooltip-leave-active { transition: opacity 0.15s, transform 0.15s; }
+.tooltip-enter-from, .tooltip-leave-to       { opacity: 0; transform: translateY(-4px); }
+</style>
