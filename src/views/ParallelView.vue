@@ -51,10 +51,20 @@
           v-for="r in searchResults"
           :key="r.id ?? r.title"
           @click="loadResult(r)"
-          class="w-full text-left bg-slate-900 border border-gray-700 hover:border-violet-700 rounded-lg px-4 py-3 transition-all"
+          :class="['w-full text-left bg-slate-900 border rounded-lg px-4 py-3 transition-all',
+            r.availableLangs?.includes(toLang) ? 'border-gray-700 hover:border-violet-700' : 'border-gray-800 opacity-50 cursor-default']"
+          :disabled="activeSource === 'books' && !r.availableLangs?.includes(toLang)"
         >
           <div class="text-sm font-medium text-gray-100" :dir="isRTL(readLang) ? 'rtl' : 'ltr'">{{ r.title }}</div>
-          <div v-if="r.description" class="text-xs text-gray-500 mt-0.5 truncate">{{ r.description }}</div>
+          <div class="flex flex-wrap gap-1 mt-1.5">
+            <span
+              v-for="lang in (r.availableLangs ?? [])"
+              :key="lang"
+              :class="['text-[10px] px-1.5 py-0.5 rounded font-mono',
+                lang === toLang ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-700 text-gray-400']"
+            >{{ lang }}</span>
+            <span v-if="!r.availableLangs?.length" class="text-[10px] text-gray-600">no translations</span>
+          </div>
         </button>
       </div>
 
@@ -212,21 +222,20 @@ async function searchWikisource() {
     const titles = data[1] ?? []
     if (!titles.length) { loadError.value = 'No results.'; return }
 
-    // Batch-check which results have a translation in toLang
-    const llUrl  = `https://${readLang.value}.wikisource.org/w/api.php?action=query&prop=langlinks&lllang=${toLang.value}&titles=${titles.map(encodeURIComponent).join('|')}&format=json&origin=*`
+    // Batch-fetch all langlinks for all results at once
+    const llUrl  = `https://${readLang.value}.wikisource.org/w/api.php?action=query&prop=langlinks&lllimit=max&titles=${titles.map(encodeURIComponent).join('|')}&format=json&origin=*`
     const llData = await fetch(llUrl).then(r => r.json())
-    const withTx = new Set(
-      Object.values(llData.query?.pages ?? {})
-        .filter(p => p.langlinks?.length)
-        .map(p => p.title)
-    )
 
-    searchResults.value = titles
-      .filter(t => withTx.has(t))
-      .map(title => ({ title }))
+    const langMap = {}
+    Object.values(llData.query?.pages ?? {}).forEach(p => {
+      langMap[p.title] = (p.langlinks ?? []).map(ll => ll.lang)
+    })
 
-    if (!searchResults.value.length)
-      loadError.value = `No results with a ${LANGS[toLang.value]?.name} translation on Wikisource.`
+    searchResults.value = titles.map(title => ({
+      title,
+      availableLangs: langMap[title] ?? [],
+    }))
+    if (!searchResults.value.length) loadError.value = 'No results.'
   } catch {
     loadError.value = 'Search failed.'
   } finally {
@@ -273,16 +282,16 @@ async function loadWikisourcePage(result) {
   loadError.value = ''
   article.value   = null
   try {
-    // Fetch L2 text + langlink to L1 in one call
-    const url  = `https://${readLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(result.title)}&prop=text|langlinks&lllang=${toLang.value}&disableeditsection=1&format=json&origin=*`
+    // lllang is not supported in action=parse — fetch all langlinks then find the match
+    const url  = `https://${readLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(result.title)}&prop=text|langlinks&disableeditsection=1&format=json&origin=*`
     const data = await fetch(url).then(r => r.json())
     if (data.error) { loadError.value = data.error.info ?? 'Page not found.'; return }
 
     const l2Paras = parseWikisourceHTML(data.parse?.text?.['*'] ?? '')
     if (!l2Paras.length) { loadError.value = 'No readable text found. Try a chapter page.'; return }
 
-    // Fetch L1 translation in parallel if langlink exists
-    const l1Title = data.parse?.langlinks?.find(l => l.lang === toLang.value)?.['*'] ?? null
+    // Find L1 translation via langlinks and fetch it in parallel
+    const l1Title = (data.parse?.langlinks ?? []).find(l => l.lang === toLang.value)?.['*'] ?? null
     let l1Paras = []
     if (l1Title) {
       const l1Url  = `https://${toLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(l1Title)}&prop=text&disableeditsection=1&format=json&origin=*`
