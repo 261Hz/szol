@@ -31,7 +31,29 @@
         allowfullscreen
       />
     </div>
-    <p v-if="activeClip.context" class="text-sm text-gray-300 leading-snug px-1">{{ activeClip.context }}</p>
+    <div class="flex items-start justify-between gap-2 px-1">
+      <p v-if="activeClip.context" class="text-sm text-gray-300 leading-snug flex-1">{{ activeClip.context }}</p>
+      <div class="flex-shrink-0 flex flex-col items-end gap-1">
+        <button
+          v-if="!clipReportSent"
+          @click="clipReportOpen = !clipReportOpen; clipReportNote = ''"
+          class="text-xs text-gray-600 hover:text-red-400 transition-all"
+          title="Report a transcript error"
+        >⚑ report</button>
+        <span v-if="clipReportSent" class="text-xs text-green-500">Reported ✓</span>
+        <div v-if="clipReportOpen && !clipReportSent" class="flex items-center gap-1">
+          <input
+            v-model="clipReportNote"
+            type="text"
+            placeholder="What's wrong?"
+            class="text-xs bg-gray-800 border border-gray-700 rounded px-2 py-0.5 text-gray-300 placeholder-gray-600 w-40 focus:outline-none focus:border-red-700"
+            @keydown.enter="submitClipReport"
+            @keydown.escape="clipReportOpen = false"
+          />
+          <button @click="submitClipReport" class="text-xs text-red-400 hover:text-red-300">Send</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Auth gate: stories + player require login -->
@@ -320,7 +342,33 @@ watch(() => props.clip, c => { activeClip.value = c ?? null })
 
 function closeClip() {
   activeClip.value = null
+  clipReportOpen.value = false
+  clipReportSent.value = false
   emit('closeClip')
+}
+
+const clipReportOpen = ref(false)
+const clipReportNote = ref('')
+const clipReportSent = ref(false)
+
+watch(activeClip, () => { clipReportOpen.value = false; clipReportSent.value = false })
+
+async function submitClipReport() {
+  const clip = activeClip.value
+  if (!clip) return
+  await fetch('/api/report-clip', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({
+      video_id:  clip.video_id,
+      start_sec: clip.start_sec,
+      word:      clip.context ?? '',
+      lang:      props.lang ?? '',
+      note:      clipReportNote.value.trim(),
+    }),
+  }).catch(() => {})
+  clipReportOpen.value = false
+  clipReportSent.value = true
 }
 
 // ── Story list ────────────────────────────────────────────────────────────────
