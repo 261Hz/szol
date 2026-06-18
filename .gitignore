@@ -29,3 +29,10 @@ dist-ssr
 verwandlung.txt
 insert_fonissa.mjs
 insert_verwandlung.mjs
+
+# Git worktree for backend branch — tracked separately
+app/
+
+# Local dev/admin scripts
+seed_mock.py
+cleanup_mock.py
