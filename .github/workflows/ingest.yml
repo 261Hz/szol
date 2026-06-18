@@ -1,0 +1,32 @@
+name: Daily content ingest
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 6 AM UTC every day
+  workflow_dispatch:        # allow manual trigger from GitHub UI
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: backend
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - run: python -m app.ingest.run
+        env:
+          DATABASE_URL:           ${{ secrets.DATABASE_URL }}
+          DATABASE_PORT:          ${{ secrets.DATABASE_PORT }}
+          DATABASE_NAME:          ${{ secrets.DATABASE_NAME }}
+          DATABASE_ROOT_USER:     ${{ secrets.DATABASE_ROOT_USER }}
+          DATABASE_ROOT_PASSWORD: ${{ secrets.DATABASE_ROOT_PASSWORD }}
+          SECRET_KEY:             ${{ secrets.SECRET_KEY }}
+          WORKER_SECRET:          ${{ secrets.WORKER_SECRET }}
