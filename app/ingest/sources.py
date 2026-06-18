@@ -199,13 +199,6 @@ SOURCES = [
 
     # ── Arabic ──────────────────────────────────────────────────────────────
     {
-        "name": "BBC Arabic",
-        "feed_url": "https://feeds.bbci.co.uk/arabic/rss.xml",
-        "lang": "ar",
-        "license": "attribution",
-        "min_words": 60,
-    },
-    {
         "name": "الجزيرة",
         "feed_url": "https://www.aljazeera.net/xml/rss/all.xml",
         "lang": "ar",
@@ -215,13 +208,6 @@ SOURCES = [
 
     # ── Chinese ─────────────────────────────────────────────────────────────
     {
-        "name": "BBC 中文",
-        "feed_url": "https://feeds.bbci.co.uk/zhongwen/simp/rss.xml",
-        "lang": "zh",
-        "license": "attribution",
-        "min_words": 40,
-    },
-    {
         "name": "Deutsche Welle 中文",
         "feed_url": "https://rss.dw.com/rdf/rss-chi-all",
         "lang": "zh",
@@ -230,13 +216,6 @@ SOURCES = [
     },
 
     # ── Russian ─────────────────────────────────────────────────────────────
-    {
-        "name": "BBC Русская служба",
-        "feed_url": "https://feeds.bbci.co.uk/russian/rss.xml",
-        "lang": "ru",
-        "license": "attribution",
-        "min_words": 60,
-    },
     {
         "name": "Deutsche Welle Русский",
         "feed_url": "https://rss.dw.com/rdf/rss-rus-all",
@@ -254,14 +233,6 @@ SOURCES = [
         "min_words": 60,
     },
 
-    # ── Spanish ─────────────────────────────────────────────────────────────
-    {
-        "name": "BBC Mundo",
-        "feed_url": "https://feeds.bbci.co.uk/mundo/rss.xml",
-        "lang": "es",
-        "license": "attribution",
-        "min_words": 60,
-    },
 
     # ── Greek ───────────────────────────────────────────────────────────────
     {
