@@ -110,11 +110,11 @@
         </p>
         <!-- Reveal transcript -->
         <button
-          v-if="!showTranscript"
-          @click="showTranscript = true"
+          v-if="!clipShowTranscript"
+          @click="clipShowTranscript = true"
           class="text-xs text-blue-400 hover:text-blue-300 transition-all self-start"
         >Reveal transcript</button>
-        <p v-if="showTranscript" class="text-xs text-gray-400 leading-snug border-t border-gray-700 pt-2">{{ activeClip.context }}</p>
+        <p v-if="clipShowTranscript" class="text-xs text-gray-400 leading-snug border-t border-gray-700 pt-2">{{ activeClip.context }}</p>
       </template>
     </template>
 
@@ -419,13 +419,13 @@ const clipReportSent = ref(false)
 const testMode       = ref(false)
 const testInput      = ref('')
 const testResult     = ref(null)
-const showTranscript = ref(false)
+const clipShowTranscript = ref(false)
 
 function toggleTest() {
   testMode.value = !testMode.value
   testInput.value = ''
   testResult.value = null
-  showTranscript.value = false
+  clipShowTranscript.value = false
 }
 
 function checkAnswer() {
@@ -444,7 +444,7 @@ watch(activeClip, () => {
   testMode.value = false
   testInput.value = ''
   testResult.value = null
-  showTranscript.value = false
+  clipShowTranscript.value = false
 })
 
 async function submitClipReport() {
