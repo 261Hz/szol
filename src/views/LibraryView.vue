@@ -137,6 +137,31 @@
             class="mt-1 text-xs text-gray-400 hover:text-gray-200 disabled:opacity-40 text-center py-2 border border-gray-700 rounded-lg hover:border-gray-500 transition-all"
           >{{ feedLoading ? 'Loading…' : 'Load more' }}</button>
         </div>
+
+        <!-- Suggest a source -->
+        <div class="mt-2 border-t border-gray-800 pt-2">
+          <button v-if="!suggestOpen && !suggestDone" @click="suggestOpen = true"
+            class="text-xs text-gray-500 hover:text-gray-300 transition-colors w-full text-center py-1">
+            + Suggest a source
+          </button>
+          <div v-if="suggestDone" class="text-xs text-green-400 text-center py-1">Suggestion received, thanks!</div>
+          <div v-if="suggestOpen && !suggestDone" class="flex flex-col gap-2">
+            <input v-model="suggestUrl" type="url" placeholder="https://example.com/feed"
+              class="w-full text-xs bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-500" />
+            <input v-model="suggestNote" type="text" placeholder="Note (optional)"
+              class="w-full text-xs bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-500" />
+            <div class="flex gap-2">
+              <button @click="submitSuggestion" :disabled="suggestSending || !suggestUrl.trim()"
+                class="flex-1 text-xs py-1.5 rounded-md bg-gray-700 text-gray-200 hover:bg-gray-600 disabled:opacity-40 transition-all">
+                {{ suggestSending ? 'Sending…' : 'Submit' }}
+              </button>
+              <button @click="suggestOpen = false; suggestUrl = ''; suggestNote = ''"
+                class="text-xs px-3 py-1.5 rounded-md border border-gray-700 text-gray-500 hover:text-gray-300 transition-all">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -401,7 +426,7 @@ import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import ClickableText from '../components/ClickableText.vue'
 // Supabase functions: fetch/submit stories from the remote database.
-import { fetchCommunityStories, submitStory, fetchCuratedStories, saveUserStory, getUserStories, deleteUserStory, fetchFeed, fetchSubstackFeed } from '../utils/api.js'
+import { fetchCommunityStories, submitStory, fetchCuratedStories, saveUserStory, getUserStories, deleteUserStory, fetchFeed, fetchSubstackFeed, suggestSource } from '../utils/api.js'
 import { getAllProgress } from '../utils/api.js'
 // Wikipedia helpers for the Today and On This Day sections.
 import { fetchFeaturedArticle, fetchOnThisDay, fetchQuoteOfDay } from '../utils/wikipedia.js'
@@ -601,6 +626,27 @@ async function loadFeed(reset = false) {
   feedLoading.value = false
 }
 
+
+// ── Source suggestion ─────────────────────────────────────────────────────────
+const suggestOpen    = ref(false)
+const suggestUrl     = ref('')
+const suggestNote    = ref('')
+const suggestSending = ref(false)
+const suggestDone    = ref(false)
+
+async function submitSuggestion() {
+  const url = suggestUrl.value.trim()
+  if (!url) return
+  suggestSending.value = true
+  const ok = await suggestSource(url, props.lang, suggestNote.value.trim())
+  suggestSending.value = false
+  if (ok) {
+    suggestDone.value = true
+    suggestUrl.value  = ''
+    suggestNote.value = ''
+    setTimeout(() => { suggestDone.value = false; suggestOpen.value = false }, 2500)
+  }
+}
 
 // ── Substack feed ──────────────────────────────────────────────────────────────
 const substackArticles  = ref([])
