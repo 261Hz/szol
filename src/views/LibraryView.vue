@@ -190,7 +190,14 @@
               <span v-if="ep.has_transcript" class="text-xs text-green-600">· transcript ready</span>
             </div>
             <div v-if="ep.description" class="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{{ ep.description }}</div>
-            <div class="mt-2 flex items-center gap-2">
+            <div class="mt-2 flex items-center gap-2 flex-wrap">
+              <button
+                @click="playingPodcastId = playingPodcastId === ep.id ? null : ep.id"
+                :class="['text-xs px-3 py-1.5 rounded-md transition-all border',
+                  playingPodcastId === ep.id
+                    ? 'border-blue-500 text-blue-400'
+                    : 'border-gray-600 text-gray-300 hover:border-gray-400']"
+              >{{ playingPodcastId === ep.id ? '⏸ Close player' : '▶ Listen' }}</button>
               <button
                 @click="openEpisode(ep)"
                 :disabled="transcribingId === ep.id"
@@ -199,12 +206,19 @@
                     ? 'bg-green-700 text-white hover:bg-green-600'
                     : 'border border-gray-600 text-gray-300 hover:border-gray-400']"
               >
-                <span v-if="transcribingId === ep.id">Transcribing… (may take a minute)</span>
-                <span v-else-if="ep.has_transcript">Read transcript →</span>
+                <span v-if="transcribingId === ep.id">Transcribing…</span>
+                <span v-else-if="ep.has_transcript">Read →</span>
                 <span v-else>Transcribe + read →</span>
               </button>
               <span v-if="transcribeError === ep.id" class="text-xs text-red-400">Transcription failed</span>
             </div>
+            <audio
+              v-if="playingPodcastId === ep.id"
+              :src="ep.audio_url"
+              controls
+              class="w-full mt-2 rounded"
+              style="height:36px"
+            />
           </div>
         </div>
       </div>
@@ -698,8 +712,9 @@ async function submitSuggestion() {
 // ── Podcasts ──────────────────────────────────────────────────────────────────
 const podcastEpisodes  = ref([])
 const podcastLoading   = ref(false)
-const transcribingId   = ref(null)   // episode ID currently being transcribed
+const transcribingId   = ref(null)
 const transcribeError  = ref(null)
+const playingPodcastId = ref(null)
 
 async function loadPodcasts() {
   podcastLoading.value = true
