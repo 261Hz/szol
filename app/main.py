@@ -52,10 +52,11 @@ app.include_router(stats.router)         # /stats
 app.include_router(collections.router)   # /collections
 
 
-@app.post("/ingest/run")
+@app.post("/ingest/run", status_code=202)
 def trigger_ingest(x_worker_secret: str = Header(...)):
     if x_worker_secret != settings.WORKER_SECRET:
         raise HTTPException(status_code=401, detail="unauthorized")
+    import threading
     from .ingest.run import run
-    inserted = run()
-    return {"inserted": inserted}
+    threading.Thread(target=run, daemon=True).start()
+    return {"status": "ingest started"}
