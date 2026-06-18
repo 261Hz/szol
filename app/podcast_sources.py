@@ -10,7 +10,7 @@ Optional keys: max_episodes (int, default 10)
 
 PODCAST_SOURCES = [
     {
-        "name": "Podcast Test",
+        "name": "The Joe Rogan Experience",
         "feed_url": "https://feeds.megaphone.fm/GLT1412515089",
         "lang": "en",
         "max_episodes": 10,
