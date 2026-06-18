@@ -260,13 +260,14 @@ async function loadWikisourcePage(result) {
   loadError.value = ''
   article.value   = null
   try {
-    const url  = `https://${readLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(result.title)}&prop=wikitext&format=json&origin=*`
+    // prop=text gives fully-rendered HTML, which includes ProofreadPage transcluded content
+    const url  = `https://${readLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(result.title)}&prop=text&disableeditsection=1&format=json&origin=*`
     const data = await fetch(url).then(r => r.json())
     if (data.error) { loadError.value = data.error.info ?? 'Page not found.'; return }
 
-    const wikitext = data.parse?.wikitext?.['*'] ?? ''
-    const paras    = parseWikitext(wikitext)
-    if (!paras.length) { loadError.value = 'No readable text found. Try a chapter page directly.'; return }
+    const html  = data.parse?.text?.['*'] ?? ''
+    const paras = parseWikisourceHTML(html)
+    if (!paras.length) { loadError.value = 'No readable text found. Try searching for a chapter page.'; return }
 
     article.value = {
       title:      data.parse.title,
@@ -280,20 +281,17 @@ async function loadWikisourcePage(result) {
   }
 }
 
-function parseWikitext(text) {
-  return text
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<ref[^>]*>[\s\S]*?<\/ref>/g, '')
-    .replace(/<ref[^/]*\/>/g, '')
-    .replace(/\{\{[^{}]*(?:\{\{[^{}]*\}\}[^{}]*)?\}\}/g, '')
-    .replace(/\[\[(?:[^\]|]*\|)?([^\]]+)\]\]/g, '$1')
-    .replace(/'''([^']*?)'''/g, '$1')
-    .replace(/''([^']*?)''/g, '$1')
-    .replace(/^=+[^=]+=+$/gm, '')
-    .replace(/<[^>]+>/g, '')
-    .split(/\n{2,}/)
-    .map(p => p.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim())
-    .filter(p => p.length > 80 && !/^\[/.test(p))
+function parseWikisourceHTML(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  // Remove noise: references, TOC, navigation, categories, edit links
+  doc.querySelectorAll(
+    '.reference, .reflist, .toc, .noprint, .ws-noexport, ' +
+    '.mw-editsection, sup, .mw-headline, table, .poem'
+  ).forEach(el => el.remove())
+
+  return [...doc.querySelectorAll('.mw-parser-output p')]
+    .map(p => p.textContent.replace(/\s+/g, ' ').trim())
+    .filter(p => p.length > 80)
 }
 
 async function loadWikiArticle(result) {
