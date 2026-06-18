@@ -1,6 +1,6 @@
-// api/substack-feed.js — fetches recent Substack posts filtered by language.
-// Discovers publications via the leaderboard API, falls back to a seed list.
-// No category filtering — just language.
+// api/substack-feed.js — returns recent Substack posts in the target language.
+// Uses a curated seed list per language; no leaderboard API (too slow from serverless).
+// Results CDN-cached 4h so the function rarely executes.
 //
 // ?lang=de&limit=10
 
@@ -62,18 +62,18 @@ function parseRSS(xml) {
   return { items, lang: chanLang, title: chanTitle, author: chanEd }
 }
 
+// 3s timeout — fast enough to finish within Vercel's 10s limit when fetching 8 in parallel
 async function fetchRSS(slug) {
   try {
     const r = await fetch(`https://${slug}.substack.com/feed`, {
-      headers: { 'User-Agent': 'SzolBot/1.0' },
-      signal: AbortSignal.timeout(5000),
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(3000),
     })
     if (!r.ok) return null
     const xml = await r.text()
     const p   = parseRSS(xml)
     if (!p.lang && p.items.length) {
-      const sample = p.items.slice(0, 3).map(i => i.title + ' ' + i.description).join(' ')
-      p.lang = detectLang(sample)
+      p.lang = detectLang(p.items.slice(0, 3).map(i => i.title + ' ' + i.description).join(' '))
     }
     return { ...p, slug }
   } catch {
@@ -81,60 +81,43 @@ async function fetchRSS(slug) {
   }
 }
 
-// Seed list of known non-English Substack publications, by language.
-// The leaderboard is tried first; seeds are the fallback.
+// Curated seed list of Substack publications per language.
+// Add more slugs here as you discover them — content is always live from RSS.
 const SEEDS = {
-  de: ['nilsminkmar','krautreporter','riffreporter','correctiv','uebermedien'],
-  fr: ['lessurligneurs','davduf','mariefrance','latribune','ledesk'],
-  es: ['elordenmundial','gatopardo','masdemedios','elconfidencial','elespanol'],
-  pt: ['agenciapublica','piauimagazine','nexojornal'],
-  it: ['minimamoralia','editorialedomani','ilpost'],
-  ru: ['meduza','theins','novayagazeta'],
-  ja: ['nikkei-substack','tokyotimes'],
-  nl: ['decorrespondent','groene'],
-  pl: ['tokfm','noizz'],
-  tr: ['gazetesayfa','bianet'],
-  ko: ['hankookilbo'],
-  en: ['platformer','pragmaticengineer','noahpinion','slowboring','acoup','cremieux','astralcodexten'],
-}
-
-async function leaderboardSlugs(limit = 50) {
-  try {
-    const r = await fetch(
-      `https://substack.com/api/v1/leaderboard?limit=${limit}&type=newsletter`,
-      { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' }, signal: AbortSignal.timeout(6000) }
-    )
-    if (!r.ok) return []
-    const data = await r.json()
-    const pubs = data.leaderboard ?? data.results ?? data.publications ?? data.items ?? []
-    return pubs.map(p => p.subdomain ?? p.slug ?? p.handle).filter(Boolean)
-  } catch {
-    return []
-  }
+  de: ['krautreporter','riffreporter','correctiv','uebermedien','nilsminkmar','nils-minkmar'],
+  fr: ['lessurligneurs','davduf','ledesk','streetpress','le-grand-continent'],
+  es: ['elordenmundial','gatopardo','masdemedios','politica-argentina','ladiaria'],
+  pt: ['agenciapublica','piauimagazine','nexojornal','the-intercept-brasil'],
+  it: ['minimamoralia','editorialedomani','ilpost','valigia-blu'],
+  ru: ['meduza','theins','novayagazeta','the-insider'],
+  ja: ['tokyotimes','japan-now','nipponica'],
+  ko: ['hankookilbo','koreaexpose'],
+  nl: ['decorrespondent','groene-amsterdammer'],
+  pl: ['konkret24','oko-press','gazeta-wyborcza-substack'],
+  tr: ['bianet','medyascope','gazete-duvar'],
+  sv: ['omni-nyheter','di-digital','svt-substack'],
+  zh: ['initium-media','chinadigitaltimes'],
+  ar: ['alaraby','asharq-al-awsat-substack'],
+  en: ['platformer','pragmaticengineer','noahpinion','slowboring','acoup',
+       'cremieux','astralcodexten','freddie-deboer','hamiltonnolan','persuasion'],
 }
 
 export default async function handler(req, res) {
   const { lang = 'en', limit = '10' } = req.query
   const n = Math.min(parseInt(limit) || 10, 20)
 
-  // Get publication slugs — leaderboard first, language-specific seeds as fallback
-  let slugs = await leaderboardSlugs(50)
-  console.log(`substack-feed lang=${lang} leaderboard=${slugs.length} slugs`)
-  const langSeeds = SEEDS[lang] ?? []
-  const seen = new Set(slugs)
-  for (const s of langSeeds) if (!seen.has(s)) slugs.push(s)
-  console.log(`substack-feed total slugs to fetch: ${Math.min(slugs.length, 20)}`)
+  const slugs = SEEDS[lang] ?? SEEDS['en']
+  console.log(`substack-feed lang=${lang} slugs=${slugs.length}`)
 
-  // Fetch up to 20 feeds in parallel (Vercel function has ~10s budget)
-  const feeds = await Promise.all(slugs.slice(0, 20).map(fetchRSS))
-  const fetched = feeds.filter(Boolean)
-  console.log(`substack-feed fetched ${fetched.length}/${Math.min(slugs.length, 20)} feeds`)
+  // Fetch up to 8 feeds in parallel — leaves headroom within Vercel's 10s limit
+  const feeds = await Promise.all(slugs.slice(0, 8).map(fetchRSS))
+  const ok = feeds.filter(Boolean)
+  console.log(`substack-feed fetched ${ok.length}/${Math.min(slugs.length, 8)} feeds`)
+  ok.forEach(f => console.log(`  ${f.slug}: lang=${f.lang} items=${f.items.length}`))
 
   const articles = []
-  for (const feed of feeds) {
-    if (!feed || !feed.items.length) continue
-    const feedLang = feed.lang || detectLang(feed.items.map(i => i.title + ' ' + i.description).join(' '))
-    console.log(`  ${feed.slug}: detected=${feedLang} items=${feed.items.length}`)
+  for (const feed of ok) {
+    const feedLang = feed.lang || 'en'
     if (feedLang !== lang) continue
     for (const item of feed.items.slice(0, 2)) {
       articles.push({
@@ -150,7 +133,7 @@ export default async function handler(req, res) {
     if (articles.length >= n) break
   }
 
-  console.log(`substack-feed returning ${articles.length} articles for lang=${lang}`)
+  console.log(`substack-feed returning ${articles.length} articles`)
   res.setHeader('Cache-Control', 's-maxage=14400, stale-while-revalidate=3600')
   return res.status(200).json(articles.slice(0, n))
 }
