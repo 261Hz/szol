@@ -42,15 +42,6 @@
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowfullscreen
       />
-      <!-- Overlay to block the CC button in the YouTube controls bar -->
-      <div
-        v-if="testMode"
-        class="absolute inset-0 pointer-events-none"
-        style="z-index:1"
-      >
-        <!-- Covers the right side of the bottom control bar where CC lives -->
-        <div class="absolute bottom-0 right-0 pointer-events-auto" style="width:22%;height:48px;background:transparent" />
-      </div>
     </div>
 
     <!-- Normal view: transcript + report -->
@@ -113,7 +104,7 @@
         <!-- Word-by-word colouring -->
         <p class="text-sm leading-relaxed">
           <template v-for="(s, i) in testResult.scored" :key="i">
-            <span :class="s.ok ? 'text-green-400' : 'text-red-400 line-through opacity-60'">{{ s.w }}</span>
+            <span :class="s.ok ? 'bg-green-800 text-green-200 rounded px-0.5' : 'bg-purple-900 text-purple-200 rounded px-0.5'">{{ s.w }}</span>
             <span> </span>
           </template>
         </p>
