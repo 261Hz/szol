@@ -34,7 +34,16 @@
     <p v-if="activeClip.context" class="text-sm text-gray-300 leading-snug px-1">{{ activeClip.context }}</p>
   </div>
 
-  <div class="flex flex-col gap-3">
+  <!-- Auth gate: stories + player require login -->
+  <div v-if="!props.currentUser" class="flex flex-col items-center gap-3 py-16 text-center">
+    <div class="text-gray-400 text-sm">Sign in to access listening exercises.</div>
+    <button
+      @click="emit('openAuth')"
+      class="text-sm px-5 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white transition-all"
+    >Sign in</button>
+  </div>
+
+  <div v-else class="flex flex-col gap-3">
 
     <!-- Story picker -->
     <div v-if="!selectedStory" class="flex flex-col gap-3">
@@ -283,7 +292,7 @@
       </div>
 
     </div>
-  </div>
+  </div><!-- /v-else (auth gate) -->
 
 
 </template>
@@ -304,7 +313,7 @@ const props = defineProps({
   clip:        Object,  // { video_id, start_sec, context } from Vocab → Video tab
 })
 
-const emit = defineEmits(['closeClip'])
+const emit = defineEmits(['closeClip', 'openAuth'])
 
 const activeClip = ref(props.clip ?? null)
 watch(() => props.clip, c => { activeClip.value = c ?? null })
@@ -335,7 +344,7 @@ async function loadStories() {
 
 watch(() => props.lang, () => {
   backToList()
-  loadStories()
+  if (props.currentUser) loadStories()
 })
 
 // ── Load a story into the player ──────────────────────────────────────────────
@@ -728,7 +737,7 @@ async function downloadAudio() {
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 onMounted(() => {
-  loadStories()
+  if (props.currentUser) loadStories()
   // Pre-load YouTube iframe API (used by dictation player).
   if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
     const s = document.createElement('script')
