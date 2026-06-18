@@ -102,10 +102,12 @@ class QuotaExceeded(Exception):
     pass
 
 def yt_search(word, lang):
+    # Search the stem so we find videos even when the word only appears in inflected form
+    query = _stem(word.lower().replace("-", "").replace(" ", ""), lang)
     r = requests.get(
         "https://www.googleapis.com/youtube/v3/search",
         params={
-            "q": word, "type": "video",
+            "q": query, "type": "video",
             "relevanceLanguage": lang[:2],
             "videoDuration": "medium",
             "maxResults": str(MAX_VIDEOS),
@@ -118,29 +120,25 @@ def yt_search(word, lang):
     if any(e.get("reason") == "quotaExceeded" for e in data.get("error", {}).get("errors", [])):
         raise QuotaExceeded("YouTube Data API daily quota exceeded — try again tomorrow")
     ids = [item["id"]["videoId"] for item in data.get("items", []) if "videoId" in item.get("id", {})]
-    print(f"  search '{word}' → {ids}")
+    label = f"'{query}'" if query != word else f"'{word}'"
+    print(f"  search {label} → {ids}")
     return ids
 
 # ── Transcript fetching ───────────────────────────────────────────────────────
 
 def _fetch_captions(video_id, lang):
-    """youtube-transcript-api: free, no download, no Whisper cost."""
+    """youtube-transcript-api v1.x: free, no download, no Whisper cost."""
     try:
-        from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound
-        listing = YouTubeTranscriptApi.list_transcripts(video_id)
+        from youtube_transcript_api import YouTubeTranscriptApi
+        ytt = YouTubeTranscriptApi()
         lang_base = lang[:2]
-        try:
-            t = listing.find_transcript([lang, lang_base, "en"])
-        except NoTranscriptFound:
-            t = listing.find_generated_transcript([lang, lang_base, "en"])
-        entries = t.fetch()
+        transcript = ytt.fetch(video_id, languages=[lang, lang_base, "en"])
         segs = [
-            {"text": e["text"], "start": e["start"], "end": e["start"] + e.get("duration", 3)}
-            for e in entries
+            {"text": e.text, "start": e.start, "end": e.start + e.duration}
+            for e in transcript
         ]
-        kind = "auto-captions" if t.is_generated else "captions"
-        print(f"  captions OK — {len(segs)} segments ({kind})")
-        return segs, kind
+        print(f"  captions OK — {len(segs)} segments")
+        return segs, "captions"
     except Exception as e:
         print(f"  captions unavailable: {type(e).__name__}: {e}")
         return None, None
@@ -205,14 +203,38 @@ def get_transcript(video_id, lang):
 
 # ── Word matching ─────────────────────────────────────────────────────────────
 
-def find_clips(word, segments):
+# Common inflectional suffixes per language (longest first so we strip the most specific one).
+# Used to find stems that match across noun/adjective declensions and verb conjugations.
+_SUFFIXES = {
+    "de": ["esten", "sten", "erns", "ern", "ens", "em", "en", "er", "es", "e"],
+    "fr": ["tion", "ment", "ons", "ent", "ant", "aux", "als", "ez", "es", "er", "e"],
+    "es": ["ción", "mente", "ando", "iendo", "ados", "idas", "idos", "ado", "ida", "ido", "an", "as", "os", "a", "o"],
+    "pt": ["ção", "mente", "ando", "endo", "ados", "idas", "ido", "ada", "as", "os", "a", "o"],
+    "it": ["zione", "mente", "ando", "endo", "ati", "ite", "iti", "ate", "ano", "ono", "i", "e", "a", "o"],
+    "nl": ["sten", "eren", "ers", "en", "es", "e"],
+    "ru": ["ого", "его", "ому", "ему", "ых", "их", "ым", "им", "ой", "ей", "ий", "ая", "ое", "ые", "ый", "ами", "ах"],
+    "pl": ["owych", "owego", "owym", "owe", "owy", "owa", "ią", "ie", "ę", "ą"],
+}
+
+def _stem(word, lang):
+    """Strip the longest matching inflectional suffix; return root if ≥ 5 chars, else word."""
+    w = word.lower().replace("-", "").replace(" ", "")
+    for suf in _SUFFIXES.get(lang[:2], []):
+        if w.endswith(suf) and len(w) - len(suf) >= 5:
+            return w[:-len(suf)]
+    return w
+
+def find_clips(word, segments, lang=""):
     target   = word.lower()
     target_c = target.replace(" ", "").replace("-", "")
+    stem     = _stem(target_c, lang)
+
     clips = []
     for seg in segments:
         text = (seg.get("text") or "").strip()
         tl   = text.lower()
-        if target in tl or target_c in tl.replace(" ", "").replace("-", ""):
+        tl_c = tl.replace(" ", "").replace("-", "")
+        if target in tl or target_c in tl_c or (len(stem) >= 5 and stem in tl_c):
             start = int(float(seg.get("start", 0)))
             end   = int(float(seg.get("end",   start + 3)))
             clips.append({"start_sec": start, "end_sec": end, "context": text})
@@ -288,6 +310,7 @@ def run_all():
 
         # Map: video_id → set of words that found it via search
         video_words = defaultdict(set)
+        words_searched = set()  # words that had at least one YouTube result
         for word in words:
             try:
                 ids = yt_search(word, lang)
@@ -298,6 +321,7 @@ def run_all():
                 _mark_skipped(word, lang)
                 print(f"  no videos found for '{word}' — skipped")
                 continue
+            words_searched.add(word)
             for vid in ids:
                 video_words[vid].add(word)
 
@@ -305,6 +329,7 @@ def run_all():
             continue
 
         # One transcript fetch per unique video, matched against ALL candidate words
+        words_with_clips = set()
         for video_id, candidate_words in video_words.items():
             print(f"\n[{video_id}] — candidates: {', '.join(sorted(candidate_words))}")
             segs = get_transcript(video_id, lang)
@@ -314,15 +339,22 @@ def run_all():
 
             for word in sorted(candidate_words):
                 if already_has_clips(word, lang):
+                    words_with_clips.add(word)
                     print(f"  '{word}': already done")
                     continue
-                clips = find_clips(word, segs)
+                clips = find_clips(word, segs, lang)
                 print(f"  '{word}': {len(clips)} clip(s) found")
                 if clips:
+                    words_with_clips.add(word)
                     try:
                         post_clips(word, lang, video_id, clips[:MAX_CLIPS])
                     except Exception as e:
                         print(f"  post error: {e}")
+
+        # Words that had search results but no clips in any video → skip permanently
+        for word in words_searched - words_with_clips:
+            _mark_skipped(word, lang)
+            print(f"  '{word}': no clips in any video — skipped")
 
     print("\nAll done.")
 
@@ -339,7 +371,7 @@ def run_single(word, lang):
         segs = get_transcript(vid, lang)
         if not segs:
             continue
-        clips = find_clips(word, segs)
+        clips = find_clips(word, segs, lang)
         print(f"  [{vid}] {len(clips)} clip(s)")
         if clips:
             post_clips(word, lang, vid, clips[:MAX_CLIPS])
