@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from . import models
 from .database import engine
 from .routers import user, auth, stories, words, vocab, progress, chat, transcript, listen, concept, user_stories, messages, feed, stats, collections
@@ -50,3 +50,12 @@ app.include_router(messages.router)      # /messages
 app.include_router(feed.router)          # /feed
 app.include_router(stats.router)         # /stats
 app.include_router(collections.router)   # /collections
+
+
+@app.post("/ingest/run")
+def trigger_ingest(x_worker_secret: str = Header(...)):
+    if x_worker_secret != settings.WORKER_SECRET:
+        raise HTTPException(status_code=401, detail="unauthorized")
+    from .ingest.run import run
+    inserted = run()
+    return {"inserted": inserted}
