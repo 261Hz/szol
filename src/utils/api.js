@@ -223,6 +223,18 @@ export async function getVocabClips(word, lang, limit = 5) {
   return await res.json()
 }
 
+// Fire-and-forget: ask the backend to queue a word for clip generation.
+// Works for guests and logged-in users alike — no auth required.
+export function requestWordClip(word, lang) {
+  const w = word?.trim()
+  if (!w || w.length < 2 || w.length > 40) return
+  fetch('/api/queue-word', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ word: w, lang }),
+  }).catch(() => {})
+}
+
 // ── User stories (private, synced to account) ────────────────────────────────
 
 export async function saveUserStory(story) {

@@ -18,6 +18,23 @@ import time
 
 import requests
 
+SKIP_FILE = os.path.join(os.path.dirname(__file__), "clips_skipped.txt")
+
+def _load_skipped():
+    try:
+        with open(SKIP_FILE, encoding="utf-8") as f:
+            return set(l.strip() for l in f if l.strip())
+    except FileNotFoundError:
+        return set()
+
+def _mark_skipped(word, lang):
+    key = f"{word.lower()}::{lang}"
+    with open(SKIP_FILE, "a", encoding="utf-8") as f:
+        f.write(key + "\n")
+    print(f"  marked as skipped (saved to {SKIP_FILE})")
+
+_SKIPPED = _load_skipped()
+
 BACKEND_URL   = os.getenv("SZOL_BACKEND_URL", "https://szol.onrender.com")
 YT_API_KEY    = os.getenv("YOUTUBE_API_KEY", "")
 GROQ_API_KEY  = os.getenv("GROQ_API_KEY", "")
@@ -143,6 +160,11 @@ def process(word, lang):
     print(f"\n{'='*50}")
     print(f"word={word!r}  lang={lang}")
 
+    skip_key = f"{word.lower()}::{lang}"
+    if skip_key in _SKIPPED:
+        print("  skipping — previously found no YouTube results")
+        return
+
     try:
         r = requests.get(
             f"{BACKEND_URL}/vocab/clips",
@@ -167,6 +189,8 @@ def process(word, lang):
         raise  # bubble up to stop the whole run
     if not video_ids:
         print("  no videos found")
+        _mark_skipped(word, lang)
+        _SKIPPED.add(skip_key)
         return
 
     total = 0
