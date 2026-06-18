@@ -7,7 +7,12 @@
       <select v-model="readLang" @change="reset" class="text-xs bg-slate-800 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none">
         <option v-for="(l, code) in LANGS" :key="code" :value="code">{{ l.name }}</option>
       </select>
-      <span class="text-xs text-gray-500">→ translate to</span>
+      <button
+        @click="swapLangs"
+        class="text-gray-500 hover:text-violet-400 transition-all text-sm px-1"
+        title="Swap languages"
+      >⇄</button>
+      <span class="text-xs text-gray-500">translate to</span>
       <select v-model="toLang" @change="reset" class="text-xs bg-slate-800 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none">
         <option v-for="(l, code) in LANGS" :key="code" :value="code">{{ l.name }}</option>
       </select>
@@ -112,27 +117,35 @@
       <div class="flex items-start gap-3">
         <button @click="goBack" class="flex-shrink-0 text-gray-500 hover:text-white text-lg leading-none pt-0.5 transition-all">←</button>
         <div class="flex flex-col gap-0.5 min-w-0 flex-1">
-          <h2 class="font-semibold text-gray-100 text-base leading-snug" :dir="isRTL(readLang) ? 'rtl' : 'ltr'">{{ article.title }}</h2>
-          <div class="text-xs text-gray-500">
-            Paragraph {{ paraIdx + 1 }} / {{ article.paragraphs.length }}
-            · <span class="text-violet-400">{{ LANGS[readLang]?.name }}</span>
-            → <span class="text-emerald-400">{{ LANGS[toLang]?.name }}</span>
+          <h2 class="font-semibold text-gray-100 text-base leading-snug">{{ article.title }}</h2>
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs text-gray-500">
+              Paragraph {{ paraIdx + 1 }} / {{ article.paragraphs.length }}
+              · <span class="text-violet-400">{{ LANGS[srcLang]?.name }}</span>
+              → <span class="text-emerald-400">{{ LANGS[tgtLang]?.name }}</span>
+            </span>
+            <!-- Direction flip — only when both sides exist for this paragraph -->
+            <button
+              v-if="currentPara.l1 && currentPara.l2"
+              @click="flipDirection"
+              class="text-[10px] px-2 py-0.5 rounded border border-gray-700 text-gray-500 hover:border-violet-600 hover:text-violet-400 transition-all"
+            >⇄ flip</button>
           </div>
         </div>
       </div>
 
-      <!-- L2 source paragraph -->
+      <!-- Source paragraph (what you read) -->
       <div
         class="bg-slate-900 border border-violet-800/50 rounded-xl px-4 py-4 text-sm text-gray-100 leading-relaxed"
-        :dir="isRTL(readLang) ? 'rtl' : 'ltr'"
-      >{{ currentPara.l2 }}</div>
+        :dir="isRTL(srcLang) ? 'rtl' : 'ltr'"
+      >{{ srcText }}</div>
 
       <!-- Translation input -->
       <textarea
         v-model="userInput"
         rows="4"
-        :placeholder="`Your ${LANGS[toLang]?.name ?? toLang} translation…`"
-        :dir="isRTL(toLang) ? 'rtl' : 'ltr'"
+        :placeholder="`Your ${LANGS[tgtLang]?.name ?? tgtLang} translation…`"
+        :dir="isRTL(tgtLang) ? 'rtl' : 'ltr'"
         class="w-full bg-slate-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-100 outline-none focus:border-emerald-600 resize-none placeholder:text-gray-600 transition-all"
       />
 
@@ -155,7 +168,7 @@
         </div>
       </div>
 
-      <!-- Reference (gated) -->
+      <!-- Reference (gated until user has typed or checked) -->
       <div class="flex flex-col gap-2">
         <button
           v-if="userInput.trim() || checkResult"
@@ -166,10 +179,10 @@
 
         <div v-if="showRef">
           <div
-            v-if="currentPara.l1"
+            v-if="refText"
             class="bg-slate-900 border border-amber-800/40 rounded-xl px-4 py-4 text-sm text-amber-100/80 leading-relaxed"
-            :dir="isRTL(toLang) ? 'rtl' : 'ltr'"
-          >{{ currentPara.l1 }}</div>
+            :dir="isRTL(tgtLang) ? 'rtl' : 'ltr'"
+          >{{ refText }}</div>
           <div v-else class="text-xs text-gray-600 py-2">No reference available for this paragraph.</div>
         </div>
       </div>
@@ -210,11 +223,33 @@ const readLang     = ref(props.lang ?? 'fr')
 const toLang       = ref('en')
 const activeSource = ref('books')
 
+// 'forward' = read in readLang, translate to toLang
+// 'reverse' = read in toLang, translate to readLang
+const direction = ref('forward')
+
 watch(() => props.lang, l => { if (l && l !== readLang.value) { readLang.value = l; reset() } })
 
 const sameLang = computed(() => readLang.value === toLang.value)
 
+// Derived: which lang is the source (read) and which is the target (translate)
+const srcLang = computed(() => direction.value === 'forward' ? readLang.value : toLang.value)
+const tgtLang = computed(() => direction.value === 'forward' ? toLang.value  : readLang.value)
+
 const featuredStories = computed(() => PARALLEL_STORIES.filter(s => s.texts[readLang.value]))
+
+function swapLangs() {
+  const tmp  = readLang.value
+  readLang.value = toLang.value
+  toLang.value   = tmp
+  reset()
+}
+
+function flipDirection() {
+  direction.value = direction.value === 'forward' ? 'reverse' : 'forward'
+  userInput.value   = ''
+  checkResult.value = null
+  showRef.value     = false
+}
 
 // ── Search ────────────────────────────────────────────────────────────────────
 
@@ -239,7 +274,6 @@ async function searchWikisource() {
     const titles = data[1] ?? []
     if (!titles.length) { loadError.value = 'No results.'; return }
 
-    // Batch-fetch all langlinks for all results at once
     const llUrl  = `https://${readLang.value}.wikisource.org/w/api.php?action=query&prop=langlinks&lllimit=max&titles=${titles.map(encodeURIComponent).join('|')}&format=json&origin=*`
     const llData = await fetch(llUrl).then(r => r.json())
 
@@ -288,7 +322,11 @@ const checkResult = ref(null)
 const checking    = ref(false)
 const showRef     = ref(false)
 
+// Each paragraph is { l2: string (in readLang), l1: string|null (in toLang) }
+// srcText/refText respect the current direction
 const currentPara = computed(() => article.value?.paragraphs?.[paraIdx.value] ?? { l2: '', l1: null })
+const srcText     = computed(() => direction.value === 'forward' ? currentPara.value.l2 : (currentPara.value.l1 ?? ''))
+const refText     = computed(() => direction.value === 'forward' ? currentPara.value.l1 : currentPara.value.l2)
 
 async function loadResult(r) {
   activeSource.value === 'books' ? await loadWikisourcePage(r) : await loadWikiArticle(r)
@@ -299,7 +337,6 @@ async function loadWikisourcePage(result) {
   loadError.value = ''
   article.value   = null
   try {
-    // Fetch rendered HTML + all langlinks (lllang not supported in action=parse)
     const url  = `https://${readLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(result.title)}&prop=text|langlinks&disableeditsection=1&format=json&origin=*`
     const data = await fetch(url).then(r => r.json())
     if (data.error) { loadError.value = data.error.info ?? 'Page not found.'; return }
@@ -307,15 +344,10 @@ async function loadWikisourcePage(result) {
     const pageTitle = data.parse.title
     const html      = data.parse?.text?.['*'] ?? ''
     const l2Paras   = parseWikisourceHTML(html)
-
-    // Extract chapter links in document order from the rendered HTML
     const chapterLinks = extractChapterLinks(html, pageTitle)
-
-    // Langlink to target language (only root/index pages usually have these)
-    const l1RootTitle = (data.parse?.langlinks ?? []).find(l => l.lang === toLang.value)?.['*'] ?? null
+    const l1RootTitle  = (data.parse?.langlinks ?? []).find(l => l.lang === toLang.value)?.['*'] ?? null
 
     if (chapterLinks.length && l2Paras.length < 4) {
-      // Index/ToC page — pre-fetch L1 chapter list so each chapter knows its L1 counterpart
       let mappedChapters = chapterLinks
       if (l1RootTitle) {
         const l1IdxUrl  = `https://${toLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(l1RootTitle)}&prop=text&disableeditsection=1&format=json&origin=*`
@@ -331,11 +363,7 @@ async function loadWikisourcePage(result) {
 
     if (!l2Paras.length) { loadError.value = 'No readable text found. Try a chapter page.'; return }
 
-    // Chapter pages rarely have langlinks — use pre-computed l1Title from index, or direct langlink
-    const l1Title = result.l1Title
-      ?? l1RootTitle
-      ?? null
-
+    const l1Title = result.l1Title ?? l1RootTitle ?? null
     let l1Paras = []
     if (l1Title) {
       const l1Url  = `https://${toLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(l1Title)}&prop=text&disableeditsection=1&format=json&origin=*`
@@ -374,12 +402,10 @@ function extractChapterLinks(html, pageTitle) {
 
 function parseWikisourceHTML(html) {
   const doc = new DOMParser().parseFromString(html, 'text/html')
-  // Remove noise: references, TOC, navigation, categories, edit links
   doc.querySelectorAll(
     '.reference, .reflist, .toc, .noprint, .ws-noexport, ' +
     '.mw-editsection, sup, .mw-headline, table, .poem'
   ).forEach(el => el.remove())
-
   return [...doc.querySelectorAll('.mw-parser-output p')]
     .map(p => p.textContent.replace(/\s+/g, ' ').trim())
     .filter(p => p.length > 80)
@@ -439,14 +465,14 @@ function toParas(txt) {
 // ── Translation check ─────────────────────────────────────────────────────────
 
 async function checkMyTranslation() {
-  if (!currentPara.value.l2 || !userInput.value.trim() || checking.value) return
+  if (!srcText.value || !userInput.value.trim() || checking.value) return
   checking.value    = true
   checkResult.value = null
   checkResult.value = await checkTranslation(
-    currentPara.value.l2,
+    srcText.value,
     userInput.value.trim(),
-    readLang.value,
-    toLang.value,
+    srcLang.value,
+    tgtLang.value,
   )
   checking.value = false
 }
@@ -464,7 +490,6 @@ function prevPara() {
 }
 
 function goBack() {
-  // If we loaded a chapter from an index, go back to that index
   if (article.value?.parentIndex) {
     article.value = article.value.parentIndex
   } else {
@@ -477,6 +502,7 @@ function resetExercise() {
   userInput.value   = ''
   checkResult.value = null
   showRef.value     = false
+  direction.value   = 'forward'
 }
 
 function reset() {

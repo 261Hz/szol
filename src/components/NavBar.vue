@@ -80,7 +80,6 @@ const tabs = computed(() => {
     { key: 'journal',  label: t(props.lang, 'journal') },
     { key: 'messages', label: '🎙 Voice' },
   ]
-  if (props.currentUser) base.push({ key: 'tutor', label: '✦ Tutor' })
   return base
 })
 </script>
