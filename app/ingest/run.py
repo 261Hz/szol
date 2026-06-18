@@ -88,6 +88,16 @@ def run(
         db.close()
 
     logger.info("Done — %d article(s) total", total)
+
+    # Podcast episode ingest (metadata only — transcription is on demand)
+    if not lang_filter:
+        try:
+            from .podcasts import ingest_podcasts
+            pod_total = ingest_podcasts(db, dry_run=dry_run)
+            logger.info("Podcast episodes: %d new", pod_total)
+        except Exception:
+            logger.exception("Podcast ingest failed")
+
     return total
 
 

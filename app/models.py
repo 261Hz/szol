@@ -272,3 +272,19 @@ class SourceSuggestion(Base):
     lang       = Column(String(10))
     note       = Column(String)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
+
+
+class PodcastEpisode(Base):
+    __tablename__ = "podcast_episodes"
+
+    id           = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
+    podcast_name = Column(String, nullable=False)
+    lang         = Column(String(10), nullable=False, index=True)
+    title        = Column(String, nullable=False)
+    audio_url    = Column(String, nullable=False, unique=True)
+    duration_sec = Column(Integer)
+    description  = Column(String)
+    published_at = Column(TIMESTAMP(timezone=True))
+    transcript   = Column(String)       # null until transcribed on demand
+    segments     = Column(JSON)         # [{start, end, text}] from Whisper
+    fetched_at   = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))

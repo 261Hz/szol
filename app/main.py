@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Header, HTTPException
 from . import models
 from .database import engine
-from .routers import user, auth, stories, words, vocab, progress, chat, transcript, listen, concept, user_stories, messages, feed, stats, collections
+from .routers import user, auth, stories, words, vocab, progress, chat, transcript, listen, concept, user_stories, messages, feed, stats, collections, podcasts
 from .config import settings
 from .limiter import limiter
 
@@ -50,6 +50,7 @@ app.include_router(messages.router)      # /messages
 app.include_router(feed.router)          # /feed
 app.include_router(stats.router)         # /stats
 app.include_router(collections.router)   # /collections
+app.include_router(podcasts.router)      # /podcasts
 
 
 @app.post("/ingest/run", status_code=202)

@@ -360,3 +360,24 @@ class SourceSuggestionCreate(BaseModel):
     url:  str
     lang: Optional[str] = None
     note: Optional[str] = None
+
+
+class PodcastEpisodeResponse(BaseModel):
+    id:           UUID
+    podcast_name: str
+    lang:         str
+    title:        str
+    audio_url:    str
+    duration_sec: Optional[int]      = None
+    description:  Optional[str]      = None
+    published_at: Optional[datetime] = None
+    has_transcript: bool             = False
+    fetched_at:   datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def from_orm(cls, obj):
+        data = {c.key: getattr(obj, c.key) for c in obj.__table__.columns}
+        data["has_transcript"] = bool(obj.transcript)
+        return cls(**data)
