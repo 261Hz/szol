@@ -70,6 +70,7 @@
         :words="vocabBank"
         :current-user="currentUser"
         @load="loadStory"
+        @open-listen="openInListen"
         @save-word="addToVocab"
         @open-auth="showAuth = true"
       />
@@ -285,6 +286,12 @@ function loadStory(story) {
   currentStory.value = story
   activeLang.value   = story.lang
   activeTab.value    = 'retype'
+}
+
+function openInListen(story) {
+  currentStory.value = story
+  activeLang.value   = story.lang
+  activeTab.value    = 'listen'
 }
 
 function addToVocab(entry) {
