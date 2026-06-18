@@ -116,10 +116,66 @@ SOURCES = [
         "license": "attribution",
     },
 
+    # ── English — longform / tech / history / culture ──────────────────────
+    {
+        "name": "Simon Willison",
+        "feed_url": "https://simonwillison.net/atom/everything/",
+        "lang": "en",
+        "license": "attribution",
+    },
+    {
+        "name": "A Collection of Unmitigated Pedantry",
+        "feed_url": "https://acoup.blog/feed/",
+        "lang": "en",
+        "license": "attribution",
+    },
+    {
+        "name": "The Marginalian",
+        "feed_url": "https://www.themarginalian.org/feed/",
+        "lang": "en",
+        "license": "attribution",
+    },
+    {
+        "name": "Longreads",
+        "feed_url": "https://longreads.com/feed/",
+        "lang": "en",
+        "license": "attribution",
+    },
+    {
+        "name": "Joel on Software",
+        "feed_url": "https://www.joelonsoftware.com/feed/",
+        "lang": "en",
+        "license": "attribution",
+    },
+    {
+        "name": "3 Quarks Daily",
+        "feed_url": "https://3quarksdaily.com/feed",
+        "lang": "en",
+        "license": "attribution",
+    },
+    {
+        "name": "Defector",
+        "feed_url": "https://defector.com/rss",
+        "lang": "en",
+        "license": "attribution",
+    },
+    {
+        "name": "Aftermath",
+        "feed_url": "https://aftermath.site/rss",
+        "lang": "en",
+        "license": "attribution",
+    },
+
     # ── French ──────────────────────────────────────────────────────────────
     {
         "name": "Sciences et Avenir",
         "feed_url": "https://www.sciencesetavenir.fr/rss.xml",
+        "lang": "fr",
+        "license": "attribution",
+    },
+    {
+        "name": "Le Grand Continent",
+        "feed_url": "https://legrandcontinent.eu/feed/",
         "lang": "fr",
         "license": "attribution",
     },
@@ -128,6 +184,18 @@ SOURCES = [
     {
         "name": "Muy Interesante",
         "feed_url": "https://www.muyinteresante.es/rss/",
+        "lang": "es",
+        "license": "attribution",
+    },
+    {
+        "name": "Jot Down",
+        "feed_url": "https://www.jotdown.es/feed/",
+        "lang": "es",
+        "license": "attribution",
+    },
+    {
+        "name": "Naukas",
+        "feed_url": "https://naukas.com/feed/",
         "lang": "es",
         "license": "attribution",
     },
@@ -160,6 +228,12 @@ SOURCES = [
         "feed_url": "https://www.spektrum.de/alias/rss/spektrum-de-rss-feed/996406",
         "lang": "de",
         "license": "attribution",
+    },
+    {
+        "name": "Netzpolitik",
+        "feed_url": "https://netzpolitik.org/feed/",
+        "lang": "de",
+        "license": "CC BY-NC-SA 4.0",
     },
 
     # ── Italian ─────────────────────────────────────────────────────────────

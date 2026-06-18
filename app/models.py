@@ -262,3 +262,13 @@ class FeedStory(Base):
     published_at = Column(TIMESTAMP(timezone=True))
     fetched_at   = Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()")
     text         = Column(String, nullable=False)
+
+
+class SourceSuggestion(Base):
+    __tablename__ = "source_suggestions"
+
+    id         = Column(BigInteger, primary_key=True, autoincrement=True)
+    url        = Column(String, nullable=False)
+    lang       = Column(String(10))
+    note       = Column(String)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))

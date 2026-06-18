@@ -354,3 +354,9 @@ class FeedStoryResponse(BaseModel):
     fetched_at:   datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SourceSuggestionCreate(BaseModel):
+    url:  str
+    lang: Optional[str] = None
+    note: Optional[str] = None

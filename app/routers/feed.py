@@ -3,9 +3,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import List
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
-from .. import schemas
+from .. import models, schemas
+from ..database import get_db
 from ..ingest.fetch import fetch_source
 from ..ingest.sources import SOURCES
 
@@ -54,3 +56,10 @@ def _get_cached(lang: str) -> list[dict]:
 def get_feed(lang: str, skip: int = 0, limit: int = 40):
     articles = _get_cached(lang)
     return articles[skip : skip + min(limit, 100)]
+
+
+@router.post("/suggest", status_code=201)
+def suggest_source(payload: schemas.SourceSuggestionCreate, db: Session = Depends(get_db)):
+    db.add(models.SourceSuggestion(url=payload.url, lang=payload.lang, note=payload.note))
+    db.commit()
+    return {"status": "received"}
