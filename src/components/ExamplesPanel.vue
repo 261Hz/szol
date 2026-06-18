@@ -64,6 +64,62 @@
       </div>
     </div>
 
+    <!-- ── DICT (WIKTIONARY) TAB ── -->
+    <div v-else-if="activeTab === 'dict'">
+      <button
+        v-if="!dict.done && !dict.loading"
+        @click="loadDict"
+        class="text-xs text-green-300 hover:text-green-200 underline transition-all"
+      >Look up in Wiktionary</button>
+      <div v-else-if="dict.loading" class="text-xs text-gray-500">Loading…</div>
+      <div v-else-if="dict.data" class="flex flex-col gap-3">
+        <!-- Definitions -->
+        <div v-if="dict.data.definitions.length" class="flex flex-col gap-1">
+          <div class="text-xs font-medium text-gray-400 uppercase tracking-wide">Definition</div>
+          <div
+            v-for="(def, i) in dict.data.definitions"
+            :key="i"
+            class="flex gap-1.5 text-sm text-gray-300 leading-snug"
+          >
+            <span class="text-gray-600 flex-shrink-0">{{ i + 1 }}.</span>
+            <span :dir="isRTL(lang) ? 'rtl' : 'ltr'">
+              <span v-for="(tok, j) in tokenize(def)" :key="j">
+                <span
+                  v-if="tok.type === 'word'"
+                  @click="$emit('tap', { word: tok.text, sentence: def })"
+                  :class="['cursor-pointer rounded px-0.5 transition-all hover:bg-green-950',
+                    savedWords && savedWords.has(normalize(tok.text)) ? 'bg-green-900 text-green-300' : '']"
+                >{{ tok.text }}</span>
+                <span v-else>{{ tok.text }}</span>
+              </span>
+            </span>
+          </div>
+        </div>
+        <!-- Example sentences -->
+        <div v-if="dict.data.examples.length" class="flex flex-col gap-1">
+          <div class="text-xs font-medium text-gray-400 uppercase tracking-wide">Examples</div>
+          <p
+            v-for="(ex, i) in dict.data.examples"
+            :key="i"
+            class="text-sm text-gray-300 italic leading-snug border-l-2 border-gray-700 pl-2 m-0"
+            :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+          >
+            <span v-for="(tok, j) in tokenize(ex)" :key="j">
+              <span
+                v-if="tok.type === 'word'"
+                @click="$emit('tap', { word: tok.text, sentence: ex })"
+                :class="['cursor-pointer rounded px-0.5 transition-all hover:bg-green-950',
+                  savedWords && savedWords.has(normalize(tok.text)) ? 'bg-green-900 text-green-300' : '',
+                  normalize(tok.text) === normalize(props.word) ? 'text-yellow-300 font-semibold' : '']"
+              >{{ tok.text }}</span>
+              <span v-else>{{ tok.text }}</span>
+            </span>
+          </p>
+        </div>
+      </div>
+      <div v-else-if="dict.done" class="text-xs text-gray-500">Not found in Wiktionary.</div>
+    </div>
+
     <!-- ── TATOEBA TAB ── -->
     <!-- v-if="activeTab === 'tatoeba'" = only rendered when this tab is selected. -->
     <div v-if="activeTab === 'tatoeba'">
@@ -197,12 +253,7 @@
     <!-- ── VIDEO TAB ── -->
     <!-- Clips are populated by the local worker.py and cached 7 days server-side. -->
     <div v-else-if="activeTab === 'video'">
-      <!-- Login gate -->
-      <div v-if="!currentUser" class="text-xs text-gray-500">
-        <button @click="$emit('openAuth')" class="underline hover:text-green-400 transition-all">Login</button>
-        to see video clips
-      </div>
-      <template v-else>
+      <template>
         <button
           v-if="!video.done && !video.loading"
           @click="loadVideo"
@@ -255,6 +306,7 @@ import { normalize } from '../utils/scoring.js'
 import { fetchTatoeba, playAudio } from '../utils/tatoeba.js'
 import { searchWikipedia } from '../utils/wikipedia.js'
 import { searchWikiquote } from '../utils/wikiquote.js'
+import { searchWiktionary } from '../utils/wiktionary.js'
 import { getWordExamples, getVocabClips } from '../utils/api.js'
 
 // Props received from the parent (ReadView or VocabView).
@@ -273,6 +325,7 @@ defineEmits(['tap', 'openAuth', 'openClip'])
 
 const tabs = [
   { id: 'corpus',    label: 'Examples' },
+  { id: 'dict',      label: 'Dict' },
   { id: 'tatoeba',   label: 'Tatoeba' },
   { id: 'wikipedia', label: 'Wikipedia' },
   { id: 'wikiquote', label: 'Wikiquote' },
@@ -286,6 +339,7 @@ const activeTab = ref('corpus')
 //   results = the array returned by the fetch (empty until done)
 //   done    = true after the first fetch completes, prevents re-fetching on tab switch
 const corpus  = ref({ loading: false, results: [], done: false })
+const dict    = ref({ loading: false, data: null,  done: false })
 const tatoeba = ref({ loading: false, results: [], done: false })
 const wiki    = ref({ loading: false, results: [], done: false })
 const wq      = ref({ loading: false, results: [], done: false })
@@ -293,12 +347,13 @@ const video   = ref({ loading: false, results: [], done: false })
 
 watch(() => props.word, () => {
   corpus.value    = { loading: false, results: [], done: false }
+  dict.value      = { loading: false, data: null,  done: false }
   tatoeba.value   = { loading: false, results: [], done: false }
   wiki.value      = { loading: false, results: [], done: false }
   wq.value        = { loading: false, results: [], done: false }
   video.value     = { loading: false, results: [], done: false }
   activeTab.value = 'corpus'
-  loadCorpus()  // auto-load corpus examples whenever word changes
+  loadCorpus()
 }, { immediate: true })
 
 // setTab() switches the active tab.
@@ -324,6 +379,14 @@ async function loadCorpus() {
   corpus.value.results = await getWordExamples(props.word, props.lang)
   corpus.value.loading = false
   corpus.value.done    = true
+}
+
+async function loadDict() {
+  if (!props.word || dict.value.loading || dict.value.done) return
+  dict.value.loading = true
+  dict.value.data    = await searchWiktionary(props.word, props.lang)
+  dict.value.loading = false
+  dict.value.done    = true
 }
 
 // loadTatoeba() fetches example sentences for the current word from Tatoeba.
