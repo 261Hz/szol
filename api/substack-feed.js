@@ -93,13 +93,10 @@ export default async function handler(req, res) {
   const n = Math.min(parseInt(limit) || 10, 20)
 
   const slugs = SEEDS[lang] ?? SEEDS['en']
-  console.log(`substack-feed lang=${lang} slugs=${slugs.length}`)
 
   // Fetch up to 8 publications via rss2json proxy
   const feeds = await Promise.all(slugs.slice(0, 8).map(fetchViaProxy))
   const ok = feeds.filter(Boolean)
-  console.log(`substack-feed fetched ${ok.length}/${Math.min(slugs.length, 8)} pubs`)
-  ok.forEach(f => console.log(`  ${f.slug}: lang=${f.lang} items=${f.items.length}`))
 
   const articles = []
   for (const feed of ok) {
@@ -119,7 +116,15 @@ export default async function handler(req, res) {
     if (articles.length >= n) break
   }
 
-  console.log(`substack-feed returning ${articles.length} articles`)
+  // Single log line — Vercel only captures one per request invocation
+  console.log(`substack-feed lang=${lang} fetched=${ok.length}/${Math.min(slugs.length,8)} articles=${articles.length} pubs=[${ok.map(f=>`${f.slug}:${f.lang}:${f.items.length}`).join(',')}]`)
+
+  // Don't cache empty results — would poison the CDN for 4h
+  if (!articles.length) {
+    res.setHeader('Cache-Control', 'no-store')
+    return res.status(200).json([])
+  }
+
   res.setHeader('Cache-Control', 's-maxage=14400, stale-while-revalidate=3600')
   return res.status(200).json(articles.slice(0, n))
 }
