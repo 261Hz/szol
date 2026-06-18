@@ -88,12 +88,29 @@
 
     </div>
 
+    <!-- Chapter index picker -->
+    <div v-else-if="article.isIndex" class="flex flex-col gap-3">
+      <div class="flex items-center gap-3">
+        <button @click="reset" class="text-gray-500 hover:text-white text-lg leading-none transition-all">←</button>
+        <h2 class="font-semibold text-gray-100 text-base" :dir="isRTL(readLang) ? 'rtl' : 'ltr'">{{ article.title }}</h2>
+      </div>
+      <div class="text-xs text-gray-500">Select a chapter to begin:</div>
+      <div v-if="loading" class="text-sm text-gray-500 text-center py-4">Loading…</div>
+      <button
+        v-for="ch in article.chapters"
+        :key="ch.title"
+        @click="loadWikisourcePage({ ...ch, _indexPage: article })"
+        class="w-full text-left bg-slate-900 border border-gray-700 hover:border-violet-700 rounded-lg px-4 py-2.5 text-sm text-gray-200 transition-all"
+        :dir="isRTL(readLang) ? 'rtl' : 'ltr'"
+      >{{ ch.label }}</button>
+    </div>
+
     <!-- Translation exercise -->
     <div v-else class="flex flex-col gap-4">
 
       <!-- Header -->
       <div class="flex items-start gap-3">
-        <button @click="reset" class="flex-shrink-0 text-gray-500 hover:text-white text-lg leading-none pt-0.5 transition-all">←</button>
+        <button @click="goBack" class="flex-shrink-0 text-gray-500 hover:text-white text-lg leading-none pt-0.5 transition-all">←</button>
         <div class="flex flex-col gap-0.5 min-w-0 flex-1">
           <h2 class="font-semibold text-gray-100 text-base leading-snug" :dir="isRTL(readLang) ? 'rtl' : 'ltr'">{{ article.title }}</h2>
           <div class="text-xs text-gray-500">
@@ -282,15 +299,28 @@ async function loadWikisourcePage(result) {
   loadError.value = ''
   article.value   = null
   try {
-    // lllang is not supported in action=parse — fetch all langlinks then find the match
-    const url  = `https://${readLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(result.title)}&prop=text|langlinks&disableeditsection=1&format=json&origin=*`
+    // lllang is not supported in action=parse — fetch all langlinks + internal links to detect chapters
+    const url  = `https://${readLang.value}.wikisource.org/w/api.php?action=parse&page=${encodeURIComponent(result.title)}&prop=text|langlinks|links&disableeditsection=1&format=json&origin=*`
     const data = await fetch(url).then(r => r.json())
     if (data.error) { loadError.value = data.error.info ?? 'Page not found.'; return }
 
-    const l2Paras = parseWikisourceHTML(data.parse?.text?.['*'] ?? '')
+    const pageTitle = data.parse.title
+    const l2Paras   = parseWikisourceHTML(data.parse?.text?.['*'] ?? '')
+
+    // Detect chapter sub-pages: links in NS 0 that start with "{title}/"
+    const chapterLinks = (data.parse?.links ?? [])
+      .filter(l => l.ns === 0 && l['*']?.startsWith(pageTitle + '/'))
+      .map(l => ({ title: l['*'], label: l['*'].split('/').slice(1).join(' / ') }))
+
+    if (chapterLinks.length && l2Paras.length < 4) {
+      // Index/ToC page — show chapter picker instead
+      article.value = { title: pageTitle, isIndex: true, chapters: chapterLinks, parent: result }
+      return
+    }
+
     if (!l2Paras.length) { loadError.value = 'No readable text found. Try a chapter page.'; return }
 
-    // Find L1 translation via langlinks and fetch it in parallel
+    // Find L1 translation via langlinks and fetch it
     const l1Title = (data.parse?.langlinks ?? []).find(l => l.lang === toLang.value)?.['*'] ?? null
     let l1Paras = []
     if (l1Title) {
@@ -300,8 +330,9 @@ async function loadWikisourcePage(result) {
     }
 
     article.value = {
-      title:      data.parse.title,
-      paragraphs: l2Paras.map((l2, i) => ({ l2, l1: l1Paras[i] ?? null })),
+      title:       pageTitle,
+      paragraphs:  l2Paras.map((l2, i) => ({ l2, l1: l1Paras[i] ?? null })),
+      parentIndex: result._indexPage ?? null,
     }
     resetExercise()
   } catch {
@@ -400,6 +431,15 @@ function nextPara() {
 
 function prevPara() {
   if (paraIdx.value > 0) { paraIdx.value--; resetExercise() }
+}
+
+function goBack() {
+  // If we loaded a chapter from an index, go back to that index
+  if (article.value?.parentIndex) {
+    article.value = article.value.parentIndex
+  } else {
+    reset()
+  }
 }
 
 function resetExercise() {
