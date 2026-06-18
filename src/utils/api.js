@@ -216,17 +216,7 @@ export function removeVocabWord(word, lang) {
   }).catch(() => {})
 }
 
-export async function getVocabClips(word, lang, limit = 5) {
-  // Check backend DB first (3s timeout — Render free tier may be sleeping)
-  const cached = await fetch(
-    `${API_URL}/vocab/clips?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}&limit=${limit}`,
-    { signal: AbortSignal.timeout(3000) }
-  ).catch(() => null)
-  if (cached?.ok) {
-    const clips = await cached.json().catch(() => [])
-    if (clips?.length) return clips
-  }
-  // Live filmot search — returns clips directly, no worker needed
+export async function getVocabClips(word, lang) {
   const res = await fetch(
     `/api/find-clips?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}`
   ).catch(() => null)
