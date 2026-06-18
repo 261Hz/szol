@@ -192,14 +192,11 @@
             <div v-if="ep.description" class="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{{ ep.description }}</div>
             <div class="mt-2 flex items-center gap-2 flex-wrap">
               <button
-                @click="playingPodcastId = playingPodcastId === ep.id ? null : ep.id"
-                :class="['text-xs px-3 py-1.5 rounded-md transition-all border',
-                  playingPodcastId === ep.id
-                    ? 'border-blue-500 text-blue-400'
-                    : 'border-gray-600 text-gray-300 hover:border-gray-400']"
-              >{{ playingPodcastId === ep.id ? '⏸ Close player' : '▶ Listen' }}</button>
+                @click="listenEpisode(ep)"
+                class="text-xs px-3 py-1.5 rounded-md border border-blue-700 text-blue-300 hover:border-blue-500 transition-all"
+              >▶ Listen</button>
               <button
-                @click="openEpisode(ep)"
+                @click="transcribeAndRead(ep)"
                 :disabled="transcribingId === ep.id"
                 :class="['text-xs px-3 py-1.5 rounded-md transition-all disabled:opacity-50',
                   ep.has_transcript
@@ -207,18 +204,36 @@
                     : 'border border-gray-600 text-gray-300 hover:border-gray-400']"
               >
                 <span v-if="transcribingId === ep.id">Transcribing…</span>
-                <span v-else-if="ep.has_transcript">Read →</span>
-                <span v-else>Transcribe + read →</span>
+                <span v-else-if="ep.has_transcript">Listen + subtitles →</span>
+                <span v-else>Transcribe →</span>
               </button>
-              <span v-if="transcribeError === ep.id" class="text-xs text-red-400">Transcription failed</span>
+              <span v-if="transcribeError === ep.id" class="text-xs text-red-400">Failed</span>
             </div>
-            <audio
-              v-if="playingPodcastId === ep.id"
-              :src="ep.audio_url"
-              controls
-              class="w-full mt-2 rounded"
-              style="height:36px"
-            />
+          </div>
+        </div>
+
+        <!-- Suggest a podcast -->
+        <div class="mt-2 border-t border-gray-800 pt-2">
+          <button v-if="!suggestPodcastOpen && !suggestPodcastDone" @click="suggestPodcastOpen = true"
+            class="text-xs text-gray-500 hover:text-gray-300 transition-colors w-full text-center py-1">
+            + Suggest a podcast
+          </button>
+          <div v-if="suggestPodcastDone" class="text-xs text-green-400 text-center py-1">Suggestion received, thanks!</div>
+          <div v-if="suggestPodcastOpen && !suggestPodcastDone" class="flex flex-col gap-2">
+            <input v-model="suggestPodcastUrl" type="url" placeholder="https://feeds.example.com/podcast.rss"
+              class="w-full text-xs bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-500" />
+            <input v-model="suggestPodcastNote" type="text" placeholder="Note (optional)"
+              class="w-full text-xs bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-500" />
+            <div class="flex gap-2">
+              <button @click="submitPodcastSuggestion" :disabled="suggestPodcastSending || !suggestPodcastUrl.trim()"
+                class="flex-1 text-xs py-1.5 rounded-md bg-gray-700 text-gray-200 hover:bg-gray-600 disabled:opacity-40 transition-all">
+                {{ suggestPodcastSending ? 'Sending…' : 'Submit' }}
+              </button>
+              <button @click="suggestPodcastOpen = false; suggestPodcastUrl = ''; suggestPodcastNote = ''"
+                class="text-xs px-3 py-1.5 rounded-md border border-gray-700 text-gray-500 hover:text-gray-300 transition-all">
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -501,7 +516,7 @@ const props = defineProps({
   words:       { type: Array, default: () => [] },
   currentUser: Object,  // null when logged out
 })
-const emit = defineEmits(['load', 'saveWord', 'openAuth'])
+const emit = defineEmits(['load', 'open-listen', 'saveWord', 'openAuth'])
 
 // ── In-progress stories ────────────────────────────────────────────────────
 const allProgress = ref([])
@@ -714,7 +729,26 @@ const podcastEpisodes  = ref([])
 const podcastLoading   = ref(false)
 const transcribingId   = ref(null)
 const transcribeError  = ref(null)
-const playingPodcastId = ref(null)
+
+const suggestPodcastOpen    = ref(false)
+const suggestPodcastUrl     = ref('')
+const suggestPodcastNote    = ref('')
+const suggestPodcastSending = ref(false)
+const suggestPodcastDone    = ref(false)
+
+async function submitPodcastSuggestion() {
+  const url = suggestPodcastUrl.value.trim()
+  if (!url) return
+  suggestPodcastSending.value = true
+  const ok = await suggestSource(url, props.lang, suggestPodcastNote.value.trim())
+  suggestPodcastSending.value = false
+  if (ok) {
+    suggestPodcastDone.value = true
+    suggestPodcastUrl.value  = ''
+    suggestPodcastNote.value = ''
+    setTimeout(() => { suggestPodcastDone.value = false; suggestPodcastOpen.value = false }, 2500)
+  }
+}
 
 async function loadPodcasts() {
   podcastLoading.value = true
@@ -722,19 +756,21 @@ async function loadPodcasts() {
   podcastLoading.value = false
 }
 
-async function openEpisode(ep) {
-  if (ep.has_transcript) {
-    // Transcript already cached — fetch and load immediately
-    transcribingId.value = ep.id
-    transcribeError.value = null
-    const data = await transcribeEpisode(ep.id)
-    transcribingId.value = null
-    if (data?.transcript) {
-      emitLoad({ id: ep.id, title: ep.title, content: data.transcript, lang: ep.lang, source: ep.podcast_name })
-    }
-    return
-  }
-  // Trigger Whisper transcription (may take 30-90s)
+function listenEpisode(ep) {
+  emit('open-listen', {
+    id:          ep.id,
+    title:       ep.title,
+    lang:        ep.lang,
+    author:      ep.podcast_name,
+    source:      ep.podcast_name,
+    source_type: 'podcast',
+    audio_url:   ep.audio_url,
+    segments:    ep.segments || [],
+    is_autogenerated: true,
+  })
+}
+
+async function transcribeAndRead(ep) {
   transcribingId.value  = ep.id
   transcribeError.value = null
   const data = await transcribeEpisode(ep.id)
@@ -743,10 +779,19 @@ async function openEpisode(ep) {
     transcribeError.value = ep.id
     return
   }
-  // Mark episode as having transcript so UI updates
   const idx = podcastEpisodes.value.findIndex(e => e.id === ep.id)
-  if (idx !== -1) podcastEpisodes.value[idx] = { ...podcastEpisodes.value[idx], has_transcript: true }
-  emitLoad({ id: ep.id, title: ep.title, content: data.transcript, lang: ep.lang, source: ep.podcast_name })
+  if (idx !== -1) podcastEpisodes.value[idx] = { ...podcastEpisodes.value[idx], has_transcript: true, segments: data.segments }
+  emit('open-listen', {
+    id:          ep.id,
+    title:       ep.title,
+    lang:        ep.lang,
+    author:      ep.podcast_name,
+    source:      ep.podcast_name,
+    source_type: 'podcast',
+    audio_url:   ep.audio_url,
+    segments:    data.segments || [],
+    is_autogenerated: true,
+  })
 }
 
 // ── Substack feed ──────────────────────────────────────────────────────────────
