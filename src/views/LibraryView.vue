@@ -764,7 +764,7 @@ async function importSubstack(article) {
 // All other sections start collapsed to keep the page compact.
 const open = ref({
   inprogress: true,
-  curated:    true,
+  curated:    false,
   feed:       false,
   podcasts:   false,
   substack:   false,
