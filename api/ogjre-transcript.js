@@ -1,15 +1,19 @@
 // api/ogjre-transcript.js — Vercel serverless proxy for ogjre.com transcripts
 //
-// Two strategies:
-//   1. Scrape __NEXT_DATA__ from the episode page — gets exactly what the browser renders
-//   2. Fall back to the GraphQL API with browser headers
-//
 // POST /api/ogjre-transcript
 // Body: { slug: "joe-rogan-experience-2515-chase-hughes" }
 
 const BROWSER_HEADERS = {
   'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
   'Accept-Language': 'en-US,en;q=0.9',
+}
+
+function segmentsFrom(video) {
+  return (video.transcriptSegments || []).map(s => ({
+    start: s.startMs / 1000,
+    end:   s.endMs   / 1000,
+    text:  s.text,
+  }))
 }
 
 export default async function handler(req, res) {
@@ -20,37 +24,51 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid slug' })
   }
 
-  // Strategy 1: scrape __NEXT_DATA__ from the episode page
+  const debugCtx = {}
+
+  // Strategy 1: scrape __NEXT_DATA__ from episode page
   try {
     const pageRes = await fetch(`https://ogjre.com/episode/${slug}`, {
       headers: { ...BROWSER_HEADERS, Accept: 'text/html' },
       signal: AbortSignal.timeout(12000),
     })
+    debugCtx.page_status = pageRes.status
+
     if (pageRes.ok) {
       const html = await pageRes.text()
       const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/)
       if (m) {
         const nextData = JSON.parse(m[1])
-        const video = nextData?.props?.pageProps?.video
-        if (video?.transcriptStatus === 'DONE' && video.transcriptSegments?.length) {
-          return res.status(200).json({
-            transcript: video.transcriptText || '',
-            segments: video.transcriptSegments.map(s => ({
-              start: s.startMs / 1000,
-              end:   s.endMs   / 1000,
-              text:  s.text,
-            })),
-          })
+        const pageProps = nextData?.props?.pageProps ?? {}
+        debugCtx.page_keys = Object.keys(pageProps).slice(0, 15)
+
+        // Try common key names for the episode object
+        const video = pageProps.video ?? pageProps.episode ?? pageProps.data?.video ?? null
+        debugCtx.video_found = video !== null
+
+        if (video) {
+          debugCtx.transcript_status = video.transcriptStatus
+          if (video.transcriptStatus === 'DONE' && video.transcriptSegments?.length) {
+            return res.status(200).json({
+              transcript: video.transcriptText || '',
+              segments:   segmentsFrom(video),
+            })
+          }
+          if (video.transcriptStatus !== 'DONE') {
+            // Episode found but transcript not ready — no point trying GraphQL
+            return res.status(404).json({
+              error: 'Transcript not available',
+              debug: { source: 'next_data', ...debugCtx },
+            })
+          }
         }
-        // Transcript exists in page data but status isn't DONE yet
-        const status = video?.transcriptStatus ?? 'NOT_FOUND'
-        if (status !== 'DONE') {
-          return res.status(404).json({ error: 'Transcript not available', debug: { source: 'next_data', status } })
-        }
+        // video is null → slug mismatch or different page structure; fall through to GraphQL
+      } else {
+        debugCtx.next_data_found = false
       }
     }
   } catch (e) {
-    // fall through to GraphQL
+    debugCtx.page_error = String(e)
   }
 
   // Strategy 2: GraphQL API
@@ -68,32 +86,26 @@ export default async function handler(req, res) {
       signal:  AbortSignal.timeout(12000),
     })
 
-    const raw     = await gqlRes.text()
+    debugCtx.gql_status = gqlRes.status
+    const raw = await gqlRes.text()
+    debugCtx.gql_raw_start = raw.slice(0, 300)
+
     let gqlData
     try { gqlData = JSON.parse(raw) } catch { gqlData = null }
 
     const video = gqlData?.data?.video
+    debugCtx.gql_video_found = video !== null && video !== undefined
+    if (video) debugCtx.gql_transcript_status = video.transcriptStatus
+
     if (video?.transcriptStatus === 'DONE' && video.transcriptSegments?.length) {
       return res.status(200).json({
         transcript: video.transcriptText || '',
-        segments: video.transcriptSegments.map(s => ({
-          start: s.startMs / 1000,
-          end:   s.endMs   / 1000,
-          text:  s.text,
-        })),
+        segments:   segmentsFrom(video),
       })
     }
-
-    return res.status(404).json({
-      error: 'Transcript not available',
-      debug: {
-        source:           'graphql',
-        status:           video?.transcriptStatus ?? null,
-        video_found:      video !== null && video !== undefined,
-        gql_http_status:  gqlRes.status,
-      },
-    })
   } catch (e) {
-    return res.status(500).json({ error: String(e) })
+    debugCtx.gql_error = String(e)
   }
+
+  return res.status(404).json({ error: 'Transcript not available', debug: debugCtx })
 }
