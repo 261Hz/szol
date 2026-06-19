@@ -2,6 +2,14 @@
 // Reports go to Vercel logs (filter "CLIP REPORT") and a Google Sheet via
 // SHEETS_WEBHOOK_URL (Apps Script web app URL set in Vercel env vars).
 
+async function postFollowingRedirect(url, payload) {
+  const body = JSON.stringify(payload)
+  const headers = { 'Content-Type': 'application/json' }
+  const r1 = await fetch(url, { method: 'POST', headers, body, redirect: 'manual' })
+  const target = r1.headers.get('location')
+  await fetch(target ?? url, { method: 'POST', headers, body })
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ detail: 'method not allowed' })
 
@@ -26,11 +34,9 @@ export default async function handler(req, res) {
     const payload = process.env.SHEETS_SECRET
       ? { ...report, secret: process.env.SHEETS_SECRET }
       : report
-    fetch(webhook, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload),
-    }).catch(() => {})
+    // Apps Script /exec redirects via 302; following that redirect converts POST→GET.
+    // So: don't follow the redirect — instead POST to the final URL directly.
+    postFollowingRedirect(webhook, payload).catch(() => {})
   }
 
   return res.status(200).json({ ok: true })
