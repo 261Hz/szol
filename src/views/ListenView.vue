@@ -7,12 +7,14 @@
     v-if="selectedStory && selectedStory.source_type !== 'youtube'"
     ref="audioEl"
     :src="selectedStory.audio_url"
+    crossorigin="anonymous"
     preload="metadata"
     @loadedmetadata="onAudioLoaded"
     @timeupdate="onAudioTimeUpdate"
     @play="isPlaying = true; startWave()"
     @pause="isPlaying = false; stopWave()"
     @ended="isPlaying = false; stopWave()"
+    @error="onAudioCorsError"
     style="display:none"
   />
 
@@ -120,16 +122,7 @@
 
   </div>
 
-  <!-- Auth gate: stories + player require login -->
-  <div v-if="!props.currentUser" class="flex flex-col items-center gap-3 py-16 text-center">
-    <div class="text-gray-400 text-sm">Sign in to access listening exercises.</div>
-    <button
-      @click="emit('openAuth')"
-      class="text-sm px-5 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white transition-all"
-    >Sign in</button>
-  </div>
-
-  <div v-else class="flex flex-col gap-3">
+  <div class="flex flex-col gap-3">
 
     <!-- Story picker -->
     <div v-if="!selectedStory" class="flex flex-col gap-3">
@@ -220,6 +213,12 @@
       <!-- Waveform + timing -->
       <div class="bg-slate-900 rounded-xl px-4 pt-4 pb-3 flex flex-col gap-2">
         <svg width="100%" height="60" viewBox="0 0 400 60" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="wave-grad" x1="0" y1="60" x2="0" y2="0" gradientUnits="userSpaceOnUse">
+              <stop offset="0%"   :stop-color="isPlaying ? '#7c3aed' : '#3b0764'" />
+              <stop offset="100%" :stop-color="isPlaying ? '#10b981' : '#065f46'" />
+            </linearGradient>
+          </defs>
           <rect
             v-for="(h, i) in bars"
             :key="i"
@@ -228,13 +227,15 @@
             :y="(60 - h) / 2"
             :height="h"
             rx="2"
-            :fill="isPlaying ? '#10b981' : '#065f46'"
-            :opacity="isPlaying ? 0.85 : 0.4"
+            fill="url(#wave-grad)"
+            :opacity="isPlaying ? 0.92 : 0.35"
           />
         </svg>
         <div class="flex justify-between text-xs text-gray-500">
-          <span>{{ t(lang, 'segment') }} {{ segmentIdx + 1 }} / {{ segments.length }}</span>
-          <span>{{ fmtTime(currentTime) }} / {{ fmtTime(segDuration) }}</span>
+          <span v-if="segments.length">{{ t(lang, 'segment') }} {{ segmentIdx + 1 }} / {{ segments.length }}</span>
+          <span v-else-if="selectedStory?.source_type === 'podcast'">🎙 {{ selectedStory.source }}</span>
+          <span v-else>–</span>
+          <span>{{ fmtTime(currentTime) }} / {{ fmtTime(segments.length ? segDuration : duration) }}</span>
         </div>
       </div>
 
@@ -378,7 +379,7 @@
       </div>
 
     </div>
-  </div><!-- /v-else (auth gate) -->
+  </div>
 
 
 </template>
@@ -489,6 +490,10 @@ watch(() => props.lang, () => {
   if (props.currentUser) loadStories()
 })
 
+watch(() => props.story, (newStory) => {
+  if (newStory) loadStory(newStory)
+})
+
 // ── Load a story into the player ──────────────────────────────────────────────
 
 const segments       = ref([])
@@ -550,6 +555,7 @@ async function loadStory(story, startAt = null) {
     loadYTApi(story.video_id)
   } else {
     await nextTick()
+    setupAnalyser()
     if (audioEl.value) {
       audioEl.value.currentTime = story.segments[0]?.start ?? 0
       if (audioEl.value.readyState >= 1) onAudioLoaded()
@@ -720,6 +726,7 @@ function nextSegment() {
 function teardown() {
   clearInterval(pollTimer); pollTimer = null
   stopWave()
+  if (_mediaSrc) { try { _mediaSrc.disconnect() } catch {} _mediaSrc = null; _analyser = null }
   if (player?.destroy) { player.destroy(); player = null }
   if (audioEl.value)   { audioEl.value.pause(); audioEl.value.currentTime = 0 }
   playerReady.value = false
@@ -756,7 +763,7 @@ function fmtTime(secs) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
-// ── Waveform ──────────────────────────────────────────────────────────────────
+// ── Waveform (Web Audio API analyser with fake-animation fallback) ────────────
 
 const BASE_HEIGHTS = Array.from({ length: 40 }, (_, i) => {
   const envelope = Math.sin((i / 39) * Math.PI)
@@ -764,18 +771,60 @@ const BASE_HEIGHTS = Array.from({ length: 40 }, (_, i) => {
   return Math.max(4, Math.round((envelope * 0.6 + detail + 0.5) * 44 + 6))
 })
 
-const bars = ref([...BASE_HEIGHTS])
-let waveTimer = null
+const bars      = ref([...BASE_HEIGHTS])
+let waveTimer   = null
+let _analyser   = null
+let _mediaSrc   = null
+let _rafId      = null
+
+function setupAnalyser() {
+  if (!audioEl.value || _mediaSrc) return
+  try {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+    if (_audioCtx.state === 'suspended') _audioCtx.resume().catch(() => {})
+    const src = _audioCtx.createMediaElementSource(audioEl.value)
+    const an  = _audioCtx.createAnalyser()
+    an.fftSize = 128
+    an.smoothingTimeConstant = 0.78
+    src.connect(an)
+    an.connect(_audioCtx.destination)
+    _mediaSrc = src
+    _analyser = an
+  } catch {
+    _mediaSrc = null
+    _analyser = null
+  }
+}
+
+function onAudioCorsError() {
+  _mediaSrc = null
+  _analyser = null
+}
 
 function startWave() {
-  if (waveTimer) return
-  waveTimer = setInterval(() => {
-    bars.value = BASE_HEIGHTS.map(base => Math.max(4, Math.min(56, base + (Math.random() - 0.5) * 28)))
-  }, 90)
+  stopWave()
+  if (_analyser) {
+    const buf  = new Uint8Array(_analyser.frequencyBinCount)
+    const step = buf.length / 40
+    function tick() {
+      _analyser.getByteFrequencyData(buf)
+      bars.value = Array.from({ length: 40 }, (_, i) => {
+        const v = buf[Math.floor(i * step)]
+        return Math.max(4, Math.round((v / 255) * 52 + 4))
+      })
+      _rafId = requestAnimationFrame(tick)
+    }
+    _rafId = requestAnimationFrame(tick)
+  } else {
+    waveTimer = setInterval(() => {
+      bars.value = BASE_HEIGHTS.map(b => Math.max(4, Math.min(56, b + (Math.random() - 0.5) * 28)))
+    }, 90)
+  }
 }
 
 function stopWave() {
-  clearInterval(waveTimer); waveTimer = null
+  cancelAnimationFrame(_rafId); _rafId = null
+  clearInterval(waveTimer);     waveTimer = null
   bars.value = [...BASE_HEIGHTS]
 }
 
@@ -880,6 +929,7 @@ async function downloadAudio() {
 
 onMounted(() => {
   if (props.currentUser) loadStories()
+  if (props.story) loadStory(props.story)
   // Pre-load YouTube iframe API (used by dictation player).
   if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
     const s = document.createElement('script')
