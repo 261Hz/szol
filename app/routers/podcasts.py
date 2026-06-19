@@ -1,8 +1,8 @@
 """
 Podcast endpoints.
 
-GET  /podcasts/?lang=        list episodes for a language
-POST /podcasts/{id}/transcript  return transcript (transcribing via Groq Whisper if not cached)
+GET  /podcasts/?lang=           list episodes for a language
+POST /podcasts/{id}/transcript  fetch transcript via ogjre.com (fast, free)
 """
 
 from typing import List
@@ -12,13 +12,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
-from ..config import settings
 from ..database import get_db
 
 router = APIRouter(prefix="/podcasts", tags=["Podcasts"])
-
-_AUDIO_EXTS = (".mp3", ".m4a", ".ogg", ".aac", ".wav", ".flac")
-_MAX_BYTES  = 24 * 1024 * 1024   # 24 MB — Groq Whisper limit is 25 MB
 
 
 @router.get("/", response_model=List[schemas.PodcastEpisodeResponse])
@@ -34,28 +30,29 @@ def list_episodes(lang: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{episode_id}/transcript")
-def get_or_transcribe(episode_id: UUID, db: Session = Depends(get_db)):
+def get_transcript(episode_id: UUID, db: Session = Depends(get_db)):
     ep = db.query(models.PodcastEpisode).filter(models.PodcastEpisode.id == episode_id).first()
     if not ep:
         raise HTTPException(status_code=404, detail="Episode not found")
 
+    # Return cached transcript if we have it
     if ep.transcript:
         return {"transcript": ep.transcript, "segments": ep.segments or []}
 
-    # Try ogjre.com free GraphQL API first
-    from ..ingest.podcasts import fetch_ogjre_transcript
-    transcript, segments = fetch_ogjre_transcript(ep.title)
-    if transcript:
-        ep.transcript = transcript
-        ep.segments   = segments or None
-        db.commit()
-        return {"transcript": transcript, "segments": segments}
+    # Try ogjre.com (free, fast, ~2s round-trip)
+    try:
+        from ..ingest.podcasts import fetch_ogjre_transcript
+        transcript, segments = fetch_ogjre_transcript(ep.title)
+    except Exception:
+        raise HTTPException(status_code=503, detail="Transcript fetch failed")
 
-    # Fall back to Groq Whisper
-    if not settings.GROQ_API_KEY:
-        raise HTTPException(status_code=503, detail="Transcription not available")
+    if not transcript:
+        raise HTTPException(status_code=404, detail="Transcript not available for this episode")
 
-    return _transcribe(ep, db)
+    ep.transcript = transcript
+    ep.segments   = segments or None
+    db.commit()
+    return {"transcript": transcript, "segments": segments}
 
 
 def _ext_from_url(url: str) -> str:

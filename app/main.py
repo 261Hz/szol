@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from . import models
 from .database import engine
 from .routers import user, auth, stories, words, vocab, progress, chat, transcript, listen, concept, user_stories, messages, feed, stats, collections, podcasts
@@ -31,6 +32,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
 
 # Each router handles a group of related routes and registers them under its own prefix.
 # Routers are matched in the order they are included, but prefix uniqueness means
