@@ -116,6 +116,29 @@ SOURCES = [
         "license": "attribution",
     },
 
+    # ── English — The Guardian ───────────────────────────────────────────────
+    {
+        "name": "The Guardian",
+        "feed_url": "https://www.theguardian.com/world/rss",
+        "lang": "en",
+        "license": "attribution",
+        "min_words": 80,
+    },
+    {
+        "name": "The Guardian Science",
+        "feed_url": "https://www.theguardian.com/science/rss",
+        "lang": "en",
+        "license": "attribution",
+        "min_words": 80,
+    },
+    {
+        "name": "The Guardian Technology",
+        "feed_url": "https://www.theguardian.com/technology/rss",
+        "lang": "en",
+        "license": "attribution",
+        "min_words": 80,
+    },
+
     # ── English — longform / tech / history / culture ──────────────────────
     {
         "name": "Simon Willison",
@@ -315,6 +338,36 @@ SOURCES = [
         "lang": "el",
         "license": "attribution",
         "min_words": 60,
+    },
+
+    # ── Indonesian ──────────────────────────────────────────────────────────
+    {
+        "name": "BBC Indonesia",
+        "feed_url": "https://feeds.bbci.co.uk/indonesia/rss.xml",
+        "lang": "id",
+        "license": "attribution",
+        "min_words": 60,
+    },
+    {
+        "name": "Antara News",
+        "feed_url": "https://www.antaranews.com/rss/terkini.xml",
+        "lang": "id",
+        "license": "attribution",
+        "min_words": 60,
+    },
+    {
+        "name": "DW Indonesia",
+        "feed_url": "https://rss.dw.com/rdf/rss-id-all",
+        "lang": "id",
+        "license": "attribution",
+        "min_words": 60,
+    },
+    {
+        "name": "Tempo.co",
+        "feed_url": "https://rss.tempo.co/",
+        "lang": "id",
+        "license": "attribution",
+        "min_words": 80,
     },
 
     # ── Hungarian ───────────────────────────────────────────────────────────

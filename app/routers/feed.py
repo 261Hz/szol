@@ -2,13 +2,16 @@ import time
 import uuid
 from datetime import datetime, timezone
 from typing import List
+from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
-from ..ingest.fetch import fetch_source
+from ..ingest.clean import extract_article
+from ..ingest.fetch import fetch_source, _fetch_page_text
 from ..ingest.sources import SOURCES
 
 router = APIRouter(prefix="/feed", tags=["Feed"])
@@ -63,3 +66,22 @@ def suggest_source(payload: schemas.SourceSuggestionCreate, db: Session = Depend
     db.add(models.SourceSuggestion(url=payload.url, lang=payload.lang, note=payload.note))
     db.commit()
     return {"status": "received"}
+
+
+class _FetchIn(BaseModel):
+    url: str
+
+
+@router.post("/fetch")
+def fetch_article_on_demand(payload: _FetchIn):
+    """Fetch and extract full article text from a URL on demand.
+
+    Used by the frontend when a feed entry only contains a short RSS summary.
+    Protocol is validated to prevent SSRF; all other errors return empty text
+    rather than a 5xx so the caller can fall back gracefully.
+    """
+    parsed = urlparse(payload.url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="Invalid URL")
+    text = _fetch_page_text(payload.url)
+    return {"text": text or "", "ok": bool(text)}
