@@ -56,6 +56,12 @@
           <span class="text-xs text-gray-600">
             {{ frequencyMap[word.word.toLowerCase()] <= 500 ? 'very common' : frequencyMap[word.word.toLowerCase()] <= 2000 ? 'common' : 'less common' }}
           </span>
+          <span
+            v-if="wordLevel(word.word, word.lang)"
+            :class="wordLevel(word.word, word.lang).cls"
+            :title="wordLevel(word.word, word.lang).tip"
+            class="text-xs font-semibold"
+          >{{ wordLevel(word.word, word.lang).label }}</span>
           <!-- Frequency source popup -->
           <div
             v-if="freqPopup === word.word"
@@ -136,6 +142,7 @@ import { LANGS } from '../data/stories.js'
 import ExamplesPanel  from '../components/ExamplesPanel.vue'
 import ClickableText  from '../components/ClickableText.vue'
 import { getUserWords, getWordFrequency } from '../utils/api.js'
+import { getWordLevel as wordLevel } from '../data/levels.js'
 
 const props = defineProps({
   words:       Array,  // full vocabBank array (all languages)
@@ -244,6 +251,7 @@ function rankColor(rank) {
   if (rank <= 2000) return 'text-yellow-400'
   return 'text-gray-400'
 }
+
 
 // rankLabel returns a human-readable description shown as a tooltip on the rank badge.
 function rankLabel(rank) {
