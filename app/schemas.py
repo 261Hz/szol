@@ -363,16 +363,17 @@ class SourceSuggestionCreate(BaseModel):
 
 
 class PodcastEpisodeResponse(BaseModel):
-    id:           UUID
-    podcast_name: str
-    lang:         str
-    title:        str
-    audio_url:    str
-    duration_sec: Optional[int]      = None
-    description:  Optional[str]      = None
-    published_at: Optional[datetime] = None
-    has_transcript: bool             = False
-    fetched_at:   datetime
+    id:             UUID
+    podcast_name:   str
+    lang:           str
+    title:          str
+    audio_url:      str
+    duration_sec:   Optional[int]       = None
+    description:    Optional[str]       = None
+    published_at:   Optional[datetime]  = None
+    has_transcript: bool                = False
+    segments:       Optional[List[dict]] = None
+    fetched_at:     datetime
 
     model_config = ConfigDict(from_attributes=True)
 
