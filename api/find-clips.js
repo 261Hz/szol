@@ -6,6 +6,21 @@
 const FILMOT_LANGS = new Set(['nl','en','fr','de','id','it','ko','pt','ru','es','tr','vi','ja','hi','iw','ar'])
 const BACKEND      = 'https://szol.onrender.com'
 
+// Filmot returns Hindi/Bengali videos tagged "English (auto-generated)" because
+// words like "timetable" appear as loan words in their phonetically-transcribed captions.
+// These marker words are unambiguous romanized Hindi/Bengali — never found in English text.
+const HINDI_BN_RE = /\b(?:hai|hain|nahi|toh|yeh|woh|karo|karke|lekin|theek|hoga|honge|hoti|hota|karna|lena|dena|sakta|chahiye|aami|tumi|hobe|ache)\b/i
+
+function contextLooksEnglish(ctx, lang) {
+  if (lang !== 'en') return true
+  if (HINDI_BN_RE.test(ctx)) return false
+  // Korean language-learning videos repeat each word in pairs: "timetable timetable bus bus"
+  const words = ctx.toLowerCase().split(/\s+/)
+  let adj = 0
+  for (let i = 0; i < words.length - 1; i++) if (words[i] === words[i + 1]) adj++
+  return adj < 3
+}
+
 function dedup(clips) {
   const seen = new Set()
   return clips.filter(c => {
@@ -85,6 +100,7 @@ export default async function handler(req, res) {
         const start = parseFloat(hit.start ?? 0)
         const dur   = parseFloat(hit.dur   ?? 3)
         const ctx   = [hit.ctx_before, hit.token, hit.ctx_after].filter(Boolean).join(' ').trim()
+        if (!contextLooksEnglish(ctx, langCode)) continue
         clips.push({
           video_id,
           start_sec: Math.floor(start),
@@ -93,7 +109,7 @@ export default async function handler(req, res) {
         })
         if (clips.length >= 5) break
       }
-      if (clips.length >= 5) break
+      if (clips.length >= 5) break  // examine up to all results pages but cap final list
     }
 
     // CDN-cache for 24 h so the same word never hits filmot again within a day
