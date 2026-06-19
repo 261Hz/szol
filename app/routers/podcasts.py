@@ -42,8 +42,18 @@ def get_or_transcribe(episode_id: UUID, db: Session = Depends(get_db)):
     if ep.transcript:
         return {"transcript": ep.transcript, "segments": ep.segments or []}
 
+    # Try ogjre.com free GraphQL API first
+    from ..ingest.podcasts import fetch_ogjre_transcript
+    transcript, segments = fetch_ogjre_transcript(ep.title)
+    if transcript:
+        ep.transcript = transcript
+        ep.segments   = segments or None
+        db.commit()
+        return {"transcript": transcript, "segments": segments}
+
+    # Fall back to Groq Whisper
     if not settings.GROQ_API_KEY:
-        raise HTTPException(status_code=503, detail="Transcription not configured")
+        raise HTTPException(status_code=503, detail="Transcription not available")
 
     return _transcribe(ep, db)
 

@@ -1,8 +1,9 @@
 """
 Podcast RSS ingest — fetches episode metadata and stores in DB.
 
-Transcription is NOT done here; it happens on demand via
-POST /podcasts/{id}/transcript when a user opens an episode.
+For sources with transcript_source='ogjre', transcripts + timestamped
+segments are fetched from api.ogjre.com/graphql (free, no auth) at
+ingest time. Other sources leave transcript=null (Whisper on demand).
 """
 
 import logging
@@ -22,6 +23,55 @@ _HEADERS = {
     )
 }
 _TIMEOUT = 15
+_OGJRE_GQL = "https://api.ogjre.com/graphql"
+
+_GQL_QUERY = """
+{
+  video(slug: "%s") {
+    transcriptStatus
+    transcriptText
+    transcriptSegments { startMs endMs text }
+  }
+}
+"""
+
+
+def ogjre_slug(title: str) -> str | None:
+    """'#2515 - Chase Hughes' → 'joe-rogan-experience-2515-chase-hughes'"""
+    m = re.match(r"#(\d+)\s*[-–]\s*(.+)", title)
+    if not m:
+        return None
+    ep_num   = m.group(1)
+    guest    = m.group(2).strip()
+    guest_sl = re.sub(r"[^a-z0-9]+", "-", guest.lower()).strip("-")
+    return f"joe-rogan-experience-{ep_num}-{guest_sl}"
+
+
+def fetch_ogjre_transcript(title: str) -> tuple[str | None, list[dict]]:
+    """Return (transcript_text, segments) from ogjre.com, or (None, [])."""
+    slug = ogjre_slug(title)
+    if not slug:
+        return None, []
+    try:
+        resp = requests.post(
+            _OGJRE_GQL,
+            json={"query": _GQL_QUERY % slug},
+            headers=_HEADERS,
+            timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        video = resp.json().get("data", {}).get("video") or {}
+        if video.get("transcriptStatus") != "DONE":
+            return None, []
+        text  = video.get("transcriptText") or ""
+        segs  = [
+            {"start": s["startMs"] / 1000, "end": s["endMs"] / 1000, "text": s["text"]}
+            for s in video.get("transcriptSegments") or []
+        ]
+        return text, segs
+    except Exception as e:
+        logger.warning("ogjre transcript fetch failed for %s: %s", slug, e)
+        return None, []
 
 
 def _audio_url(entry: Any) -> str | None:
@@ -37,8 +87,6 @@ def _audio_url(entry: Any) -> str | None:
 
 
 def _transcript_url(entry: Any) -> str | None:
-    """Look for Podcasting 2.0 <podcast:transcript> tag."""
-    # feedparser may surface this as entry.podcast_transcript (list of dicts)
     for item in getattr(entry, "podcast_transcript", None) or []:
         url = item.get("url") or item.get("href")
         if url:
@@ -78,15 +126,14 @@ def _strip_html(html: str) -> str:
     return re.sub(r"<[^>]+>", " ", html or "").strip()
 
 
-def _fetch_transcript(url: str) -> str | None:
-    """Fetch and parse an RSS-linked transcript (SRT, VTT, JSON, or plain text)."""
+def _fetch_rss_transcript(url: str) -> str | None:
     try:
         r = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
         r.raise_for_status()
         ct = r.headers.get("content-type", "").lower()
         return _parse_transcript_body(r.text, ct)
     except Exception as e:
-        logger.warning("Could not fetch transcript from %s: %s", url, e)
+        logger.warning("RSS transcript fetch failed %s: %s", url, e)
         return None
 
 
@@ -99,15 +146,12 @@ def _parse_transcript_body(text: str, content_type: str) -> str:
             return " ".join(s.get("text", "") for s in segs).strip()
         except Exception:
             return text.strip()
-    # Strip SRT / VTT timing + sequence lines
     lines = []
     for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.isdigit() or "-->" in stripped:
+        s = line.strip()
+        if not s or s.isdigit() or "-->" in s or s.upper() == "WEBVTT":
             continue
-        if stripped.upper() in ("WEBVTT",):
-            continue
-        lines.append(stripped)
+        lines.append(s)
     return " ".join(lines)
 
 
@@ -124,8 +168,9 @@ def ingest_podcasts(db, dry_run: bool = False) -> int:
             logger.warning("  Failed to parse feed: %s", e)
             continue
 
-        max_ep  = source.get("max_episodes", 10)
-        inserted = 0
+        use_ogjre = source.get("transcript_source") == "ogjre"
+        max_ep    = source.get("max_episodes", 10)
+        inserted  = 0
 
         for entry in feed.entries[:max_ep]:
             audio = _audio_url(entry)
@@ -136,18 +181,29 @@ def ingest_podcasts(db, dry_run: bool = False) -> int:
             if exists:
                 continue
 
-            tx_url = _transcript_url(entry)
-            transcript = _fetch_transcript(tx_url) if tx_url else None
+            title = _strip_html(entry.get("title", "Untitled"))
+
+            # Transcript: ogjre API > RSS tag > null
+            transcript, segments = None, []
+            if use_ogjre:
+                transcript, segments = fetch_ogjre_transcript(title)
+                if transcript:
+                    logger.info("    ✓ ogjre transcript: %s", title)
+            if not transcript:
+                tx_url = _transcript_url(entry)
+                if tx_url:
+                    transcript = _fetch_rss_transcript(tx_url)
 
             ep = PodcastEpisode(
                 podcast_name=source["name"],
                 lang=source["lang"],
-                title=_strip_html(entry.get("title", "Untitled")),
+                title=title,
                 audio_url=audio,
                 duration_sec=_duration_sec(entry),
                 description=_strip_html(entry.get("summary", "") or "")[:1000],
                 published_at=_parse_date(entry),
                 transcript=transcript,
+                segments=segments or None,
             )
 
             if not dry_run:

@@ -14,5 +14,6 @@ PODCAST_SOURCES = [
         "feed_url": "https://feeds.megaphone.fm/GLT1412515089",
         "lang": "en",
         "max_episodes": 10,
+        "transcript_source": "ogjre",  # free GraphQL API at api.ogjre.com/graphql
     },
 ]
