@@ -567,7 +567,6 @@ watch([() => props.lang, () => props.story], async () => {
   quizDone.value    = false
   charError.value   = false
   writer            = null
-  if (props.story) window.clarity?.('event', 'write_started')
   await nextTick()
   if (isCJK.value) initWriter()
   else setupCanvas()

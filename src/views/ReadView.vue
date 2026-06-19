@@ -182,7 +182,6 @@ function tap(word, contextSentence) {
   speechSynthesis.resume()
   speechSynthesis.speak(utt)
 
-  window.clarity?.('event', 'word_tapped')
 
   if (props.currentUser) {
     trackWord(clean, props.lang, props.story?.title ?? '')
@@ -200,7 +199,6 @@ function tap(word, contextSentence) {
 
 function saveWord() {
   if (!tapped.value) return
-  window.clarity?.('event', 'word_saved')
   emit('saveWord', {
     word:     tapped.value.word,
     lang:     props.lang,

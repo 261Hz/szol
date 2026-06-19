@@ -1190,8 +1190,6 @@ function pushLocalStory({ title, content, franco = null, source = '' }) {
 }
 
 function emitLoad(story) {
-  window.clarity?.('event', 'story_loaded')
-  window.clarity?.('set', 'story_lang', story.lang)
   emit('load', story)
 }
 

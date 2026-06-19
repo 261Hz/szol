@@ -133,7 +133,6 @@ async function send() {
   const text = input.value.trim()
   if (!text || loading.value) return
 
-  window.clarity?.('event', 'chat_message_sent')
   error.value = ''
   messages.value.push({ role: 'user', text })
   input.value   = ''
