@@ -56,4 +56,7 @@ export const LANGS = {
 
   es:  { name: 'Español',    wiki: 'es', rtl: false, script: false, bcp47: 'es-ES' },
   // 'es-ES' = Spanish as spoken in Spain
+
+  id:  { name: 'Bahasa Indonesia', wiki: 'id', rtl: false, script: false, bcp47: 'id-ID' },
+  // Indonesian: Latin alphabet, LTR. 'id-ID' = Indonesian as spoken in Indonesia.
 }

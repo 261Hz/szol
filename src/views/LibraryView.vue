@@ -119,8 +119,9 @@
           <div
             v-for="article in feedStories"
             :key="article.id"
-            @click="emitLoad({ id: article.id, title: article.title, content: article.text, lang: article.lang, source: article.source_name })"
-            :class="['p-3 rounded-lg border cursor-pointer transition-all',
+            @click="openFeedArticle(article)"
+            :class="['p-3 rounded-lg border transition-all',
+              articleFetching === article.id ? 'opacity-60 cursor-wait' : 'cursor-pointer',
               current?.id === article.id ? 'border-green-600 bg-green-950' : 'border-gray-700 hover:border-green-700']"
           >
             <div class="font-medium text-sm text-gray-100 leading-snug mb-1">{{ article.title }}</div>
@@ -128,6 +129,7 @@
               <span class="text-xs text-gray-500">{{ article.source_name }}</span>
               <span v-if="article.author" class="text-xs text-gray-500">· {{ article.author }}</span>
               <span class="text-xs text-gray-600">· {{ wordCount({ content: article.text, lang: article.lang }) }} words</span>
+              <span v-if="articleFetching === article.id" class="text-xs text-green-500">fetching…</span>
             </div>
           </div>
           <button
@@ -487,7 +489,7 @@ import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import ClickableText from '../components/ClickableText.vue'
 // Supabase functions: fetch/submit stories from the remote database.
-import { fetchCommunityStories, submitStory, fetchCuratedStories, saveUserStory, getUserStories, deleteUserStory, fetchFeed, fetchSubstackFeed, suggestSource, fetchPodcasts } from '../utils/api.js'
+import { fetchCommunityStories, submitStory, fetchCuratedStories, saveUserStory, getUserStories, deleteUserStory, fetchFeed, fetchFeedArticle, fetchSubstackFeed, suggestSource, fetchPodcasts } from '../utils/api.js'
 import { getAllProgress } from '../utils/api.js'
 // Wikipedia helpers for the Today and On This Day sections.
 import { fetchFeaturedArticle, fetchOnThisDay, fetchQuoteOfDay } from '../utils/wikipedia.js'
@@ -687,6 +689,22 @@ async function loadFeed(reset = false) {
   feedStories.value.push(...items)
   feedPage.value++
   feedLoading.value = false
+}
+
+const articleFetching = ref(null)
+
+async function openFeedArticle(article) {
+  if (articleFetching.value) return
+  const wordCount = (article.text || '').split(/\s+/).filter(Boolean).length
+  if (wordCount >= 100) {
+    emitLoad({ id: article.id, title: article.title, content: article.text, lang: article.lang, source: article.source_name })
+    return
+  }
+  articleFetching.value = article.id
+  const data = await fetchFeedArticle(article.source_url)
+  articleFetching.value = null
+  const text = data?.text && data.text.split(/\s+/).length > wordCount ? data.text : article.text
+  emitLoad({ id: article.id, title: article.title, content: text, lang: article.lang, source: article.source_name })
 }
 
 
@@ -952,6 +970,12 @@ const SUGGESTED_SOURCES = {
     { name: 'La Vanguardia',   url: 'https://www.lavanguardia.com',           lang: 'es' },
     { name: 'Xinhua',          url: 'https://www.xinhuanet.com',              lang: 'zh' },
     { name: '人民日報',        url: 'https://www.people.com.cn',              lang: 'zh' },
+    { name: 'Kompas',          url: 'https://www.kompas.com',                 lang: 'id' },
+    { name: 'BBC Indonesia',   url: 'https://www.bbc.com/indonesia',          lang: 'id' },
+    { name: 'Tempo.co',        url: 'https://www.tempo.co',                   lang: 'id' },
+    { name: 'The Guardian',    url: 'https://www.theguardian.com/world',      lang: 'en' },
+    { name: 'The Economist',   url: 'https://www.economist.com',              lang: 'en' },
+    { name: 'Wall Street Journal', url: 'https://www.wsj.com',               lang: 'en' },
   ],
   Sports: [
     { name: 'BBC Sport',       url: 'https://www.bbc.com/sport',              lang: 'en' },
@@ -963,6 +987,7 @@ const SUGGESTED_SOURCES = {
     { name: 'Sport.hu',        url: 'https://sport.hu',                       lang: 'hu' },
     { name: 'NHK Sports',      url: 'https://www3.nhk.or.jp/sports/',         lang: 'ja' },
     { name: 'Sina Sports',     url: 'https://sports.sina.com.cn',             lang: 'zh' },
+    { name: 'Bola.com',        url: 'https://www.bola.com',                   lang: 'id' },
   ],
   Tech: [
     { name: 'Wired',           url: 'https://www.wired.com',                  lang: 'en' },
@@ -971,6 +996,7 @@ const SUGGESTED_SOURCES = {
     { name: 'Tom\'s Hardware IT', url: 'https://www.tomshw.it',               lang: 'it' },
     { name: 'Hi-Tech Mail',    url: 'https://hi-tech.mail.ru',                lang: 'ru' },
     { name: 'IT之家',          url: 'https://www.ithome.com',                 lang: 'zh' },
+    { name: 'Detikinet',       url: 'https://inet.detik.com',                 lang: 'id' },
   ],
   'Animals & Nature': [
     { name: 'Nat Geo EN',      url: 'https://www.nationalgeographic.com',     lang: 'en' },
@@ -981,6 +1007,7 @@ const SUGGESTED_SOURCES = {
     { name: 'Nat Geo RU',      url: 'https://www.nat-geo.ru',                 lang: 'ru' },
     { name: 'Nat Geo JA',      url: 'https://natgeo.nikkeibp.co.jp',          lang: 'ja' },
     { name: 'WWF',             url: 'https://www.worldwildlife.org',           lang: 'en' },
+    { name: 'Nat Geo ID',      url: 'https://www.nationalgeographic.grid.id', lang: 'id' },
   ],
   Cooking: [
     { name: 'Serious Eats',    url: 'https://www.seriouseats.com',             lang: 'en' },
@@ -990,6 +1017,7 @@ const SUGGESTED_SOURCES = {
     { name: 'Gastronom.ru',    url: 'https://www.gastronom.ru',                lang: 'ru' },
     { name: 'Cookpad JP',      url: 'https://cookpad.com/jp',                  lang: 'ja' },
     { name: '下厨房',           url: 'https://www.xiachufang.com',              lang: 'zh' },
+    { name: 'Cookpad ID',      url: 'https://cookpad.com/id',                 lang: 'id' },
   ],
   Science: [
     { name: 'Scientific American', url: 'https://www.scientificamerican.com',      lang: 'en' },
@@ -1012,6 +1040,7 @@ const SUGGESTED_SOURCES = {
     { name: 'Wikivoyage ZH',  url: 'https://zh.wikivoyage.org',  lang: 'zh',  wikivoyage: true },
     { name: 'Wikivoyage EL',  url: 'https://el.wikivoyage.org',  lang: 'el',  wikivoyage: true },
     { name: 'Wikivoyage HU',  url: 'https://hu.wikivoyage.org',  lang: 'hu',  wikivoyage: true },
+    { name: 'Wikivoyage ID',  url: 'https://id.wikivoyage.org',  lang: 'id',  wikivoyage: true },
   ],
 }
 
