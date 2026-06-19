@@ -361,10 +361,12 @@ async function tryRapidApi(videoId, lang, host, path) {
   try {
     const r = await fetch(`https://${host}${path}`, {
       headers: { 'x-rapidapi-host': host, 'x-rapidapi-key': key },
-      signal:  AbortSignal.timeout(10000),
+      signal:  AbortSignal.timeout(12000),
     })
     if (!r.ok) return null
     const data = await r.json().catch(() => null)
+    // Some APIs return 200 with { success: false } on failure
+    if (data?.success === false) return null
     return parseRapidApiResponse(data, lang)
   } catch {
     return null
@@ -383,16 +385,22 @@ async function tryRapidApi(videoId, lang, host, path) {
 const SOURCES = [
   // ── RapidAPI: YouTube Transcript API (youtube-transcript3, Mahmudul Hasan) ──
   // Response: { success, transcript: [{ text, offset, duration, lang }] }
-  // "offset" = start time in seconds (string). HTML entities in text.
-  // Free tier: varies. Set YT_TRANSCRIPT3_LIMIT env var to cap (default 500).
+  // Failure: { success: false, error: "..." } — still HTTP 200, checked above.
+  // Supported lang codes: en, cn, ok only. Others: omit lang, get available.
+  // Free tier: 100 req/month. Set YT_TRANSCRIPT3_LIMIT env var to override.
   {
     id:     'yt-transcript3',
-    limit:  () => parseInt(process.env.YT_TRANSCRIPT3_LIMIT ?? '500'),
+    limit:  () => parseInt(process.env.YT_TRANSCRIPT3_LIMIT ?? '100'),
     active: () => !!process.env.RAPIDAPI_KEY,
-    fetch:  (v, l) => tryRapidApi(v, l,
-      'youtube-transcript3.p.rapidapi.com',
-      `/api/transcript?videoId=${encodeURIComponent(v)}&lang=${encodeURIComponent(l.slice(0, 2))}`
-    ),
+    fetch:  (v, l) => {
+      const SUPPORTED = new Set(['en', 'cn', 'ok'])
+      const code = l.slice(0, 2)
+      const langParam = SUPPORTED.has(code) ? `&lang=${code}` : ''
+      return tryRapidApi(v, l,
+        'youtube-transcript3.p.rapidapi.com',
+        `/api/transcript?videoId=${encodeURIComponent(v)}${langParam}`
+      )
+    },
   },
 
   // ── RapidAPI: slot for a second caption service ───────────────────────────
