@@ -195,8 +195,6 @@ function changeLang(code) {
     activeTab.value    = 'library'
   }
   _setLang(code)
-  window.clarity?.('set', 'language', code)
-  window.clarity?.('event', 'language_selected')
 }
 
 onUnauthorized(() => {
@@ -311,8 +309,6 @@ function removeFromVocab(index) {
 async function handleLogin(user) {
   currentUser.value = user
   showAuth.value    = false
-  window.clarity?.('identify', user.id)
-  window.clarity?.('set', 'proficiency', user.proficiency ?? '')
   await syncVocabOnLogin()
 }
 
