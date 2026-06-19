@@ -383,40 +383,18 @@ async function tryRapidApi(videoId, lang, host, path) {
 // Free/unlimited sources sit at the bottom as the permanent fallback.
 
 const SOURCES = [
-  // ── RapidAPI: YouTube Transcript API (youtube-transcript3, Mahmudul Hasan) ──
-  // Response: { success, transcript: [{ text, offset, duration, lang }] }
-  // Failure: { success: false, error: "..." } — still HTTP 200, checked above.
-  // Supported lang codes: en, cn, ok only. Others: omit lang, get available.
-  // Free tier: 100 req/month. Set YT_TRANSCRIPT3_LIMIT env var to override.
+  // ── RapidAPI slot: add a caption service by setting YT_CAPS_HOST in Vercel ──
+  // Optionally set YT_CAPS_PATH (template with {videoId} and {lang} placeholders)
+  // and YT_CAPS_LIMIT (monthly quota cap, default 100).
   {
-    id:     'yt-transcript3',
-    limit:  () => parseInt(process.env.YT_TRANSCRIPT3_LIMIT ?? '100'),
-    active: () => !!process.env.RAPIDAPI_KEY,
+    id:     'yt-caps',
+    limit:  () => parseInt(process.env.YT_CAPS_LIMIT ?? '100'),
+    active: () => !!(process.env.RAPIDAPI_KEY && process.env.YT_CAPS_HOST),
     fetch:  (v, l) => {
-      const SUPPORTED = new Set(['en', 'cn', 'ok'])
-      const code = l.slice(0, 2)
-      const langParam = SUPPORTED.has(code) ? `&lang=${code}` : ''
-      return tryRapidApi(v, l,
-        'youtube-transcript3.p.rapidapi.com',
-        `/api/transcript?videoId=${encodeURIComponent(v)}${langParam}`
-      )
-    },
-  },
-
-  // ── RapidAPI: slot for a second caption service ───────────────────────────
-  // To activate: set YT_CAPS2_HOST in Vercel env vars.
-  // Optionally set YT_CAPS2_PATH to override the endpoint path template,
-  // using {videoId} and {lang} as placeholders.
-  // e.g. YT_CAPS2_PATH="/transcript?video_id={videoId}&language={lang}"
-  {
-    id:     'yt-caps2',
-    limit:  () => parseInt(process.env.YT_CAPS2_LIMIT ?? '100'),
-    active: () => !!(process.env.RAPIDAPI_KEY && process.env.YT_CAPS2_HOST),
-    fetch:  (v, l) => {
-      const path = (process.env.YT_CAPS2_PATH ?? '/captions?id={videoId}&lang={lang}')
+      const path = (process.env.YT_CAPS_PATH ?? '/captions?id={videoId}&lang={lang}')
         .replace('{videoId}', encodeURIComponent(v))
         .replace('{lang}',    encodeURIComponent(l.slice(0, 2)))
-      return tryRapidApi(v, l, process.env.YT_CAPS2_HOST, path)
+      return tryRapidApi(v, l, process.env.YT_CAPS_HOST, path)
     },
   },
 
