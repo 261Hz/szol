@@ -283,24 +283,40 @@
             >▶ {{ formatTime(clip.start_sec) }} — watch in Listen tab</button>
             <button
               v-if="reportKey !== clipKey(clip)"
-              @click="reportKey = clipKey(clip); reportNote = ''; reportSent = false"
+              @click="reportKey = clipKey(clip); reportNote = ''; reportCategory = ''; reportSent = false"
               class="text-xs text-gray-600 hover:text-red-400 transition-all"
               title="Report a transcript error"
             >⚑ report</button>
             <span v-if="reportSent && reportKey === clipKey(clip)" class="text-xs text-green-500">Reported ✓</span>
           </div>
           <!-- Inline report form -->
-          <div v-if="reportKey === clipKey(clip) && !reportSent" class="flex items-center gap-1.5 mt-0.5">
+          <div v-if="reportKey === clipKey(clip) && !reportSent" class="flex flex-col gap-1 mt-0.5">
+            <div class="flex items-center gap-1.5">
+              <select
+                v-model="reportCategory"
+                class="text-xs bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-gray-300 focus:outline-none focus:border-red-700 flex-1"
+              >
+                <option value="">Select problem…</option>
+                <option value="wrong-language">Wrong language (not {{ langLabel }})</option>
+                <option value="wrong-word">Wrong word / phrase detected</option>
+                <option value="timing-off">Subtitles timing doesn't match</option>
+                <option value="subtitles-mismatch">Subtitles don't match audio</option>
+                <option value="inaccurate">Subtitles inaccurate</option>
+                <option value="bad-audio">Poor sound quality</option>
+                <option value="bug">Bug — describe below</option>
+                <option value="rights">Infringes my rights</option>
+              </select>
+              <button @click="submitReport(clip)" :disabled="!reportCategory" class="text-xs text-red-400 hover:text-red-300 disabled:opacity-30 transition-all">Send</button>
+              <button @click="reportKey = null" class="text-xs text-gray-600 hover:text-gray-400 transition-all">✕</button>
+            </div>
             <input
               v-model="reportNote"
               type="text"
-              placeholder="What's wrong? (optional)"
-              class="text-xs bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-gray-300 placeholder-gray-600 flex-1 focus:outline-none focus:border-red-700"
-              @keydown.enter="submitReport(clip)"
+              placeholder="Details (optional)"
+              class="text-xs bg-gray-900 border border-gray-700 rounded px-2 py-0.5 text-gray-300 placeholder-gray-600 focus:outline-none focus:border-red-700"
+              @keydown.enter="reportCategory && submitReport(clip)"
               @keydown.escape="reportKey = null"
             />
-            <button @click="submitReport(clip)" class="text-xs text-red-400 hover:text-red-300 transition-all">Send</button>
-            <button @click="reportKey = null" class="text-xs text-gray-600 hover:text-gray-400 transition-all">✕</button>
           </div>
         </div>
       </div>
@@ -316,7 +332,8 @@
 
 <script setup>
 // ref = reactive variable. watch = run a function whenever a reactive value changes.
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
+import { LANGS } from '../data/stories.js'
 import { isRTL } from '../utils/rtl.js'
 import { normalize } from '../utils/scoring.js'
 import { fetchTatoeba, playAudio } from '../utils/tatoeba.js'
@@ -338,6 +355,8 @@ const props = defineProps({
 })
 
 defineEmits(['tap', 'openAuth', 'openClip'])
+
+const langLabel = computed(() => LANGS[props.lang]?.name ?? props.lang ?? 'this language')
 
 const tabs = [
   { id: 'corpus',    label: 'Examples' },
@@ -454,9 +473,10 @@ function formatTime(sec) {
 }
 
 // ── Clip reporting ─────────────────────────────────────────────────────────────
-const reportKey  = ref(null)  // clipKey of the clip whose report form is open
-const reportNote = ref('')
-const reportSent = ref(false)
+const reportKey      = ref(null)  // clipKey of the clip whose report form is open
+const reportNote     = ref('')
+const reportCategory = ref('')
+const reportSent     = ref(false)
 
 function clipKey(clip) {
   return `${clip.video_id}:${clip.start_sec}`
@@ -471,6 +491,7 @@ async function submitReport(clip) {
       start_sec: clip.start_sec,
       word:      props.word,
       lang:      props.lang,
+      category:  reportCategory.value,
       note:      reportNote.value.trim(),
     }),
   }).catch(() => {})
