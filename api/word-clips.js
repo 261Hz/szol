@@ -1,10 +1,15 @@
 // api/word-clips.js — Vercel serverless function
 //
-// Fetches YouTube caption entries for a list of video IDs and returns segments
-// where the target word appears. Called by the Render backend when its datacenter
-// IP is bot-detected by YouTube — Vercel's Lambda IPs are not flagged.
+// Returns YouTube caption clips where a word (or words) appears.
+// Supports two call modes:
+//   Single : GET /api/word-clips?word=town&lang=en&video_ids=id1,id2   → Clip[]
+//   Multi  : GET /api/word-clips?words=town,city&lang=en&video_ids=id1 → { word: Clip[] }
 //
-// Usage: GET /api/word-clips?word=town&lang=en&video_ids=id1,id2,id3
+// Caption sources are tried in priority order; exhausted or disabled sources
+// are skipped.  All fetched captions are cached in module scope so one video
+// serves many words without re-hitting any API.
+
+// ── Invidious instance list ───────────────────────────────────────────────────
 
 const INVIDIOUS = [
   'https://inv.nadeko.net',
@@ -60,6 +65,24 @@ function parseJson3(data) {
   return entries
 }
 
+// Normalise the diverse response shapes returned by RapidAPI caption services.
+function parseRapidApiResponse(data, lang) {
+  // Shape 1: flat array of segments  [{ text, start, dur|duration }]
+  // Shape 2: { subtitles|transcript|captions: [...] }
+  // Shape 3: { data: { captions: [...] } }
+  const items = Array.isArray(data)
+    ? data
+    : data?.subtitles ?? data?.transcript ?? data?.captions
+      ?? data?.data?.captions ?? data?.data?.subtitles ?? null
+  if (!Array.isArray(items) || !items.length) return null
+  const entries = items.map(it => ({
+    text:     String(it.text ?? it.utf8 ?? '').replace(/\n/g, ' ').trim(),
+    start:    parseFloat(it.start ?? (it.tStartMs != null ? it.tStartMs / 1000 : 0)),
+    duration: parseFloat(it.dur ?? it.duration ?? (it.dDurationMs != null ? it.dDurationMs / 1000 : 2)),
+  })).filter(e => e.text && e.start >= 0)
+  return entries.length ? { entries, lang } : null
+}
+
 // ── Word matching ─────────────────────────────────────────────────────────────
 
 function containsWord(target, text) {
@@ -67,7 +90,50 @@ function containsWord(target, text) {
   return t.length > 0 && text.toLowerCase().includes(t)
 }
 
-// ── Caption source: Invidious ────────────────────────────────────────────────
+// ── Module-level state: caption cache + quota counters ────────────────────────
+//
+// Both persist across warm Lambda invocations (typically 5–30 min).
+// Caption cache: videoId → { entries, lang, ts }
+// Quota counts : sourceId → { count, month }   (month = "YYYY-M" UTC)
+
+const _captionCache = new Map()
+const _quota        = new Map()
+const CAPTION_TTL   = 5 * 60 * 1000 // 5 min
+
+function cacheGet(videoId) {
+  const e = _captionCache.get(videoId)
+  if (!e) return null
+  if (Date.now() - e.ts > CAPTION_TTL) { _captionCache.delete(videoId); return null }
+  return { entries: e.entries, lang: e.lang }
+}
+
+function cacheSet(videoId, entries, lang) {
+  if (_captionCache.size >= 60) {
+    const oldest = [..._captionCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0]
+    _captionCache.delete(oldest[0])
+  }
+  _captionCache.set(videoId, { entries, lang, ts: Date.now() })
+}
+
+function quotaMonth() {
+  const d = new Date()
+  return `${d.getUTCFullYear()}-${d.getUTCMonth()}`
+}
+
+function quotaUsed(id) {
+  const e = _quota.get(id)
+  if (!e || e.month !== quotaMonth()) return 0
+  return e.count
+}
+
+function quotaInc(id) {
+  const m = quotaMonth()
+  const e = _quota.get(id)
+  if (!e || e.month !== m) _quota.set(id, { count: 1, month: m })
+  else e.count++
+}
+
+// ── Caption source adapters ───────────────────────────────────────────────────
 
 async function tryInvidious(base, videoId, lang) {
   const langBase = lang.slice(0, 2)
@@ -121,12 +187,9 @@ async function tryInvidious(base, videoId, lang) {
   }
 }
 
-// Race all Invidious instances for one video — take the first success.
 async function tryAnyInvidious(videoId, lang) {
   return new Promise(resolve => {
-    let pending = INVIDIOUS.length
-    let settled = false
-    let bestNoCaption = null
+    let pending = INVIDIOUS.length, settled = false, bestNoCaption = null
     for (const base of INVIDIOUS) {
       tryInvidious(base, videoId, lang).then(r => {
         if (settled) return
@@ -137,8 +200,6 @@ async function tryAnyInvidious(videoId, lang) {
     }
   })
 }
-
-// ── Caption source: YouTube Innertube API ─────────────────────────────────────
 
 async function tryYouTubeInnertube(videoId, lang) {
   const clients = [
@@ -230,8 +291,6 @@ async function tryYouTubeInnertube(videoId, lang) {
   return gotValidResponse ? { noCaption: true } : null
 }
 
-// ── Caption source: direct YouTube watch page ─────────────────────────────────
-
 async function tryYouTubeDirect(videoId, lang) {
   const ac    = new AbortController()
   const timer = setTimeout(() => ac.abort(), 10000)
@@ -285,53 +344,97 @@ async function tryYouTubeDirect(videoId, lang) {
   }
 }
 
-// ── Caption cache (module-level, persists across warm Lambda invocations) ─────
-// Captions for a video are fetched once and reused for all words — "one video,
-// multiple words" — without re-hitting YouTube/Invidious for every lookup.
-
-const _captionCache = new Map() // videoId → { entries, lang, ts }
-const CAPTION_TTL   = 5 * 60 * 1000 // 5 minutes
-
-function getCaptionCache(videoId) {
-  const e = _captionCache.get(videoId)
-  if (!e) return null
-  if (Date.now() - e.ts > CAPTION_TTL) { _captionCache.delete(videoId); return null }
-  return { entries: e.entries, lang: e.lang }
-}
-
-function setCaptionCache(videoId, entries, lang) {
-  if (_captionCache.size >= 50) {
-    // Evict oldest entry to cap memory usage
-    const oldest = [..._captionCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0]
-    _captionCache.delete(oldest[0])
+// Generic RapidAPI captions adapter — shared by all RapidAPI caption sources.
+async function tryRapidApi(videoId, lang, host, path) {
+  const key = process.env.RAPIDAPI_KEY
+  if (!key) return null
+  try {
+    const r = await fetch(`https://${host}${path}`, {
+      headers: { 'x-rapidapi-host': host, 'x-rapidapi-key': key },
+      signal:  AbortSignal.timeout(10000),
+    })
+    if (!r.ok) return null
+    const data = await r.json().catch(() => null)
+    return parseRapidApiResponse(data, lang)
+  } catch {
+    return null
   }
-  _captionCache.set(videoId, { entries, lang, ts: Date.now() })
 }
 
-// ── Caption fetch with cache ──────────────────────────────────────────────────
+// ── Source registry ───────────────────────────────────────────────────────────
+//
+// Add a new RapidAPI caption source by:
+//   1. Adding env vars (e.g. YT_API_FULL_HOST) in Vercel → Settings → Environment
+//   2. Adding an entry below with the correct host and endpoint path
+//
+// Sources are tried in order; exhausted or unconfigured sources are skipped.
+// Free/unlimited sources sit at the bottom as the permanent fallback.
+
+const SOURCES = [
+  // ── RapidAPI: YouTube API Full (youtube-api-full.p.rapidapi.com) ────────────
+  // Host confirmed. Uses the same RAPIDAPI_KEY as Filmot (already in Vercel env).
+  // Free tier: 250 req/month. Set YT_API_FULL_LIMIT env var to override the cap.
+  // Captions endpoint: GET /api/captions?id=VIDEO_ID&lang=LANG
+  {
+    id:     'yt-api-full',
+    limit:  () => parseInt(process.env.YT_API_FULL_LIMIT ?? '250'),
+    active: () => !!process.env.RAPIDAPI_KEY,
+    fetch:  (v, l) => tryRapidApi(v, l,
+      'youtube-api-full.p.rapidapi.com',
+      `/api/captions?id=${encodeURIComponent(v)}&lang=${encodeURIComponent(l.slice(0, 2))}`
+    ),
+  },
+
+  // ── RapidAPI: slot for a second caption service ───────────────────────────
+  // To activate: set YT_CAPS2_HOST in Vercel env vars.
+  // Optionally set YT_CAPS2_PATH to override the endpoint path template,
+  // using {videoId} and {lang} as placeholders.
+  // e.g. YT_CAPS2_PATH="/transcript?video_id={videoId}&language={lang}"
+  {
+    id:     'yt-caps2',
+    limit:  () => parseInt(process.env.YT_CAPS2_LIMIT ?? '100'),
+    active: () => !!(process.env.RAPIDAPI_KEY && process.env.YT_CAPS2_HOST),
+    fetch:  (v, l) => {
+      const path = (process.env.YT_CAPS2_PATH ?? '/captions?id={videoId}&lang={lang}')
+        .replace('{videoId}', encodeURIComponent(v))
+        .replace('{lang}',    encodeURIComponent(l.slice(0, 2)))
+      return tryRapidApi(v, l, process.env.YT_CAPS2_HOST, path)
+    },
+  },
+
+  // ── Free fallbacks (unlimited, but may be blocked by YouTube) ────────────
+  { id: 'invidious', limit: () => Infinity, active: () => true, fetch: (v, l) => tryAnyInvidious(v, l) },
+  { id: 'innertube', limit: () => Infinity, active: () => true, fetch: (v, l) => tryYouTubeInnertube(v, l) },
+  { id: 'yt-direct', limit: () => Infinity, active: () => true, fetch: (v, l) => tryYouTubeDirect(v, l) },
+]
+
+// ── Caption fetch: cache-first, then source priority order ───────────────────
 
 async function fetchCaptions(videoId, lang) {
-  const cached = getCaptionCache(videoId)
-  if (cached) return cached
+  // 1. Cache hit — no API call at all
+  const hit = cacheGet(videoId)
+  if (hit) return hit
 
-  let result = await tryAnyInvidious(videoId, lang)
-  if (!result || result.noCaption) result = await tryYouTubeInnertube(videoId, lang)
-  if (!result || result.noCaption) result = await tryYouTubeDirect(videoId, lang)
-  if (result && !result.noCaption && result.entries?.length) {
-    setCaptionCache(videoId, result.entries, result.lang)
-    return result
+  // 2. Try each source in order, skipping inactive or quota-exhausted ones
+  for (const src of SOURCES) {
+    if (!src.active()) continue
+    const lim = src.limit()
+    if (lim !== Infinity && quotaUsed(src.id) >= lim) continue
+
+    try {
+      const result = await src.fetch(videoId, lang)
+      if (result && !result.noCaption && result.entries?.length) {
+        if (lim !== Infinity) quotaInc(src.id)
+        cacheSet(videoId, result.entries, result.lang ?? lang)
+        return result
+      }
+    } catch {}
   }
-  return result // null or { noCaption: true }
+
+  return null
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
-//
-// Supports two call modes:
-//   Single-word: ?word=town&lang=en&video_ids=id1,id2    → returns Clip[]
-//   Multi-word:  ?words=town,city&lang=en&video_ids=id1  → returns { word: Clip[] }
-//
-// Captions are fetched once per video_id and shared across all words in the
-// request, and cached in module scope for warm Lambda reuse.
 
 export default async function handler(req, res) {
   const { word, words: wordsParam, lang = 'en', video_ids } = req.query
@@ -350,19 +453,15 @@ export default async function handler(req, res) {
 
   const ids          = video_ids.split(',').map(s => s.trim()).filter(Boolean).slice(0, 10)
   const MAX_PER_WORD = 5
-
-  // Initialize per-word clip lists
-  const clipsByWord = Object.fromEntries(wordList.map(w => [w, []]))
+  const clipsByWord  = Object.fromEntries(wordList.map(w => [w, []]))
 
   for (const videoId of ids) {
     if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) continue
-    // Skip if every word already has enough clips
     if (wordList.every(w => clipsByWord[w].length >= MAX_PER_WORD)) break
 
     const result = await fetchCaptions(videoId, lang)
-    if (!result || result.noCaption || !result.entries?.length) continue
+    if (!result?.entries?.length) continue
 
-    // Single pass over captions — check every word against each entry
     for (const entry of result.entries) {
       const text = entry.text?.replace(/\n/g, ' ').trim() || ''
       if (!text) continue
@@ -381,10 +480,8 @@ export default async function handler(req, res) {
 
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate')
 
-  // Single-word backward compat: return flat array (same shape as before)
-  if (!wordsParam) {
-    return res.status(200).json(clipsByWord[wordList[0]] ?? [])
-  }
+  // Single-word: return flat array (backward compat)
+  if (!wordsParam) return res.status(200).json(clipsByWord[wordList[0]] ?? [])
 
   // Multi-word: return object keyed by word
   return res.status(200).json(clipsByWord)
