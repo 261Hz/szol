@@ -353,11 +353,19 @@
       >{{ currentSegment.text }}</div>
 
 
+      <!-- Transcript loading indicator -->
+      <div v-if="transcriptLoading" class="text-xs text-gray-500 text-center py-1 animate-pulse">
+        Loading transcript…
+      </div>
+      <div v-else-if="!segments.length && selectedStory?.source_type === 'podcast'" class="text-xs text-gray-600 text-center py-1">
+        No transcript available for this episode
+      </div>
+
       <!-- Action row -->
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2">
           <button
-            v-if="mode === 'dictation' ? userInput.trim() : translationResult"
+            v-if="segments.length"
             @click="showTranscript = !showTranscript"
             class="text-xs px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 hover:border-emerald-700 hover:text-emerald-400 transition-all"
           >{{ showTranscript ? t(lang, 'hideTranscript') : (mode === 'translation' ? 'Show original' : t(lang, 'showCorrectText')) }}</button>
@@ -372,6 +380,7 @@
         </div>
 
         <button
+          v-if="segments.length > 1"
           @click="nextSegment"
           :disabled="segmentIdx >= segments.length - 1"
           class="text-xs px-4 py-1.5 rounded-md bg-emerald-700 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
@@ -388,7 +397,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import Fuse from 'fuse.js'
 import { LANGS } from '../data/stories.js'
-import { fetchListenStories, checkTranslation } from '../utils/api.js'
+import { fetchListenStories, checkTranslation, fetchPodcastTranscript } from '../utils/api.js'
 import { t } from '../utils/i18n.js'
 import { isRTL } from '../utils/rtl.js'
 import { spokenNumbers } from '../utils/spokenNumbers.js'
@@ -496,14 +505,26 @@ watch(() => props.story, (newStory) => {
 
 // ── Load a story into the player ──────────────────────────────────────────────
 
-const segments       = ref([])
-const segmentIdx     = ref(0)
-const userInput      = ref('')
-const showTranscript = ref(false)
-const resumeSegment  = ref(null)
-const difficulty     = ref('medium')
-const mode           = ref('dictation') // 'dictation' | 'translation'
-const translateTo    = ref(props.lang === 'en' ? 'es' : 'en')
+const segments            = ref([])
+const segmentIdx          = ref(0)
+const userInput           = ref('')
+const showTranscript      = ref(false)
+const resumeSegment       = ref(null)
+const difficulty          = ref('medium')
+const mode                = ref('dictation') // 'dictation' | 'translation'
+const translateTo         = ref(props.lang === 'en' ? 'es' : 'en')
+const transcriptLoading   = ref(false)
+
+async function tryFetchTranscript(storyId) {
+  transcriptLoading.value = true
+  try {
+    const data = await fetchPodcastTranscript(storyId)
+    if (data?.segments?.length) {
+      segments.value = data.segments
+    }
+  } catch {}
+  transcriptLoading.value = false
+}
 
 const translationResult   = ref(null) // { score, feedback }
 const translationChecking = ref(false)
@@ -560,6 +581,11 @@ async function loadStory(story, startAt = null) {
       audioEl.value.currentTime = story.segments[0]?.start ?? 0
       if (audioEl.value.readyState >= 1) onAudioLoaded()
     }
+  }
+
+  // Auto-fetch transcript for podcast episodes that don't have segments yet
+  if (story.source_type === 'podcast' && !story.segments?.length) {
+    tryFetchTranscript(story.id)
   }
 }
 

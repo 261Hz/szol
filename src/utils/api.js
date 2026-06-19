@@ -446,6 +446,14 @@ export async function fetchPodcasts(lang) {
   return await res.json()
 }
 
+export async function fetchPodcastTranscript(episodeId) {
+  const res = await fetch(`${API_URL}/podcasts/${encodeURIComponent(episodeId)}/transcript`, {
+    method: 'POST',
+  }).catch(() => null)
+  if (!res?.ok) return null
+  return await res.json()
+}
+
 export async function suggestSource(url, lang, note = '') {
   const res = await apiFetch(`${API_URL}/feed/suggest`, {
     method: 'POST',
