@@ -285,56 +285,107 @@ async function tryYouTubeDirect(videoId, lang) {
   }
 }
 
+// ── Caption cache (module-level, persists across warm Lambda invocations) ─────
+// Captions for a video are fetched once and reused for all words — "one video,
+// multiple words" — without re-hitting YouTube/Invidious for every lookup.
+
+const _captionCache = new Map() // videoId → { entries, lang, ts }
+const CAPTION_TTL   = 5 * 60 * 1000 // 5 minutes
+
+function getCaptionCache(videoId) {
+  const e = _captionCache.get(videoId)
+  if (!e) return null
+  if (Date.now() - e.ts > CAPTION_TTL) { _captionCache.delete(videoId); return null }
+  return { entries: e.entries, lang: e.lang }
+}
+
+function setCaptionCache(videoId, entries, lang) {
+  if (_captionCache.size >= 50) {
+    // Evict oldest entry to cap memory usage
+    const oldest = [..._captionCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0]
+    _captionCache.delete(oldest[0])
+  }
+  _captionCache.set(videoId, { entries, lang, ts: Date.now() })
+}
+
+// ── Caption fetch with cache ──────────────────────────────────────────────────
+
+async function fetchCaptions(videoId, lang) {
+  const cached = getCaptionCache(videoId)
+  if (cached) return cached
+
+  let result = await tryAnyInvidious(videoId, lang)
+  if (!result || result.noCaption) result = await tryYouTubeInnertube(videoId, lang)
+  if (!result || result.noCaption) result = await tryYouTubeDirect(videoId, lang)
+  if (result && !result.noCaption && result.entries?.length) {
+    setCaptionCache(videoId, result.entries, result.lang)
+    return result
+  }
+  return result // null or { noCaption: true }
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
+//
+// Supports two call modes:
+//   Single-word: ?word=town&lang=en&video_ids=id1,id2    → returns Clip[]
+//   Multi-word:  ?words=town,city&lang=en&video_ids=id1  → returns { word: Clip[] }
+//
+// Captions are fetched once per video_id and shared across all words in the
+// request, and cached in module scope for warm Lambda reuse.
 
 export default async function handler(req, res) {
-  const { word, lang = 'en', video_ids } = req.query
+  const { word, words: wordsParam, lang = 'en', video_ids } = req.query
 
-  if (!word?.trim() || !video_ids?.trim()) {
-    return res.status(400).json({ detail: 'word and video_ids are required' })
+  if (!video_ids?.trim()) {
+    return res.status(400).json({ detail: 'video_ids is required' })
   }
 
-  const ids      = video_ids.split(',').map(s => s.trim()).filter(Boolean).slice(0, 10)
-  const MAX_CLIPS = 8
+  const wordList = wordsParam
+    ? wordsParam.split(',').map(w => w.trim()).filter(Boolean).slice(0, 20)
+    : word?.trim() ? [word.trim()] : null
 
-  const clips = []
-  const debug = []
+  if (!wordList?.length) {
+    return res.status(400).json({ detail: 'word or words is required' })
+  }
+
+  const ids          = video_ids.split(',').map(s => s.trim()).filter(Boolean).slice(0, 10)
+  const MAX_PER_WORD = 5
+
+  // Initialize per-word clip lists
+  const clipsByWord = Object.fromEntries(wordList.map(w => [w, []]))
 
   for (const videoId of ids) {
-    if (clips.length >= MAX_CLIPS) break
     if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) continue
+    // Skip if every word already has enough clips
+    if (wordList.every(w => clipsByWord[w].length >= MAX_PER_WORD)) break
 
-    let result = await tryAnyInvidious(videoId, lang)
-    if (!result || result.noCaption) result = await tryYouTubeInnertube(videoId, lang)
-    if (!result || result.noCaption) result = await tryYouTubeDirect(videoId, lang)
-    const status = !result ? 'null' : result.noCaption ? 'noCaption' : `ok:${result.lang}:${result.entries?.length ?? 0}`
-    if (!result || result.noCaption || !result.entries?.length) {
-      debug.push(`${videoId}: ${status}`)
-      continue
-    }
+    const result = await fetchCaptions(videoId, lang)
+    if (!result || result.noCaption || !result.entries?.length) continue
 
-    const sample = result.entries.slice(0, 2).map(e => e.text).join(' | ')
-    debug.push(`${videoId}: ${status} sample="${sample.slice(0, 80)}"`)
-
-    let found = 0
+    // Single pass over captions — check every word against each entry
     for (const entry of result.entries) {
-      if (clips.length >= MAX_CLIPS) break
       const text = entry.text?.replace(/\n/g, ' ').trim() || ''
-      if (!text || !containsWord(word, text)) continue
-      clips.push({
-        video_id:  videoId,
-        start_sec: Math.floor(entry.start),
-        end_sec:   Math.floor(entry.start + Math.max(2, entry.duration ?? 3)),
-        context:   text,
-      })
-      found++
+      if (!text) continue
+      for (const w of wordList) {
+        if (clipsByWord[w].length >= MAX_PER_WORD) continue
+        if (!containsWord(w, text)) continue
+        clipsByWord[w].push({
+          video_id:  videoId,
+          start_sec: Math.floor(entry.start),
+          end_sec:   Math.floor(entry.start + Math.max(2, entry.duration ?? 3)),
+          context:   text,
+        })
+      }
     }
-    debug.push(`${videoId}: found ${found} clips`)
   }
 
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate')
-  if (clips.length === 0) {
-    return res.status(200).json({ clips: [], debug })
+
+  // Single-word backward compat: return flat array (same shape as before)
+  if (!wordsParam) {
+    return res.status(200).json(clipsByWord[wordList[0]] ?? [])
   }
-  return res.status(200).json(clips)
+
+  // Multi-word: return object keyed by word
+  return res.status(200).json(clipsByWord)
 }
