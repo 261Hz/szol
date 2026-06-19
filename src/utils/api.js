@@ -454,6 +454,30 @@ export async function fetchPodcastTranscript(episodeId) {
   return await res.json()
 }
 
+export async function fetchOgjreTranscript(title) {
+  const m = title.match(/#(\d+)\s*[-–]\s*(.+)/)
+  if (!m) return null
+  const epNum  = m[1]
+  const guest  = m[2].trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+  const slug   = `joe-rogan-experience-${epNum}-${guest}`
+  const query  = `{ video(slug: "${slug}") { transcriptStatus transcriptText transcriptSegments { startMs endMs text } } }`
+  const res = await fetch('https://api.ogjre.com/graphql', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ query }),
+  }).catch(() => null)
+  if (!res?.ok) return null
+  const data  = await res.json().catch(() => null)
+  const video = data?.data?.video
+  if (!video || video.transcriptStatus !== 'DONE') return null
+  const segments = (video.transcriptSegments || []).map(s => ({
+    start: s.startMs / 1000,
+    end:   s.endMs   / 1000,
+    text:  s.text,
+  }))
+  return { transcript: video.transcriptText || '', segments }
+}
+
 export async function suggestSource(url, lang, note = '') {
   const res = await apiFetch(`${API_URL}/feed/suggest`, {
     method: 'POST',
