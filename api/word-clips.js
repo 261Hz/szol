@@ -65,19 +65,29 @@ function parseJson3(data) {
   return entries
 }
 
+function decodeHtmlEntities(str) {
+  return str
+    .replace(/&#(\d+);/g,       (_, n) => String.fromCharCode(n))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+}
+
 // Normalise the diverse response shapes returned by RapidAPI caption services.
 function parseRapidApiResponse(data, lang) {
-  // Shape 1: flat array of segments  [{ text, start, dur|duration }]
+  // Shape 1: flat array of segments  [{ text, start|offset, dur|duration }]
   // Shape 2: { subtitles|transcript|captions: [...] }
   // Shape 3: { data: { captions: [...] } }
+  // youtube-transcript3: { success, transcript: [{ text, offset, duration, lang }] }
   const items = Array.isArray(data)
     ? data
-    : data?.subtitles ?? data?.transcript ?? data?.captions
+    : data?.transcript ?? data?.subtitles ?? data?.captions
       ?? data?.data?.captions ?? data?.data?.subtitles ?? null
   if (!Array.isArray(items) || !items.length) return null
   const entries = items.map(it => ({
-    text:     String(it.text ?? it.utf8 ?? '').replace(/\n/g, ' ').trim(),
-    start:    parseFloat(it.start ?? (it.tStartMs != null ? it.tStartMs / 1000 : 0)),
+    text:     decodeHtmlEntities(String(it.text ?? it.utf8 ?? '').replace(/\n/g, ' ').trim()),
+    // "offset" used by youtube-transcript3; "start" used by most others
+    start:    parseFloat(it.offset ?? it.start ?? (it.tStartMs != null ? it.tStartMs / 1000 : 0)),
     duration: parseFloat(it.dur ?? it.duration ?? (it.dDurationMs != null ? it.dDurationMs / 1000 : 2)),
   })).filter(e => e.text && e.start >= 0)
   return entries.length ? { entries, lang } : null
@@ -371,17 +381,17 @@ async function tryRapidApi(videoId, lang, host, path) {
 // Free/unlimited sources sit at the bottom as the permanent fallback.
 
 const SOURCES = [
-  // ── RapidAPI: YouTube API Full (youtube-api-full.p.rapidapi.com) ────────────
-  // Host confirmed. Uses the same RAPIDAPI_KEY as Filmot (already in Vercel env).
-  // Free tier: 250 req/month. Set YT_API_FULL_LIMIT env var to override the cap.
-  // Captions endpoint: GET /api/captions?id=VIDEO_ID&lang=LANG
+  // ── RapidAPI: YouTube Transcript API (youtube-transcript3, Mahmudul Hasan) ──
+  // Response: { success, transcript: [{ text, offset, duration, lang }] }
+  // "offset" = start time in seconds (string). HTML entities in text.
+  // Free tier: varies. Set YT_TRANSCRIPT3_LIMIT env var to cap (default 500).
   {
-    id:     'yt-api-full',
-    limit:  () => parseInt(process.env.YT_API_FULL_LIMIT ?? '250'),
+    id:     'yt-transcript3',
+    limit:  () => parseInt(process.env.YT_TRANSCRIPT3_LIMIT ?? '500'),
     active: () => !!process.env.RAPIDAPI_KEY,
     fetch:  (v, l) => tryRapidApi(v, l,
-      'youtube-api-full.p.rapidapi.com',
-      `/api/captions?id=${encodeURIComponent(v)}&lang=${encodeURIComponent(l.slice(0, 2))}`
+      'youtube-transcript3.p.rapidapi.com',
+      `/api/transcript?videoId=${encodeURIComponent(v)}&lang=${encodeURIComponent(l.slice(0, 2))}`
     ),
   },
 
