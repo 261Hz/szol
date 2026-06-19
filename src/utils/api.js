@@ -440,6 +440,16 @@ export async function fetchFeed(lang, skip = 0, limit = 20) {
   return await res.json()
 }
 
+export async function fetchFeedArticle(url) {
+  const res = await fetch(`${API_URL}/feed/fetch`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ url }),
+  }).catch(() => null)
+  if (!res?.ok) return null
+  return await res.json().catch(() => null)
+}
+
 export async function fetchPodcasts(lang) {
   const res = await fetch(`${API_URL}/podcasts/?lang=${encodeURIComponent(lang)}`).catch(() => null)
   if (!res?.ok) return []
