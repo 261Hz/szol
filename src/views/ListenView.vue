@@ -397,7 +397,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import Fuse from 'fuse.js'
 import { LANGS } from '../data/stories.js'
-import { fetchListenStories, checkTranslation, fetchPodcastTranscript } from '../utils/api.js'
+import { fetchListenStories, checkTranslation, fetchPodcastTranscript, fetchOgjreTranscript } from '../utils/api.js'
 import { t } from '../utils/i18n.js'
 import { isRTL } from '../utils/rtl.js'
 import { spokenNumbers } from '../utils/spokenNumbers.js'
@@ -515,9 +515,19 @@ const mode                = ref('dictation') // 'dictation' | 'translation'
 const translateTo         = ref(props.lang === 'en' ? 'es' : 'en')
 const transcriptLoading   = ref(false)
 
-async function tryFetchTranscript(storyId) {
+async function tryFetchTranscript(storyId, title) {
   transcriptLoading.value = true
   try {
+    // Try ogjre.com directly from the browser first (faster, no backend hop)
+    if (title) {
+      const ogjre = await fetchOgjreTranscript(title)
+      if (ogjre?.segments?.length) {
+        segments.value = ogjre.segments
+        transcriptLoading.value = false
+        return
+      }
+    }
+    // Fall back to backend (which also tries ogjre + Whisper)
     const data = await fetchPodcastTranscript(storyId)
     if (data?.segments?.length) {
       segments.value = data.segments
@@ -585,7 +595,7 @@ async function loadStory(story, startAt = null) {
 
   // Auto-fetch transcript for podcast episodes that don't have segments yet
   if (story.source_type === 'podcast' && !story.segments?.length) {
-    tryFetchTranscript(story.id)
+    tryFetchTranscript(story.id, story.title)
   }
 }
 
