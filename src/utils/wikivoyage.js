@@ -9,16 +9,15 @@
 
 // Maps app language codes to Wikivoyage subdomain codes.
 // Most are 1:1 with the language code. arz (Egyptian Arabic) falls back to 'ar'.
-// ar, hu: Wikivoyage editions still in Wikimedia Incubator — omitted so they fall back to 'en'.
+// ar, hu: Wikivoyage editions still in Wikimedia Incubator — not included.
 const WIKI_LANG = {
   en: 'en', es: 'es', fr: 'fr', de: 'de', it: 'it',
   ru: 'ru', he: 'he', ja: 'ja', zh: 'zh', el: 'el', id: 'id',
 }
 
-// wl() = "wiki language" — converts an app language code to a Wikivoyage subdomain code.
-// Falls back to 'en' so even uncommon languages can still search English Wikivoyage.
+// wl() = returns the Wikivoyage subdomain for a language, or null if unavailable.
 function wl(lang) {
-  return WIKI_LANG[lang] || 'en'
+  return WIKI_LANG[lang] ?? null
 }
 
 // searchWikivoyage() searches Wikivoyage for destination articles matching a query string.
@@ -30,6 +29,7 @@ function wl(lang) {
 // snippet = a short plain-text excerpt from the article (HTML tags stripped).
 export async function searchWikivoyage(query, lang) {
   const code = wl(lang)
+  if (!code) return []
 
   try {
     // list=search performs a full-text search across Wikivoyage articles.
@@ -63,6 +63,7 @@ export async function searchWikivoyage(query, lang) {
 // Returns { title, text } on success, or null if the article doesn't exist or on error.
 export async function fetchWikivoyageArticle(title, lang) {
   const code = wl(lang)
+  if (!code) return null
 
   try {
     // prop=extracts   = we want the article text (not images, categories, etc.)
