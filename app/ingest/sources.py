@@ -294,15 +294,6 @@ SOURCES = [
         "min_words": 60,
     },
 
-    # ── Arabic ──────────────────────────────────────────────────────────────
-    {
-        "name": "الجزيرة",
-        "feed_url": "https://www.aljazeera.net/xml/rss/all.xml",
-        "lang": "ar",
-        "license": "attribution",
-        "min_words": 60,
-    },
-
     # ── Chinese ─────────────────────────────────────────────────────────────
     {
         "name": "Deutsche Welle 中文",
@@ -330,15 +321,6 @@ SOURCES = [
         "min_words": 60,
     },
 
-
-    # ── Greek ───────────────────────────────────────────────────────────────
-    {
-        "name": "Kathimerini",
-        "feed_url": "https://www.kathimerini.gr/rss/",
-        "lang": "el",
-        "license": "attribution",
-        "min_words": 60,
-    },
 
     # ── Indonesian ──────────────────────────────────────────────────────────
     {
