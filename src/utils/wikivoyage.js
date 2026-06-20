@@ -9,10 +9,10 @@
 
 // Maps app language codes to Wikivoyage subdomain codes.
 // Most are 1:1 with the language code. arz (Egyptian Arabic) falls back to 'ar'.
+// ar, hu: Wikivoyage editions still in Wikimedia Incubator — omitted so they fall back to 'en'.
 const WIKI_LANG = {
   en: 'en', es: 'es', fr: 'fr', de: 'de', it: 'it',
-  ru: 'ru', he: 'he', ar: 'ar', arz: 'ar',
-  ja: 'ja', zh: 'zh', hu: 'hu', el: 'el',
+  ru: 'ru', he: 'he', ja: 'ja', zh: 'zh', el: 'el', id: 'id',
 }
 
 // wl() = "wiki language" — converts an app language code to a Wikivoyage subdomain code.

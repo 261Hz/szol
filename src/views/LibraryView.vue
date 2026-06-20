@@ -1035,11 +1035,9 @@ const SUGGESTED_SOURCES = {
     { name: 'Wikivoyage IT',  url: 'https://it.wikivoyage.org',  lang: 'it',  wikivoyage: true },
     { name: 'Wikivoyage RU',  url: 'https://ru.wikivoyage.org',  lang: 'ru',  wikivoyage: true },
     { name: 'Wikivoyage HE',  url: 'https://he.wikivoyage.org',  lang: 'he',  wikivoyage: true },
-    { name: 'Wikivoyage AR',  url: 'https://ar.wikivoyage.org',  lang: 'ar',  wikivoyage: true },
     { name: 'Wikivoyage JA',  url: 'https://ja.wikivoyage.org',  lang: 'ja',  wikivoyage: true },
     { name: 'Wikivoyage ZH',  url: 'https://zh.wikivoyage.org',  lang: 'zh',  wikivoyage: true },
     { name: 'Wikivoyage EL',  url: 'https://el.wikivoyage.org',  lang: 'el',  wikivoyage: true },
-    { name: 'Wikivoyage HU',  url: 'https://hu.wikivoyage.org',  lang: 'hu',  wikivoyage: true },
     { name: 'Wikivoyage ID',  url: 'https://id.wikivoyage.org',  lang: 'id',  wikivoyage: true },
   ],
 }
