@@ -247,9 +247,7 @@ def ingest_podcasts(db, dry_run: bool = False) -> int:
             if not audio:
                 continue
 
-            exists = db.query(PodcastEpisode.id).filter_by(audio_url=audio).first()
-            if exists:
-                continue
+            existing = db.query(PodcastEpisode).filter_by(audio_url=audio).first()
 
             title = _strip_html(entry.get("title", "Untitled"))
 
@@ -270,6 +268,14 @@ def ingest_podcasts(db, dry_run: bool = False) -> int:
                 tx_url = _transcript_url(entry)
                 if tx_url:
                     transcript = _fetch_rss_transcript(tx_url)
+
+            if existing:
+                # Backfill transcript if we now have one and didn't before
+                if transcript and not existing.segments:
+                    existing.transcript = transcript
+                    existing.segments   = segments or None
+                    logger.info("    ↻ backfilled transcript: %s", title)
+                continue
 
             ep = PodcastEpisode(
                 podcast_name=source["name"],
