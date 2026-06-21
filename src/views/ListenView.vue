@@ -397,7 +397,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import Fuse from 'fuse.js'
 import { LANGS } from '../data/stories.js'
-import { fetchListenStories, checkTranslation, fetchPodcastTranscript, fetchOgjreTranscript } from '../utils/api.js'
+import { fetchListenStories, checkTranslation, fetchPodcastTranscript, fetchOgjreTranscript, savePodcastTranscript } from '../utils/api.js'
 import { t } from '../utils/i18n.js'
 import { isRTL } from '../utils/rtl.js'
 import { spokenNumbers } from '../utils/spokenNumbers.js'
@@ -524,6 +524,7 @@ async function tryFetchTranscript(storyId, title) {
       if (ogjre?.segments?.length) {
         segments.value = ogjre.segments
         transcriptLoading.value = false
+        savePodcastTranscript(storyId, ogjre.segments)  // cache in DB for next time
         return
       }
     }
@@ -571,7 +572,7 @@ async function runTranslationCheck() {
 async function loadStory(story, startAt = null) {
   teardown()
   selectedStory.value  = story
-  segments.value       = story.segments
+  segments.value       = story.segments ?? []
   segmentIdx.value     = 0
   userInput.value      = ''
   showTranscript.value = false
@@ -579,7 +580,7 @@ async function loadStory(story, startAt = null) {
 
   const saved = JSON.parse(localStorage.getItem('szol_listen_progress') || '{}')
   const vp    = saved[story.id]
-  resumeSegment.value = (startAt === null && vp && vp.segmentIndex > 0 && vp.segmentIndex < story.segments.length)
+  resumeSegment.value = (startAt === null && vp && vp.segmentIndex > 0 && vp.segmentIndex < segments.value.length)
     ? vp.segmentIndex : null
 
   if (story.source_type === 'youtube') {
@@ -588,7 +589,7 @@ async function loadStory(story, startAt = null) {
     await nextTick()
     setupAnalyser()
     if (audioEl.value) {
-      audioEl.value.currentTime = story.segments[0]?.start ?? 0
+      audioEl.value.currentTime = segments.value[0]?.start ?? 0
       if (audioEl.value.readyState >= 1) onAudioLoaded()
     }
   }
