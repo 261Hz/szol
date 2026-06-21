@@ -5,6 +5,8 @@ GET  /podcasts/?lang=           list episodes for a language
 POST /podcasts/{id}/transcript  fetch transcript via ogjre.com (fast, free)
 """
 
+import logging
+import re
 from typing import List
 from uuid import UUID
 
@@ -15,6 +17,7 @@ from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..database import get_db
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/podcasts", tags=["Podcasts"])
 
 
@@ -34,9 +37,10 @@ def _lex_transcript_url_from_audio(audio_url: str) -> str | None:
     """Derive lexfridman.com transcript URL from the Blubrry audio filename.
 
     https://…/lex_ai_lars_brownworth.mp3 → https://lexfridman.com/lars-brownworth-transcript
+    Strips query strings before matching so ?source=rss etc. don't break the regex.
     """
-    import re
-    m = re.search(r'/lex_ai_([^/?#]+?)(?:\.mp3|\.m4a)?$', audio_url, re.IGNORECASE)
+    clean = audio_url.split("?")[0].split("#")[0]
+    m = re.search(r'/lex_ai_([^/]+?)(?:\.mp3|\.m4a|\.aac)?$', clean, re.IGNORECASE)
     if not m:
         return None
     slug = m.group(1).replace("_", "-")
@@ -68,10 +72,12 @@ def get_transcript(episode_id: UUID, db: Session = Depends(get_db)):
         try:
             from ..ingest.podcasts import _fetch_lex_transcript
             tx_url = _lex_transcript_url_from_audio(ep.audio_url)
+            logger.info("Lex on-demand: audio=%s → tx_url=%s", ep.audio_url, tx_url)
             if tx_url:
                 transcript, segments = _fetch_lex_transcript(tx_url)
-        except Exception:
-            pass
+                logger.info("Lex on-demand result: transcript=%s segs=%d", bool(transcript), len(segments))
+        except Exception as exc:
+            logger.warning("Lex on-demand fetch error: %s", exc)
 
     if not transcript:
         raise HTTPException(status_code=404, detail="Transcript not available for this episode")
