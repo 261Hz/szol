@@ -131,23 +131,69 @@ def _strip_html(html: str) -> str:
 
 
 def _lex_transcript_url(entry: Any) -> str | None:
-    """Extract transcript page URL from Lex Fridman episode description, if present."""
-    desc = entry.get("summary") or entry.get("description") or ""
-    m = re.search(r'href="(https://lexfridman\.com/[^"]*-transcript[^"]*)"', desc)
-    return m.group(1) if m else None
+    """Derive the transcript page URL from the episode link.
+
+    Episode link: https://lexfridman.com/don-lincoln/?utm_source=rss...
+    Transcript:   https://lexfridman.com/don-lincoln-transcript
+    """
+    link = entry.get("link") or ""
+    m = re.search(r'lexfridman\.com/([^/?#]+)', link)
+    if not m:
+        return None
+    slug = m.group(1).rstrip("/")
+    return f"https://lexfridman.com/{slug}-transcript"
 
 
-def _fetch_web_transcript(url: str) -> str | None:
-    """Fetch a transcript HTML page and extract plain text via trafilatura."""
+def _parse_lex_segments(text: str) -> tuple[str, list[dict]]:
+    """Parse Lex Fridman transcript text into (plain_text, segments).
+
+    Transcript format:
+        Speaker Name
+        (HH:MM:SS)
+        Dialogue text…
+
+    Returns timestamped segments usable by the dictation player.
+    """
+    def _secs(ts: str) -> float:
+        parts = ts.split(":")
+        return sum(float(p) * 60 ** (len(parts) - 1 - i) for i, p in enumerate(parts))
+
+    # Split on (HH:MM:SS) / (MM:SS) markers
+    parts = re.split(r"\((\d{1,2}:\d{2}(?::\d{2})?)\)", text)
+    # parts = [pre, ts0, block0, ts1, block1, ...]
+    timestamps = [_secs(parts[i]) for i in range(1, len(parts), 2)]
+    blocks     = [parts[i] for i in range(2, len(parts), 2)]
+
+    segments = []
+    for i, (ts, raw) in enumerate(zip(timestamps, blocks)):
+        end = timestamps[i + 1] if i + 1 < len(timestamps) else ts + 120
+        lines = [l.strip() for l in raw.strip().splitlines() if l.strip()]
+        # Drop leading speaker-name line (short, no sentence punctuation)
+        if lines and len(lines[0]) < 40 and not re.search(r"[.!?,;]", lines[0]):
+            lines = lines[1:]
+        if not lines:
+            continue
+        seg_text = " ".join(lines)
+        segments.append({"start": ts, "end": end, "text": seg_text})
+
+    full_text = " ".join(s["text"] for s in segments)
+    return full_text, segments
+
+
+def _fetch_lex_transcript(url: str) -> tuple[str | None, list[dict]]:
+    """Fetch a Lex Fridman transcript page and return (text, segments)."""
     try:
         import trafilatura
         r = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
         r.raise_for_status()
-        text = trafilatura.extract(r.text, include_comments=False, include_tables=False)
-        return text.strip() if text else None
+        raw = trafilatura.extract(r.text, include_comments=False, include_tables=False)
+        if not raw:
+            return None, []
+        text, segments = _parse_lex_segments(raw)
+        return (text.strip() or None), segments
     except Exception as e:
-        logger.warning("Web transcript fetch failed %s: %s", url, e)
-        return None
+        logger.warning("Lex transcript fetch failed %s: %s", url, e)
+        return None, []
 
 
 def _fetch_rss_transcript(url: str) -> str | None:
@@ -216,9 +262,10 @@ def ingest_podcasts(db, dry_run: bool = False) -> int:
             if not transcript and source.get("transcript_source") == "lexfridman":
                 tx_url = _lex_transcript_url(entry)
                 if tx_url:
-                    transcript = _fetch_web_transcript(tx_url)
+                    transcript, lex_segs = _fetch_lex_transcript(tx_url)
                     if transcript:
-                        logger.info("    ✓ lex transcript: %s", title)
+                        segments = lex_segs
+                        logger.info("    ✓ lex transcript (%d segs): %s", len(lex_segs), title)
             if not transcript:
                 tx_url = _transcript_url(entry)
                 if tx_url:
