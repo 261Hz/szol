@@ -211,11 +211,15 @@ def _fetch_lex_transcript(slug: str) -> tuple[str | None, list[dict]]:
         if not html:
             logger.warning("Lex transcript page empty or blocked: %s", tx_url)
             return None, []
-        raw = trafilatura.extract(html, include_comments=False, include_tables=False)
+        # favor_recall=True captures more of the page — important for long transcripts
+        # where trafilatura's boilerplate filter can trim the actual dialogue
+        raw = trafilatura.extract(html, favor_recall=True, include_comments=False)
         if not raw:
             logger.warning("Lex transcript: trafilatura extracted nothing from %s", tx_url)
             return None, []
+        logger.warning("Lex transcript snippet: %r", raw[:300])
         text, segments = _parse_lex_segments(raw)
+        logger.warning("Lex transcript parse: %d segments, %d chars", len(segments), len(text))
         if not segments:
             logger.warning("Lex transcript: no timestamp segments parsed from %s", tx_url)
         return (text.strip() or None), segments

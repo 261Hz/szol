@@ -29,4 +29,10 @@ PODCAST_SOURCES = [
         "lang": "ja",
         "max_episodes": 10,
     },
+    {
+        "name": "The Wild Project",
+        "feed_url": "https://feeds.megaphone.fm/TWIP9771253765",
+        "lang": "es",
+        "max_episodes": 10,
+    },
 ]
