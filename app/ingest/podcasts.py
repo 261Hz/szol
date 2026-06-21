@@ -37,14 +37,18 @@ _GQL_QUERY = """
 
 
 def ogjre_slug(title: str) -> str | None:
-    """'#2515 - Chase Hughes' → 'joe-rogan-experience-2515-chase-hughes'"""
-    m = re.match(r"#(\d+)\s*[-–]\s*(.+)", title)
-    if not m:
+    """Build the ogjre.com URL slug from an episode title.
+
+    '#2516 - Rowan Jacobsen'                → 'joe-rogan-experience-2516-rowan-jacobsen'
+    'JRE MMA Show #180 with Daniel Rodriguez' → 'jre-mma-show-180-with-daniel-rodriguez'
+    """
+    if not re.search(r"#\d+", title):
         return None
-    ep_num   = m.group(1)
-    guest    = m.group(2).strip()
-    guest_sl = re.sub(r"[^a-z0-9]+", "-", guest.lower()).strip("-")
-    return f"joe-rogan-experience-{ep_num}-{guest_sl}"
+    slugify = lambda s: re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+    # Titles like "#2516 - Guest" have no show name — prepend the JRE prefix
+    if re.match(r"\s*#\d+", title):
+        return f"joe-rogan-experience-{slugify(title.strip()[1:])}"
+    return slugify(title)
 
 
 def fetch_ogjre_transcript(title: str) -> tuple[str | None, list[dict]]:
@@ -61,7 +65,7 @@ def fetch_ogjre_transcript(title: str) -> tuple[str | None, list[dict]]:
         )
         resp.raise_for_status()
         video = resp.json().get("data", {}).get("video") or {}
-        if video.get("transcriptStatus") != "DONE":
+        if video.get("transcriptStatus") not in ("DONE", "READY"):
             return None, []
         text  = video.get("transcriptText") or ""
         segs  = [

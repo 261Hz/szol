@@ -36,6 +36,9 @@ def run(
 
     models.Base.metadata.create_all(bind=engine)
 
+    db: Session = SessionLocal()
+    total = 0
+
     db.query(models.FeedStory).delete()
     db.commit()
     logger.info("Cleared previous feed articles")
@@ -45,10 +48,8 @@ def run(
         sources = [s for s in sources if s["lang"] == lang_filter]
         if not sources:
             logger.error("No sources found for lang=%s", lang_filter)
+            db.close()
             return 0
-
-    db: Session = SessionLocal()
-    total = 0
 
     try:
         for source in sources:
