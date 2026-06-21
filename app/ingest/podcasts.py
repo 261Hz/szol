@@ -131,17 +131,23 @@ def _strip_html(html: str) -> str:
 
 
 def _lex_transcript_url(entry: Any) -> str | None:
-    """Derive the transcript page URL from the episode link.
+    """Return the transcript URL for a Lex Fridman RSS entry.
 
-    Episode link: https://lexfridman.com/don-lincoln/?utm_source=rss...
-    Transcript:   https://lexfridman.com/don-lincoln-transcript
+    Prefers an explicit href found in the episode description (only present
+    when Lex has actually published the transcript).  Falls back to deriving
+    from the episode link slug when no explicit link exists.
     """
+    desc = entry.get("description") or entry.get("summary") or ""
+    if desc:
+        m = re.search(r'href=["\']?(https://lexfridman\.com/[^"\'>\s]*-transcript)["\']?', desc)
+        if m:
+            return m.group(1)
+    # Fallback: derive from episode link — may not exist for recent episodes
     link = entry.get("link") or ""
-    m = re.search(r'lexfridman\.com/([^/?#]+)', link)
-    if not m:
+    ml = re.search(r'lexfridman\.com/([^/?#]+)', link)
+    if not ml:
         return None
-    slug = m.group(1).rstrip("/")
-    return f"https://lexfridman.com/{slug}-transcript"
+    return f"https://lexfridman.com/{ml.group(1).rstrip('/')}-transcript"
 
 
 def _parse_lex_segments(text: str) -> tuple[str, list[dict]]:
@@ -181,15 +187,24 @@ def _parse_lex_segments(text: str) -> tuple[str, list[dict]]:
 
 
 def _fetch_lex_transcript(url: str) -> tuple[str | None, list[dict]]:
-    """Fetch a Lex Fridman transcript page and return (text, segments)."""
+    """Fetch a Lex Fridman transcript page and return (text, segments).
+
+    Uses trafilatura.fetch_url() which handles Cloudflare / anti-bot pages
+    better than a plain requests.get() call.
+    """
     try:
         import trafilatura
-        r = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
-        r.raise_for_status()
-        raw = trafilatura.extract(r.text, include_comments=False, include_tables=False)
+        html = trafilatura.fetch_url(url)
+        if not html:
+            logger.warning("Lex transcript page empty or blocked: %s", url)
+            return None, []
+        raw = trafilatura.extract(html, include_comments=False, include_tables=False)
         if not raw:
+            logger.warning("Lex transcript: trafilatura extracted nothing from %s", url)
             return None, []
         text, segments = _parse_lex_segments(raw)
+        if not segments:
+            logger.warning("Lex transcript: no timestamp segments parsed from %s", url)
         return (text.strip() or None), segments
     except Exception as e:
         logger.warning("Lex transcript fetch failed %s: %s", url, e)
