@@ -464,6 +464,14 @@ export async function fetchPodcastTranscript(episodeId) {
   return await res.json()
 }
 
+export async function savePodcastTranscript(episodeId, segments) {
+  await fetch(`${API_URL}/podcasts/${encodeURIComponent(episodeId)}/transcript/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ segments }),
+  }).catch(() => null)
+}
+
 export async function fetchOgjreTranscript(title) {
   const m = title.match(/#(\d+)\s*[-–]\s*(.+)/)
   if (!m) return null
