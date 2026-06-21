@@ -7,7 +7,6 @@
     v-if="selectedStory && selectedStory.source_type !== 'youtube'"
     ref="audioEl"
     :src="selectedStory.audio_url"
-    crossorigin="anonymous"
     preload="metadata"
     @loadedmetadata="onAudioLoaded"
     @timeupdate="onAudioTimeUpdate"
