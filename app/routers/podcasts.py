@@ -30,6 +30,19 @@ def list_episodes(lang: str, db: Session = Depends(get_db)):
     return [schemas.PodcastEpisodeResponse.from_orm(r) for r in rows]
 
 
+def _lex_transcript_url_from_audio(audio_url: str) -> str | None:
+    """Derive lexfridman.com transcript URL from the Blubrry audio filename.
+
+    https://…/lex_ai_lars_brownworth.mp3 → https://lexfridman.com/lars-brownworth-transcript
+    """
+    import re
+    m = re.search(r'/lex_ai_([^/?#]+?)(?:\.mp3|\.m4a)?$', audio_url, re.IGNORECASE)
+    if not m:
+        return None
+    slug = m.group(1).replace("_", "-")
+    return f"https://lexfridman.com/{slug}-transcript"
+
+
 @router.post("/{episode_id}/transcript")
 def get_transcript(episode_id: UUID, db: Session = Depends(get_db)):
     ep = db.query(models.PodcastEpisode).filter(models.PodcastEpisode.id == episode_id).first()
@@ -40,12 +53,25 @@ def get_transcript(episode_id: UUID, db: Session = Depends(get_db)):
     if ep.transcript:
         return {"transcript": ep.transcript, "segments": ep.segments or []}
 
-    # Try ogjre.com (free, fast, ~2s round-trip)
-    try:
-        from ..ingest.podcasts import fetch_ogjre_transcript
-        transcript, segments = fetch_ogjre_transcript(ep.title)
-    except Exception:
-        raise HTTPException(status_code=503, detail="Transcript fetch failed")
+    transcript, segments = None, []
+
+    # Try ogjre.com for JRE episodes
+    if ep.podcast_name == "The Joe Rogan Experience":
+        try:
+            from ..ingest.podcasts import fetch_ogjre_transcript
+            transcript, segments = fetch_ogjre_transcript(ep.title)
+        except Exception:
+            pass
+
+    # Try lexfridman.com for Lex Fridman episodes
+    if not transcript and ep.podcast_name == "Lex Fridman Podcast":
+        try:
+            from ..ingest.podcasts import _fetch_lex_transcript
+            tx_url = _lex_transcript_url_from_audio(ep.audio_url)
+            if tx_url:
+                transcript, segments = _fetch_lex_transcript(tx_url)
+        except Exception:
+            pass
 
     if not transcript:
         raise HTTPException(status_code=404, detail="Transcript not available for this episode")
