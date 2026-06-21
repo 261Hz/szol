@@ -9,6 +9,7 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -53,6 +54,19 @@ def get_transcript(episode_id: UUID, db: Session = Depends(get_db)):
     ep.segments   = segments or None
     db.commit()
     return {"transcript": transcript, "segments": segments}
+
+
+class _SaveIn(BaseModel):
+    segments: list[dict]
+
+@router.post("/{episode_id}/transcript/save", status_code=204)
+def save_transcript(episode_id: UUID, payload: _SaveIn, db: Session = Depends(get_db)):
+    """Cache a transcript fetched by the frontend (e.g. via ogjre Vercel proxy)."""
+    ep = db.query(models.PodcastEpisode).filter(models.PodcastEpisode.id == episode_id).first()
+    if not ep or ep.segments:
+        return  # episode missing or already cached — nothing to do
+    ep.segments = payload.segments
+    db.commit()
 
 
 def _ext_from_url(url: str) -> str:
