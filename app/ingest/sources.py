@@ -116,29 +116,6 @@ SOURCES = [
         "license": "attribution",
     },
 
-    # ── English — The Guardian ───────────────────────────────────────────────
-    {
-        "name": "The Guardian",
-        "feed_url": "https://www.theguardian.com/world/rss",
-        "lang": "en",
-        "license": "attribution",
-        "min_words": 80,
-    },
-    {
-        "name": "The Guardian Science",
-        "feed_url": "https://www.theguardian.com/science/rss",
-        "lang": "en",
-        "license": "attribution",
-        "min_words": 80,
-    },
-    {
-        "name": "The Guardian Technology",
-        "feed_url": "https://www.theguardian.com/technology/rss",
-        "lang": "en",
-        "license": "attribution",
-        "min_words": 80,
-    },
-
     # ── English — longform / tech / history / culture ──────────────────────
     {
         "name": "Simon Willison",
