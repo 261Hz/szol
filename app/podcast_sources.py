@@ -23,4 +23,10 @@ PODCAST_SOURCES = [
         "max_episodes": 10,
         "transcript_source": "lexfridman",  # transcript URLs embedded in episode descriptions
     },
+    {
+        "name": "コテンラジオ",
+        "feed_url": "https://anchor.fm/s/8c2088c/podcast/rss",
+        "lang": "ja",
+        "max_episodes": 10,
+    },
 ]
