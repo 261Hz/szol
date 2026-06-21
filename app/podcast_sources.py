@@ -16,4 +16,11 @@ PODCAST_SOURCES = [
         "max_episodes": 10,
         "transcript_source": "ogjre",  # free GraphQL API at api.ogjre.com/graphql
     },
+    {
+        "name": "Lex Fridman Podcast",
+        "feed_url": "https://lexfridman.com/feed/podcast/",
+        "lang": "en",
+        "max_episodes": 10,
+        "transcript_source": "lexfridman",  # transcript URLs embedded in episode descriptions
+    },
 ]

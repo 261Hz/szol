@@ -130,6 +130,26 @@ def _strip_html(html: str) -> str:
     return re.sub(r"<[^>]+>", " ", html or "").strip()
 
 
+def _lex_transcript_url(entry: Any) -> str | None:
+    """Extract transcript page URL from Lex Fridman episode description, if present."""
+    desc = entry.get("summary") or entry.get("description") or ""
+    m = re.search(r'href="(https://lexfridman\.com/[^"]*-transcript[^"]*)"', desc)
+    return m.group(1) if m else None
+
+
+def _fetch_web_transcript(url: str) -> str | None:
+    """Fetch a transcript HTML page and extract plain text via trafilatura."""
+    try:
+        import trafilatura
+        r = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
+        r.raise_for_status()
+        text = trafilatura.extract(r.text, include_comments=False, include_tables=False)
+        return text.strip() if text else None
+    except Exception as e:
+        logger.warning("Web transcript fetch failed %s: %s", url, e)
+        return None
+
+
 def _fetch_rss_transcript(url: str) -> str | None:
     try:
         r = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
@@ -187,12 +207,18 @@ def ingest_podcasts(db, dry_run: bool = False) -> int:
 
             title = _strip_html(entry.get("title", "Untitled"))
 
-            # Transcript: ogjre API > RSS tag > null
+            # Transcript: ogjre API > web page > RSS tag > null
             transcript, segments = None, []
             if use_ogjre:
                 transcript, segments = fetch_ogjre_transcript(title)
                 if transcript:
                     logger.info("    ✓ ogjre transcript: %s", title)
+            if not transcript and source.get("transcript_source") == "lexfridman":
+                tx_url = _lex_transcript_url(entry)
+                if tx_url:
+                    transcript = _fetch_web_transcript(tx_url)
+                    if transcript:
+                        logger.info("    ✓ lex transcript: %s", title)
             if not transcript:
                 tx_url = _transcript_url(entry)
                 if tx_url:
