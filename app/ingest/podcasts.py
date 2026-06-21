@@ -130,24 +130,11 @@ def _strip_html(html: str) -> str:
     return re.sub(r"<[^>]+>", " ", html or "").strip()
 
 
-def _lex_transcript_url(entry: Any) -> str | None:
-    """Return the transcript URL for a Lex Fridman RSS entry.
-
-    Prefers an explicit href found in the episode description (only present
-    when Lex has actually published the transcript).  Falls back to deriving
-    from the episode link slug when no explicit link exists.
-    """
-    desc = entry.get("description") or entry.get("summary") or ""
-    if desc:
-        m = re.search(r'href=["\']?(https://lexfridman\.com/[^"\'>\s]*-transcript)["\']?', desc)
-        if m:
-            return m.group(1)
-    # Fallback: derive from episode link — may not exist for recent episodes
+def _lex_episode_slug(entry: Any) -> str | None:
+    """Extract the episode slug from a Lex Fridman RSS entry link."""
     link = entry.get("link") or ""
-    ml = re.search(r'lexfridman\.com/([^/?#]+)', link)
-    if not ml:
-        return None
-    return f"https://lexfridman.com/{ml.group(1).rstrip('/')}-transcript"
+    m = re.search(r'lexfridman\.com/([^/?#]+)', link)
+    return m.group(1).rstrip("/") if m else None
 
 
 def _parse_lex_segments(text: str) -> tuple[str, list[dict]]:
@@ -186,28 +173,54 @@ def _parse_lex_segments(text: str) -> tuple[str, list[dict]]:
     return full_text, segments
 
 
-def _fetch_lex_transcript(url: str) -> tuple[str | None, list[dict]]:
-    """Fetch a Lex Fridman transcript page and return (text, segments).
+def _lex_find_transcript_url(slug: str) -> str | None:
+    """Find the actual transcript URL by fetching the episode page.
 
-    Uses trafilatura.fetch_url() which handles Cloudflare / anti-bot pages
-    better than a plain requests.get() call.
+    Lex doesn't always publish transcripts at {slug}-transcript — the real URL
+    is linked from the episode page itself.  Fetch the episode page and look
+    for any href containing 'transcript'.
     """
     try:
         import trafilatura
-        html = trafilatura.fetch_url(url)
+        episode_url = f"https://lexfridman.com/{slug}/"
+        html = trafilatura.fetch_url(episode_url)
         if not html:
-            logger.warning("Lex transcript page empty or blocked: %s", url)
+            return None
+        m = re.search(r'href=["\']?(https://lexfridman\.com/[^"\'>\s]*transcript[^"\'>\s]*)["\']?', html, re.I)
+        if m:
+            return m.group(1)
+    except Exception as e:
+        logger.warning("Lex episode page fetch failed for %s: %s", slug, e)
+    return None
+
+
+def _fetch_lex_transcript(slug: str) -> tuple[str | None, list[dict]]:
+    """Fetch a Lex Fridman transcript by episode slug.
+
+    Discovers the real transcript URL by fetching the episode page, then
+    extracts text with trafilatura.fetch_url (handles Cloudflare).
+    """
+    try:
+        import trafilatura
+        tx_url = _lex_find_transcript_url(slug)
+        if not tx_url:
+            logger.info("Lex: no transcript link found on episode page for %s", slug)
+            return None, []
+        logger.info("Lex: transcript URL from episode page: %s", tx_url)
+        html = trafilatura.fetch_url(tx_url)
+        if not html:
+            logger.warning("Lex transcript page empty or blocked: %s", tx_url)
             return None, []
         raw = trafilatura.extract(html, include_comments=False, include_tables=False)
         if not raw:
-            logger.warning("Lex transcript: trafilatura extracted nothing from %s", url)
+            logger.warning("Lex transcript: trafilatura extracted nothing from %s", tx_url)
             return None, []
         text, segments = _parse_lex_segments(raw)
         if not segments:
-            logger.warning("Lex transcript: no timestamp segments parsed from %s", url)
+            logger.warning("Lex transcript: no timestamp segments parsed from %s", tx_url)
         return (text.strip() or None), segments
     except Exception as e:
-        logger.warning("Lex transcript fetch failed %s: %s", url, e)
+        logger.warning("Lex transcript fetch failed for %s: %s", slug, e)
         return None, []
 
 
@@ -273,9 +286,9 @@ def ingest_podcasts(db, dry_run: bool = False) -> int:
                 if transcript:
                     logger.info("    ✓ ogjre transcript: %s", title)
             if not transcript and source.get("transcript_source") == "lexfridman":
-                tx_url = _lex_transcript_url(entry)
-                if tx_url:
-                    transcript, lex_segs = _fetch_lex_transcript(tx_url)
+                slug = _lex_episode_slug(entry)
+                if slug:
+                    transcript, lex_segs = _fetch_lex_transcript(slug)
                     if transcript:
                         segments = lex_segs
                         logger.info("    ✓ lex transcript (%d segs): %s", len(lex_segs), title)

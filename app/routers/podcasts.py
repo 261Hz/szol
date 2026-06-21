@@ -33,18 +33,17 @@ def list_episodes(lang: str, db: Session = Depends(get_db)):
     return [schemas.PodcastEpisodeResponse.from_orm(r) for r in rows]
 
 
-def _lex_transcript_url_from_audio(audio_url: str) -> str | None:
-    """Derive lexfridman.com transcript URL from the Blubrry audio filename.
+def _lex_slug_from_audio(audio_url: str) -> str | None:
+    """Extract the episode slug from a Blubrry audio URL.
 
-    https://…/lex_ai_lars_brownworth.mp3 → https://lexfridman.com/lars-brownworth-transcript
-    Strips query strings before matching so ?source=rss etc. don't break the regex.
+    https://…/lex_ai_lars_brownworth.mp3 → lars-brownworth
+    Strips query strings before matching.
     """
     clean = audio_url.split("?")[0].split("#")[0]
     m = re.search(r'/lex_ai_([^/]+?)(?:\.mp3|\.m4a|\.aac)?$', clean, re.IGNORECASE)
     if not m:
         return None
-    slug = m.group(1).replace("_", "-")
-    return f"https://lexfridman.com/{slug}-transcript"
+    return m.group(1).replace("_", "-")
 
 
 @router.post("/{episode_id}/transcript")
@@ -71,10 +70,10 @@ def get_transcript(episode_id: UUID, db: Session = Depends(get_db)):
     if not transcript and ep.podcast_name == "Lex Fridman Podcast":
         try:
             from ..ingest.podcasts import _fetch_lex_transcript
-            tx_url = _lex_transcript_url_from_audio(ep.audio_url)
-            logger.info("Lex on-demand: audio=%s → tx_url=%s", ep.audio_url, tx_url)
-            if tx_url:
-                transcript, segments = _fetch_lex_transcript(tx_url)
+            slug = _lex_slug_from_audio(ep.audio_url)
+            logger.info("Lex on-demand: audio=%s → slug=%s", ep.audio_url, slug)
+            if slug:
+                transcript, segments = _fetch_lex_transcript(slug)
                 logger.info("Lex on-demand result: transcript=%s segs=%d", bool(transcript), len(segments))
         except Exception as exc:
             logger.warning("Lex on-demand fetch error: %s", exc)
