@@ -473,11 +473,12 @@ export async function savePodcastTranscript(episodeId, segments) {
 }
 
 export async function fetchOgjreTranscript(title) {
-  const m = title.match(/#(\d+)\s*[-–]\s*(.+)/)
-  if (!m) return null
-  const epNum = m[1]
-  const guest = m[2].trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-  const slug  = `joe-rogan-experience-${epNum}-${guest}`
+  if (!/#\d+/.test(title)) return null
+  const slugify = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+  // Titles like "#2516 - Guest" have no show name — prepend the JRE prefix
+  const slug = /^#\d+/.test(title.trim())
+    ? `joe-rogan-experience-${slugify(title.trim().slice(1))}`
+    : slugify(title)
   // Use Vercel proxy — direct browser call blocked by ogjre.com CORS policy
   const res = await fetch('/api/ogjre-transcript', {
     method:  'POST',
