@@ -35,4 +35,10 @@ PODCAST_SOURCES = [
         "lang": "es",
         "max_episodes": 10,
     },
+    {
+        "name": "فنجان",
+        "feed_url": "https://files.hosting.thmanyah.com/podcasts/89/1713955813943-768/rss-feed.rss",
+        "lang": "ar",
+        "max_episodes": 10,
+    },
 ]
