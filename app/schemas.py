@@ -380,5 +380,5 @@ class PodcastEpisodeResponse(BaseModel):
     @classmethod
     def from_orm(cls, obj):
         data = {c.key: getattr(obj, c.key) for c in obj.__table__.columns}
-        data["has_transcript"] = bool(obj.transcript)
+        data["has_transcript"] = bool(obj.segments)  # only true when timestamped segments exist
         return cls(**data)
