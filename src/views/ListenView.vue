@@ -514,20 +514,20 @@ const mode                = ref('dictation') // 'dictation' | 'translation'
 const translateTo         = ref(props.lang === 'en' ? 'es' : 'en')
 const transcriptLoading   = ref(false)
 
-async function tryFetchTranscript(storyId, title) {
+async function tryFetchTranscript(storyId, title, podcastName) {
   transcriptLoading.value = true
   try {
-    // Try ogjre.com directly from the browser first (faster, no backend hop)
-    if (title) {
+    // JRE only: try ogjre.com directly from the browser (faster, no backend hop)
+    if (podcastName === 'The Joe Rogan Experience' && title) {
       const ogjre = await fetchOgjreTranscript(title)
       if (ogjre?.segments?.length) {
         segments.value = ogjre.segments
         transcriptLoading.value = false
-        savePodcastTranscript(storyId, ogjre.segments)  // cache in DB for next time
+        savePodcastTranscript(storyId, ogjre.segments)
         return
       }
     }
-    // Fall back to backend (which also tries ogjre + Whisper)
+    // All other sources: backend fetches from the appropriate transcript source
     const data = await fetchPodcastTranscript(storyId)
     if (data?.segments?.length) {
       segments.value = data.segments
@@ -595,7 +595,7 @@ async function loadStory(story, startAt = null) {
 
   // Auto-fetch transcript for podcast episodes that don't have segments yet
   if (story.source_type === 'podcast' && !story.segments?.length) {
-    tryFetchTranscript(story.id, story.title)
+    tryFetchTranscript(story.id, story.title, story.podcast_name)
   }
 }
 
