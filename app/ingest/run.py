@@ -36,6 +36,10 @@ def run(
 
     models.Base.metadata.create_all(bind=engine)
 
+    db.query(models.FeedStory).delete()
+    db.commit()
+    logger.info("Cleared previous feed articles")
+
     sources = SOURCES
     if lang_filter:
         sources = [s for s in sources if s["lang"] == lang_filter]
@@ -55,14 +59,6 @@ def run(
 
             inserted = 0
             for art in articles:
-                exists = (
-                    db.query(FeedStory.id)
-                    .filter(FeedStory.source_url == art["source_url"])
-                    .first()
-                )
-                if exists:
-                    continue
-
                 if dry_run:
                     logger.info("  [dry] %s — %.60s", art["source_name"], art["title"])
                     inserted += 1
