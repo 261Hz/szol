@@ -50,6 +50,18 @@
         @save-word="addToVocab"
       />
 
+      <ReadView
+        v-if="activeTab === 'read'"
+        :story="currentStory"
+        :lang="activeLang"
+        :saved-words="savedWordsForLang"
+        :current-user="currentUser"
+        :story-pool="storyPool"
+        @go="activeTab = $event"
+        @save-word="addToVocab"
+        @switch-story="switchStory"
+      />
+
       <SpeakView
         v-if="activeTab === 'speak'"
         :story="currentStory"
@@ -73,6 +85,7 @@
         @open-listen="openInListen"
         @save-word="addToVocab"
         @open-auth="showAuth = true"
+        @stories-loaded="storyPool = $event"
       />
 
       <VocabView
@@ -147,6 +160,7 @@ import AuthModal   from './components/AuthModal.vue'
 import LibraryView from './views/LibraryView.vue'
 import WelcomeView from './views/WelcomeView.vue'
 
+const ReadView     = defineAsyncComponent(() => import('./views/ReadView.vue'))
 const RetypeView   = defineAsyncComponent(() => import('./views/RetypeView.vue'))
 const VocabView    = defineAsyncComponent(() => import('./views/VocabView.vue'))
 const SpeakView    = defineAsyncComponent(() => import('./views/SpeakView.vue'))
@@ -168,6 +182,7 @@ const currentStory = ref(null)
 const currentUser  = ref(null)
 const showAuth     = ref(false)
 const activeClip   = ref(null)
+const storyPool    = ref([])
 
 const vocabBank = ref(JSON.parse(localStorage.getItem('szol_vocab') || '[]'))
 watch(vocabBank, val => localStorage.setItem('szol_vocab', JSON.stringify(val)), { deep: true })
@@ -283,7 +298,12 @@ const savedWordsForLang = computed(() =>
 function loadStory(story) {
   currentStory.value = story
   activeLang.value   = story.lang
-  activeTab.value    = 'retype'
+  activeTab.value    = 'read'
+}
+
+function switchStory(story) {
+  currentStory.value = story
+  activeLang.value   = story.lang
 }
 
 function openInListen(story) {
