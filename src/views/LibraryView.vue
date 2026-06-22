@@ -228,39 +228,6 @@
       </div>
     </div>
 
-    <!-- ─── ✍️ SUBSTACK ─── -->
-    <div class="border border-gray-700 rounded-lg overflow-hidden">
-      <button @click="toggle('substack')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>✍️ Substack</span>
-        <span class="text-gray-500 text-xs">{{ open.substack ? '▲' : '▼' }}</span>
-      </button>
-      <div v-if="open.substack" class="px-4 pb-4 pt-2 flex flex-col gap-3">
-        <!-- Article list -->
-        <div v-if="substackLoading" class="text-gray-500 text-sm text-center py-6">Loading…</div>
-        <div v-else-if="!substackArticles.length" class="text-xs text-gray-500 py-4 text-center">No results — try another category or come back later.</div>
-        <div v-else class="flex flex-col gap-2">
-          <div
-            v-for="article in substackArticles"
-            :key="article.url"
-            @click="importSubstack(article)"
-            :class="['border rounded-lg p-3 cursor-pointer transition-all',
-              substackImporting === article.url
-                ? 'border-green-700 bg-green-950 opacity-70'
-                : 'border-gray-700 hover:border-green-700']"
-          >
-            <div class="font-medium text-sm text-gray-100 leading-snug mb-0.5">{{ article.title }}</div>
-            <div class="text-xs text-gray-500">
-              <span>{{ article.pub }}</span>
-              <span v-if="article.author"> · {{ article.author }}</span>
-              <span v-if="article.lang && article.lang !== lang" class="ml-1 text-yellow-600">({{ article.lang }})</span>
-              <span v-if="substackImporting === article.url" class="ml-1 text-green-400">importing…</span>
-            </div>
-            <div v-if="article.excerpt" class="text-xs text-gray-400 leading-relaxed mt-1 line-clamp-2">{{ article.excerpt }}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- ─── 🌍 TODAY ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('today')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
@@ -489,7 +456,7 @@ import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import ClickableText from '../components/ClickableText.vue'
 // Supabase functions: fetch/submit stories from the remote database.
-import { fetchCommunityStories, submitStory, fetchCuratedStories, saveUserStory, getUserStories, deleteUserStory, fetchFeed, fetchFeedArticle, fetchSubstackFeed, suggestSource, fetchPodcasts } from '../utils/api.js'
+import { fetchCommunityStories, submitStory, fetchCuratedStories, saveUserStory, getUserStories, deleteUserStory, fetchFeed, fetchFeedArticle, suggestSource, fetchPodcasts } from '../utils/api.js'
 import { getAllProgress } from '../utils/api.js'
 // Wikipedia helpers for the Today and On This Day sections.
 import { fetchFeaturedArticle, fetchOnThisDay, fetchQuoteOfDay } from '../utils/wikipedia.js'
@@ -602,7 +569,6 @@ watch(() => props.lang, async (newLang) => {
   feedPage.value         = 0
   feedExhausted.value    = false
   podcastEpisodes.value  = []
-  substackArticles.value = []
   todayArticle.value     = null
   quoteOfDay.value       = null
   onThisDay.value        = []
@@ -618,7 +584,6 @@ watch(() => props.lang, async (newLang) => {
   // Reload whichever lazy sections the user already had open
   if (open.value.feed)      loadFeed(true)
   if (open.value.podcasts)  loadPodcasts()
-  if (open.value.substack)  loadSubstack()
   if (open.value.today)     loadToday()
   if (open.value.quote)     loadQuote()
   if (open.value.onthisday) loadOnThisDay()
@@ -775,30 +740,6 @@ function listenEpisode(ep) {
 }
 
 
-// ── Substack feed ──────────────────────────────────────────────────────────────
-const substackArticles  = ref([])
-const substackLoading   = ref(false)
-const substackImporting = ref(null)
-
-async function loadSubstack() {
-  substackLoading.value  = true
-  substackArticles.value = []
-  substackArticles.value = await fetchSubstackFeed(props.lang, 10)
-  substackLoading.value  = false
-}
-
-async function importSubstack(article) {
-  substackImporting.value = article.url
-  try {
-    const res  = await fetch(`/api/extract?url=${encodeURIComponent(article.url)}`)
-    const data = await res.json()
-    if (data.text) {
-      pushLocalStory({ title: data.title || article.title, content: data.text, source: article.url })
-    }
-  } catch { /* silently ignore */ }
-  substackImporting.value = null
-}
-
 // ── Section open/close ─────────────────────────────────────────
 // open = tracks which accordion sections are expanded (true) or collapsed (false).
 // Curated starts open so users see their stories immediately without clicking.
@@ -808,7 +749,6 @@ const open = ref({
   curated:    false,
   feed:       false,
   podcasts:   false,
-  substack:   false,
   today:      false,
   quote:      false,
   litclock:   false,
@@ -827,7 +767,6 @@ async function toggle(section) {
     // Only fetch if: the section just opened AND we don't already have data AND not currently loading.
     if (section === 'feed'      && !feedStories.value.length   && !feedLoading.value)    await loadFeed(true)
     if (section === 'podcasts'  && !podcastEpisodes.value.length && !podcastLoading.value) await loadPodcasts()
-    if (section === 'substack'  && !substackArticles.value.length && !substackLoading.value) await loadSubstack()
     if (section === 'today'     && !todayArticle.value && !todayLoading.value) await loadToday()
     if (section === 'quote'     && !quoteOfDay.value   && !quoteLoading.value) await loadQuote()
     if (section === 'litclock'  && !litClockQuote.value && !litClockLoading.value) await fetchLitClock()
