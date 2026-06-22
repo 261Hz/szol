@@ -1,88 +1,74 @@
 <template>
-  <div class="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-6 gap-8">
+  <div class="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6 gap-8">
 
     <!-- Brand -->
-    <div class="text-5xl font-bold tracking-tight text-gray-50">
-      Sz<span class="text-violet-400">ó</span>l
+    <div class="flex flex-col items-center gap-1.5">
+      <div class="text-5xl font-bold tracking-tight text-gray-50 select-none">
+        Sz<span class="text-violet-400">ó</span>l
+      </div>
+      <div class="text-[11px] text-gray-700 tracking-[0.2em] uppercase">a language archive</div>
     </div>
 
-    <!-- Language grid — sorted by in-app learner count descending -->
-    <div class="w-full max-w-sm grid grid-cols-2 sm:grid-cols-3 gap-2">
-      <button
-        v-for="[code, cfg] in sortedLangs"
-        :key="code"
-        type="button"
-        @click="selected = code"
-        :class="[
-          'flex flex-col items-center gap-1 px-3 py-3 rounded-xl border transition-all text-center',
-          selected === code
-            ? 'border-violet-500 bg-violet-950 text-violet-200'
-            : 'border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200',
-        ]"
-      >
-        <div class="text-2xl leading-none">{{ FLAGS[code] }}</div>
-        <div class="text-xs font-medium leading-tight">{{ cfg.name }}</div>
-        <div v-if="learnerCounts[code]" class="text-[10px] leading-none opacity-50">
-          {{ fmtCount(learnerCounts[code]) }} {{ t(code, 'learners') }}
+    <!-- Paper map surface -->
+    <div class="map-paper w-full max-w-lg">
+      <div class="map-paper-label">Choose a language</div>
+      <div class="map-regions">
+        <div v-for="region in REGIONS" :key="region.name" class="map-region">
+          <div class="map-region-name">{{ region.name }}</div>
+          <div class="map-region-langs">
+            <button
+              v-for="code in region.langs.filter(c => LANGS[c])"
+              :key="code"
+              type="button"
+              @click="selected = code"
+              class="map-lang"
+              :class="{ 'map-lang--active': selected === code }"
+              :dir="LANGS[code]?.rtl ? 'rtl' : 'ltr'"
+            >{{ LANGS[code].name }}</button>
+          </div>
         </div>
-      </button>
+      </div>
     </div>
 
-    <!-- Actions -->
-    <div class="w-full max-w-sm flex flex-col items-center gap-3">
-      <button
-        v-if="selected"
-        type="button"
-        @click="$emit('pick', selected)"
-        class="w-full py-3 rounded-xl bg-green-700 text-white font-semibold text-sm hover:bg-green-600 transition-all"
-        :dir="ui.rtl ? 'rtl' : 'ltr'"
-      >{{ ui.start }}</button>
-      <div v-else class="py-3" />
-
-      <button
-        v-if="selected"
-        type="button"
-        @click="$emit('sign-in', selected)"
-        class="text-sm text-green-500 hover:text-green-300 transition-all"
-        :dir="ui.rtl ? 'rtl' : 'ltr'"
-      >{{ ui.signIn }}</button>
+    <!-- CTA buttons -->
+    <div class="flex flex-col items-center gap-3 min-h-16">
+      <Transition name="rise">
+        <button
+          v-if="selected"
+          type="button"
+          @click="$emit('pick', selected)"
+          class="px-8 py-2.5 rounded-lg bg-green-700 text-white font-medium text-sm hover:bg-green-600 transition-all"
+          :dir="ui.rtl ? 'rtl' : 'ltr'"
+        >{{ ui.start }}</button>
+      </Transition>
+      <Transition name="rise">
+        <button
+          v-if="selected"
+          type="button"
+          @click="$emit('sign-in', selected)"
+          class="text-sm text-gray-600 hover:text-gray-300 transition-all"
+          :dir="ui.rtl ? 'rtl' : 'ltr'"
+        >{{ ui.signIn }}</button>
+      </Transition>
     </div>
 
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { LANGS } from '../data/stories.js'
-import { fetchLearnerCounts } from '../utils/api.js'
-import { t } from '../utils/i18n.js'
 
 defineEmits(['pick', 'sign-in'])
 
 const selected = ref(null)
-const learnerCounts = ref({})
 
-onMounted(async () => {
-  learnerCounts.value = await fetchLearnerCounts()
-})
-
-const sortedLangs = computed(() =>
-  Object.entries(LANGS).sort(
-    (a, b) => (learnerCounts.value[b[0]] ?? 0) - (learnerCounts.value[a[0]] ?? 0)
-  )
-)
-
-function fmtCount(n) {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace('.0', '') + 'M'
-  if (n >= 1_000)     return (n / 1_000).toFixed(1).replace('.0', '') + 'K'
-  return String(n)
-}
-
-const FLAGS = {
-  en: '🇬🇧', es: '🇪🇸', fr: '🇫🇷', de: '🇩🇪',
-  it: '🇮🇹', ru: '🇷🇺', he: '🇮🇱', ar: '🇸🇦',
-  arz: '🇪🇬', ja: '🇯🇵', zh: '🇨🇳', hu: '🇭🇺', el: '🇬🇷',
-}
+const REGIONS = [
+  { name: 'Western Europe', langs: ['en', 'fr', 'de', 'es', 'it', 'el'] },
+  { name: 'Central & East', langs: ['hu', 'ru'] },
+  { name: 'Middle East',    langs: ['ar', 'arz', 'he'] },
+  { name: 'East Asia',      langs: ['ja', 'zh'] },
+]
 
 const UI = {
   en:  { start: 'Get started →',   signIn: 'Sign in / Create account',          rtl: false },
@@ -102,3 +88,82 @@ const UI = {
 
 const ui = computed(() => UI[selected.value] ?? UI.en)
 </script>
+
+<style scoped>
+.map-paper {
+  background: #f5f0e8;
+  border-radius: 2px;
+  padding: 2rem 2.5rem;
+  box-shadow: 0 6px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.map-paper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,0,0,0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.035) 1px, transparent 1px);
+  background-size: 30px 30px;
+  pointer-events: none;
+}
+
+.map-paper-label {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: #a08060;
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+
+.map-regions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.75rem 2.5rem;
+  position: relative;
+}
+
+.map-region-name {
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: #b09060;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.map-region-langs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.map-lang {
+  text-align: left;
+  font-size: 0.875rem;
+  color: #4a3c28;
+  padding: 0.2rem 0.5rem;
+  border-left: 2px solid transparent;
+  transition: color 0.12s, border-color 0.12s;
+  line-height: 1.4;
+}
+
+.map-lang:hover {
+  color: #1a0c00;
+  border-left-color: #c8a050;
+}
+
+.map-lang--active {
+  color: #1a0c00;
+  font-weight: 600;
+  border-left-color: #8b6914;
+}
+
+.rise-enter-active { transition: opacity 0.25s ease, transform 0.25s ease; }
+.rise-leave-active { transition: opacity 0.15s ease; }
+.rise-enter-from   { opacity: 0; transform: translateY(5px); }
+.rise-leave-to     { opacity: 0; }
+</style>

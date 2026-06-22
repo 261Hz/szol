@@ -55,39 +55,29 @@
     <template v-if="viewMode === 'list'">
 
     <!-- ─── IN PROGRESS ─── -->
-    <div v-if="inProgressStories.length" class="border border-green-800 rounded-lg overflow-hidden">
-      <button @click="toggle('inprogress')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-green-300 hover:bg-gray-800 transition-all">
-        <span>▶ {{ t(lang, 'inProgress') }}</span>
-        <span class="text-gray-500 text-xs">{{ open.inprogress ? '▲' : '▼' }}</span>
-      </button>
-      <div v-if="open.inprogress" class="px-4 pb-4 pt-1 flex flex-col gap-1.5">
-        <div
-          v-for="p in inProgressStories"
-          :key="p.story_id + p.tab"
-          :class="['rounded-lg border transition-all overflow-hidden',
-            current?.id === p.story_id ? 'border-green-600' : 'border-gray-700']"
-        >
-          <div class="flex items-center justify-between px-3 py-2.5 gap-2">
-            <div class="flex flex-col gap-0.5 min-w-0">
-              <span class="font-medium text-sm text-gray-200 truncate">{{ p.story_title || p.story_id }}</span>
-              <span class="text-xs text-gray-500 capitalize">{{ p.tab }} · sentence {{ p.sentence_index }}</span>
-            </div>
-            <button
-              @click="resumeStory(p)"
-              class="flex-shrink-0 text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all"
-            >{{ t(lang, 'resumeArrow') }}</button>
+    <div v-if="inProgressStories.length" class="flex flex-col gap-1.5">
+      <div class="text-[10px] text-green-400 uppercase tracking-[0.15em]">{{ t(lang, 'inProgress') }}</div>
+      <div
+        v-for="p in inProgressStories"
+        :key="p.story_id + p.tab"
+        :class="['rounded-lg border transition-all overflow-hidden',
+          current?.id === p.story_id ? 'border-green-600' : 'border-gray-700']"
+      >
+        <div class="flex items-center justify-between px-3 py-2.5 gap-2">
+          <div class="flex flex-col gap-0.5 min-w-0">
+            <span class="font-medium text-sm text-gray-200 truncate">{{ p.story_title || p.story_id }}</span>
+            <span class="text-xs text-gray-500 capitalize">{{ p.tab }} · sentence {{ p.sentence_index }}</span>
           </div>
+          <button
+            @click="resumeStory(p)"
+            class="flex-shrink-0 text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all"
+          >{{ t(lang, 'resumeArrow') }}</button>
         </div>
       </div>
     </div>
 
-    <!-- ─── 📖 CURATED ─── -->
-    <div class="border border-gray-700 rounded-lg overflow-hidden">
-      <button @click="toggle('curated')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>{{ t(lang, 'curated') }}</span>
-        <span class="text-gray-500 text-xs">{{ open.curated ? '▲' : '▼' }}</span>
-      </button>
-      <div v-if="open.curated" class="px-4 pb-4 pt-1 min-h-[200px]">
+    <!-- ─── CURATED ─── -->
+    <div class="flex flex-col gap-1.5 min-h-[200px]">
         <div v-if="loading" class="text-gray-500 text-sm text-center py-6">{{ t(lang, 'loading') }}</div>
         <div v-else-if="!curatedAndLocal.length" class="text-xs text-gray-500 py-4 text-center">{{ t(lang, 'noStoriesYet') }}</div>
         <div v-else class="flex flex-col gap-1.5">
@@ -153,8 +143,6 @@
             </div>
           </div>
         </div>
-
-      </div>
     </div>
 
     <!-- ─── 📰 FEED ARTICLES ─── -->
@@ -332,26 +320,6 @@
       </div>
     </div>
 
-    <!-- ─── 🕐 LITERARY CLOCK (English only) ─── -->
-    <div v-if="lang === 'en'" class="border border-gray-700 rounded-lg overflow-hidden">
-      <button @click="toggle('litclock')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>Literary Clock</span>
-        <span class="text-gray-500 text-xs">{{ open.litclock ? '▲' : '▼' }}</span>
-      </button>
-      <div v-if="open.litclock" class="px-4 pb-4 pt-1">
-        <div v-if="litClockLoading" class="text-xs text-gray-500 py-4 text-center">{{ t(lang, 'loading') }}</div>
-        <div v-else-if="litClockQuote" class="flex flex-col gap-3">
-          <p class="text-sm text-gray-200 italic leading-relaxed">
-            <ClickableText :text="litClockQuote.quote_first" lang="en" :savedWords="savedWordsSet" @tap="({ word, sentence }) => saveFromLibrary(word, sentence)" /><!--
-            --><span class="text-purple-400 font-semibold not-italic">{{ litClockQuote.quote_time_case }}</span><!--
-            --><ClickableText :text="litClockQuote.quote_last" lang="en" :savedWords="savedWordsSet" @tap="({ word, sentence }) => saveFromLibrary(word, sentence)" />
-          </p>
-          <p class="text-xs text-gray-500">— <em>{{ litClockQuote.title }}</em> · {{ litClockQuote.author }}</p>
-        </div>
-        <div v-else class="text-xs text-gray-500 text-center py-4">No quote for this time.</div>
-      </div>
-    </div>
-
     <!-- ─── 📅 ON THIS DAY ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('onthisday')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
@@ -507,7 +475,7 @@
 
 <script setup>
 // ref = reactive variable. computed = auto-recalculates. onMounted = runs after the component appears.
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { LANGS } from '../data/stories.js'
 // isRTL = true for Arabic and Hebrew (affects text direction in story cards).
 import { isRTL } from '../utils/rtl.js'
@@ -711,13 +679,8 @@ watch(() => props.lang, async (newLang) => {
   communityStories.value = community
   loading.value          = false // hide the spinner
   emit('stories-loaded', allStories.value)
-  startLitClockTimer()
 })
 
-onUnmounted(() => {
-  clearTimeout(litClockTimer)
-  clearInterval(litClockTimer)
-})
 
 // curatedAndLocal = official + user-added stories, filtered to the active language.
 const curatedAndLocal = computed(() =>
@@ -876,13 +839,10 @@ function listenEpisode(ep) {
 // Curated starts open so users see their stories immediately without clicking.
 // All other sections start collapsed to keep the page compact.
 const open = ref({
-  inprogress: true,
-  curated:    false,
   feed:       false,
   podcasts:   false,
   today:      false,
   quote:      false,
-  litclock:   false,
   onthisday:  false,
   import:     false,
   topics:     false,
@@ -900,7 +860,6 @@ async function toggle(section) {
     if (section === 'podcasts'  && !podcastEpisodes.value.length && !podcastLoading.value) await loadPodcasts()
     if (section === 'today'     && !todayArticle.value && !todayLoading.value) await loadToday()
     if (section === 'quote'     && !quoteOfDay.value   && !quoteLoading.value) await loadQuote()
-    if (section === 'litclock'  && !litClockQuote.value && !litClockLoading.value) await fetchLitClock()
     if (section === 'onthisday' && !onThisDay.value.length && !otdLoading.value) await loadOnThisDay()
   }
 }
@@ -920,41 +879,6 @@ async function loadToday() {
 function importWikipediaArticle(article) {
   if (!article?.extract) return // safety check in case article loaded but has no text
   pushLocalStory({ title: article.title, content: article.extract, source: 'Wikipedia' })
-}
-
-// ── Literary Clock ────────────────────────────────────────────────────────────
-// Data: https://literature-clock.jenevoldsen.com — English quotes keyed to the minute.
-const litClockQuote   = ref(null)   // { quote_first, quote_time_case, quote_last, title, author }
-const litClockLoading = ref(false)
-let   litClockTimer   = null
-
-async function fetchLitClock() {
-  litClockLoading.value = true
-  try {
-    const now = new Date()
-    const hh  = String(now.getHours()).padStart(2, '0')
-    const mm  = String(now.getMinutes()).padStart(2, '0')
-    const res = await fetch(`https://raw.githubusercontent.com/JohannesNE/literature-clock/master/docs/times/${hh}_${mm}.json`)
-    if (!res.ok) throw new Error()
-    const quotes = await res.json()
-    if (quotes?.length) {
-      // Pick a random quote from the list for this minute
-      litClockQuote.value = quotes[Math.floor(Math.random() * quotes.length)]
-    }
-  } catch {
-    litClockQuote.value = null
-  } finally {
-    litClockLoading.value = false
-  }
-}
-
-function startLitClockTimer() {
-  // Refresh at the start of every new minute
-  const msToNextMinute = (60 - new Date().getSeconds()) * 1000
-  litClockTimer = setTimeout(() => {
-    fetchLitClock()
-    litClockTimer = setInterval(fetchLitClock, 60_000)
-  }, msToNextMinute)
 }
 
 // ── On This Day ────────────────────────────────────────────────
