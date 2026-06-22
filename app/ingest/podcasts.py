@@ -392,11 +392,16 @@ def ingest_podcasts(db, dry_run: bool = False) -> int:
                     logger.info("    ✓ psc:chapters (%d segs): %s", len(ch_segs), title)
 
             if existing:
-                # Backfill segments if we now have some and didn't before
+                changed = False
+                if existing.podcast_name != source["name"]:
+                    logger.info("    ↻ renamed podcast_name %r → %r: %s", existing.podcast_name, source["name"], title)
+                    existing.podcast_name = source["name"]
+                    changed = True
                 if segments and not existing.segments:
                     existing.transcript = transcript or existing.transcript
                     existing.segments   = segments
                     logger.info("    ↻ backfilled segments: %s", title)
+                    changed = True
                 continue
 
             ep = PodcastEpisode(

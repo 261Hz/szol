@@ -87,6 +87,36 @@ def get_transcript(episode_id: UUID, db: Session = Depends(get_db)):
     return {"transcript": transcript, "segments": segments}
 
 
+@router.post("/repair-names", status_code=200)
+def repair_podcast_names(db: Session = Depends(get_db)):
+    """One-shot: rename podcast_name for all episodes to match current podcast_sources registry."""
+    from ..podcast_sources import PODCAST_SOURCES
+    from ..ingest.podcasts import fetch_ogjre_transcript  # noqa: ensure module loads
+    import feedparser
+
+    name_map: dict[str, str] = {}
+    for source in PODCAST_SOURCES:
+        try:
+            feed = feedparser.parse(source["feed_url"])
+        except Exception:
+            continue
+        for entry in feed.entries[:source.get("max_episodes", 10)]:
+            for enc in getattr(entry, "enclosures", []):
+                url = enc.get("href") or enc.get("url", "")
+                if url:
+                    name_map[url] = source["name"]
+
+    updated = 0
+    for ep in db.query(models.PodcastEpisode).all():
+        correct = name_map.get(ep.audio_url)
+        if correct and ep.podcast_name != correct:
+            logger.info("repair: %r → %r for %s", ep.podcast_name, correct, ep.title)
+            ep.podcast_name = correct
+            updated += 1
+    db.commit()
+    return {"updated": updated}
+
+
 class _SaveIn(BaseModel):
     segments: list[dict]
 
