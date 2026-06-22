@@ -50,13 +50,14 @@
         @save-word="addToVocab"
       />
 
-      <ReadView
+      <ContentView
         v-if="activeTab === 'read'"
         :story="currentStory"
         :lang="activeLang"
         :saved-words="savedWordsForLang"
         :current-user="currentUser"
         :story-pool="storyPool"
+        :echoes-for="echoesFor"
         @go="activeTab = $event"
         @save-word="addToVocab"
         @switch-story="switchStory"
@@ -163,7 +164,7 @@ import LitClock    from './components/LitClock.vue'
 import LibraryView from './views/LibraryView.vue'
 import WelcomeView from './views/WelcomeView.vue'
 
-const ReadView     = defineAsyncComponent(() => import('./views/ReadView.vue'))
+const ContentView  = defineAsyncComponent(() => import('./views/ContentView.vue'))
 const RetypeView   = defineAsyncComponent(() => import('./views/RetypeView.vue'))
 const VocabView    = defineAsyncComponent(() => import('./views/VocabView.vue'))
 const SpeakView    = defineAsyncComponent(() => import('./views/SpeakView.vue'))
@@ -177,6 +178,7 @@ const ParallelView   = defineAsyncComponent(() => import('./views/ParallelView.v
 import { LANGS } from './data/stories.js'
 import { getMe, logout, onUnauthorized, getAccountVocab, saveVocabWord, removeVocabWord, requestWordClip } from './utils/api.js'
 import { updateSEO } from './utils/seo.js'
+import { useEchoIndex } from './composables/useEchoIndex.js'
 
 const activeTab    = ref('library')
 // null = first visit → show WelcomeView; otherwise restore saved language
@@ -189,6 +191,8 @@ const storyPool    = ref([])
 
 const vocabBank = ref(JSON.parse(localStorage.getItem('szol_vocab') || '[]'))
 watch(vocabBank, val => localStorage.setItem('szol_vocab', JSON.stringify(val)), { deep: true })
+
+const { index: echoIndex, exposures, echoesFor } = useEchoIndex(storyPool, vocabBank, activeLang)
 
 // Update <title>, <meta description>, html[lang], and OG tags whenever language changes
 watch(activeLang, lang => { if (lang) updateSEO(lang) }, { immediate: true })
