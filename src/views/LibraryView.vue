@@ -3,7 +3,58 @@
 <template>
   <div class="flex flex-col gap-2">
 
-    <!-- ─── ▶ IN PROGRESS ─── -->
+    <!-- View mode toggle -->
+    <div class="flex justify-end mb-1">
+      <div class="flex gap-0.5 border border-gray-800 rounded-lg p-0.5">
+        <button
+          @click="viewMode = 'list'"
+          :class="viewMode === 'list' ? 'bg-gray-800 text-gray-200' : 'text-gray-600 hover:text-gray-400'"
+          class="p-1.5 rounded-md transition-colors"
+          title="List view"
+        >
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+          </svg>
+        </button>
+        <button
+          @click="viewMode = 'overview'"
+          :class="viewMode === 'overview' ? 'bg-gray-800 text-gray-200' : 'text-gray-600 hover:text-gray-400'"
+          class="p-1.5 rounded-md transition-colors"
+          title="Archive overview"
+        >
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Spatial archive overview mode -->
+    <div v-if="viewMode === 'overview'" class="archive-grid">
+      <div
+        v-for="story in sortedByScore"
+        :key="story.id"
+        @click="emitLoad(story)"
+        class="archive-card cursor-pointer"
+        :style="archiveStyle(story)"
+        :title="story.title"
+      >
+        <div
+          class="text-xs font-medium leading-snug text-gray-200"
+          :dir="isRTL(story.lang) ? 'rtl' : 'ltr'"
+        >{{ story.title }}</div>
+        <div class="mt-1 text-xs text-gray-600">{{ wordCount(story) }} words</div>
+        <div v-if="connectionScore(story) > 0" class="mt-1.5 text-xs text-green-500">
+          {{ connectionScore(story) }} known
+        </div>
+        <div class="archive-accent" :style="{ background: LANG_COLORS[story.lang] ?? '#10b981' }" />
+      </div>
+    </div>
+
+    <!-- List sections (hidden in overview mode) -->
+    <template v-if="viewMode === 'list'">
+
+    <!-- ─── IN PROGRESS ─── -->
     <div v-if="inProgressStories.length" class="border border-green-800 rounded-lg overflow-hidden">
       <button @click="toggle('inprogress')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-green-300 hover:bg-gray-800 transition-all">
         <span>▶ {{ t(lang, 'inProgress') }}</span>
@@ -384,7 +435,7 @@
       </div>
     </div>
 
-    <!-- ─── 👥 COMMUNITY ─── -->
+    <!-- ─── COMMUNITY ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('community')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
         <span>👥 {{ t(lang, 'community') }}</span>
@@ -449,13 +500,14 @@
       </div>
     </div>
 
+    </template><!-- end list mode -->
+
   </div>
 </template>
 
 <script setup>
 // ref = reactive variable. computed = auto-recalculates. onMounted = runs after the component appears.
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-// LANGS = configuration for all 13 supported languages (name, BCP47, RTL flag, etc.)
 import { LANGS } from '../data/stories.js'
 // isRTL = true for Arabic and Hebrew (affects text direction in story cards).
 import { isRTL } from '../utils/rtl.js'
@@ -480,6 +532,54 @@ const props = defineProps({
   currentUser: Object,  // null when logged out
 })
 const emit = defineEmits(['load', 'open-listen', 'saveWord', 'openAuth'])
+
+// ── View mode (list vs spatial archive overview) ───────────────────────────
+const viewMode = ref('list')
+
+const LANG_COLORS = {
+  en: '#3b82f6', es: '#ef4444', fr: '#6366f1', de: '#71717a',
+  it: '#22c55e', ru: '#dc2626', he: '#3b82f6', ar: '#16a34a',
+  arz: '#0d9488', ja: '#ef4444', zh: '#dc2626', hu: '#f59e0b', el: '#8b5cf6',
+}
+
+function connectionScore(story) {
+  if (!props.words?.length) return 0
+  const savedSet = savedWordsSet.value
+  if (!savedSet.size) return 0
+  const text = story.content ?? story.text ?? ''
+  const seen = new Set()
+  for (const raw of text.split(/\s+/)) {
+    const n = (raw || '').toLowerCase().replace(/[^\p{L}\p{M}]/gu, '')
+    if (n && savedSet.has(n)) seen.add(n)
+  }
+  return seen.size
+}
+
+const allStories = computed(() => [
+  ...curatedStories.value,
+  ...localStories.value,
+  ...communityStories.value,
+  ...feedStories.value,
+].filter(s => s.lang === props.lang))
+
+const maxScore = computed(() => Math.max(1, ...allStories.value.map(s => connectionScore(s))))
+
+const sortedByScore = computed(() =>
+  [...allStories.value].sort((a, b) => connectionScore(b) - connectionScore(a))
+)
+
+function archiveStyle(story) {
+  const score = connectionScore(story)
+  const ratio = Math.min(score / Math.max(maxScore.value, 3), 1)
+  const scale   = (0.8 + ratio * 0.2).toFixed(3)
+  const opacity = (0.25 + ratio * 0.75).toFixed(3)
+  const drift   = story._drift ?? 0
+  return {
+    transform:       `translateY(${drift}px) scale(${scale})`,
+    opacity,
+    transformOrigin: 'top left',
+  }
+}
 
 // ── In-progress stories ────────────────────────────────────────────────────
 const allProgress = ref([])
@@ -1192,12 +1292,49 @@ function resumeStory(progress) {
 // chunks always returns 1 for a full paragraph. Instead we count individual letter characters.
 // For all other languages: split by whitespace and count the chunks.
 function wordCount(story) {
+  const text = story.content ?? story.text ?? ''
   if (['zh', 'ja'].includes(story.lang)) {
-    // [...story.text] spreads the string into an array of Unicode code points (handles emoji/CJK correctly).
-    // /\p{L}/u = Unicode property escape: matches any letter character in any script.
-    return [...story.content].filter(c => /\p{L}/u.test(c)).length
+    return [...text].filter(c => /\p{L}/u.test(c)).length
   }
-  // .split(/\s+/) splits on any whitespace. .filter(Boolean) removes empty strings from leading/trailing spaces.
-  return story.content.split(/\s+/).filter(Boolean).length
+  return text.split(/\s+/).filter(Boolean).length
 }
 </script>
+
+<style scoped>
+.archive-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.875rem;
+  perspective: 1200px;
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 480px) {
+  .archive-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.archive-card {
+  position: relative;
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  padding: 0.75rem 0.875rem 1.125rem;
+  overflow: hidden;
+  transition: opacity 0.3s, transform 0.3s, box-shadow 0.2s;
+}
+
+.archive-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  opacity: 1 !important;
+  transform: scale(1) translateY(0) !important;
+}
+
+.archive-accent {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  opacity: 0.5;
+}
+</style>
