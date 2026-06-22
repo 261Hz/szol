@@ -167,15 +167,33 @@ import { rootHighlightOn, applyRoots, clearRoots } from '../utils/rootHighlight.
 const props = defineProps({
   story:       Object,
   lang:        String,
-  savedWords:  Object, // Set of normalized words for the active language
-  currentUser: Object, // null if logged out
+  savedWords:  Object,   // Set of normalized words for the active language
+  currentUser: Object,   // null if logged out
   storyPool:   { type: Array, default: () => [] },
+  echoesFor:   { type: Function, default: null },
 })
 
 const emit = defineEmits(['go', 'saveWord', 'openAuth', 'switch-story'])
 
+// Use echo index when available; fall back to ad-hoc overlap scan.
 const relatedStories = computed(() => {
-  if (!props.story || !props.storyPool?.length || !props.savedWords?.size) return []
+  if (!props.story) return []
+
+  if (props.echoesFor) {
+    const echoes = props.echoesFor(props.story)
+    // Group by exposureId, pick the strongest match per story
+    const byStory = {}
+    for (const ev of echoes) {
+      if (!byStory[ev.exposureId] || ev.triggers.length > byStory[ev.exposureId].score) {
+        const s = props.storyPool.find(s => s.id === ev.exposureId)
+        if (s) byStory[ev.exposureId] = { ...s, score: ev.triggers.length }
+      }
+    }
+    return Object.values(byStory).sort((a, b) => b.score - a.score).slice(0, 5)
+  }
+
+  // fallback: inline scan when echo index not yet available
+  if (!props.storyPool?.length || !props.savedWords?.size) return []
   return props.storyPool
     .filter(s => s.id !== props.story?.id && s.lang === props.lang)
     .map(s => {
