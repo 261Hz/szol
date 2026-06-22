@@ -18,7 +18,7 @@
               <span class="text-base font-semibold text-gray-100">Szól</span>
               <span class="text-xs text-gray-500 font-mono">[soːl]</span>
             </div>
-            <div class="text-xs text-gray-400 mb-2">🇭🇺 {{ tooltipInfo.label }}</div>
+            <div class="text-xs text-gray-400 mb-2">{{ tooltipInfo.label }}</div>
             <div class="text-xs text-gray-500 mb-1">{{ tooltipInfo.intro }}</div>
             <ul class="space-y-0.5">
               <li

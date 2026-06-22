@@ -146,6 +146,8 @@
       @logged-in="handleLogin"
     />
 
+    <LitClock />
+
     </template>
   </div>
 </template>
@@ -157,6 +159,7 @@ const appLoading = ref(true)
 
 import NavBar      from './components/NavBar.vue'
 import AuthModal   from './components/AuthModal.vue'
+import LitClock    from './components/LitClock.vue'
 import LibraryView from './views/LibraryView.vue'
 import WelcomeView from './views/WelcomeView.vue'
 
