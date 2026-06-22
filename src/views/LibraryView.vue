@@ -176,10 +176,16 @@
       <div v-if="open.podcasts" class="px-4 pb-4 pt-1 flex flex-col gap-2">
         <div v-if="podcastLoading && !podcastEpisodes.length" class="text-gray-500 text-sm text-center py-6">Loading…</div>
         <div v-else-if="!podcastEpisodes.length" class="text-xs text-gray-500 py-4 text-center">No podcast episodes for this language yet.</div>
-        <div v-else class="flex flex-col gap-4">
-          <div v-for="[showName, episodes] in podcastGroups" :key="showName">
-            <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5 px-0.5">{{ showName }}</div>
-            <div class="flex flex-col gap-1.5">
+        <div v-else class="flex flex-col gap-1">
+          <div v-for="[showName, episodes] in podcastGroups" :key="showName" class="border border-gray-700 rounded-lg overflow-hidden">
+            <button
+              @click="openShows[showName] = !openShows[showName]"
+              class="w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all"
+            >
+              <span>{{ showName }}</span>
+              <span class="text-gray-500 text-xs">{{ openShows[showName] ? '▲' : '▼' }}</span>
+            </button>
+            <div v-if="openShows[showName]" class="flex flex-col gap-1.5 px-3 pb-3 pt-1">
               <div
                 v-for="ep in episodes"
                 :key="ep.id"
@@ -570,6 +576,7 @@ watch(() => props.lang, async (newLang) => {
   feedPage.value         = 0
   feedExhausted.value    = false
   podcastEpisodes.value  = []
+  openShows.value        = {}
   todayArticle.value     = null
   quoteOfDay.value       = null
   onThisDay.value        = []
@@ -698,6 +705,7 @@ async function submitSuggestion() {
 // ── Podcasts ──────────────────────────────────────────────────────────────────
 const podcastEpisodes = ref([])
 const podcastLoading  = ref(false)
+const openShows       = ref({})
 
 const suggestPodcastOpen    = ref(false)
 const suggestPodcastUrl     = ref('')
