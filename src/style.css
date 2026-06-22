@@ -27,6 +27,14 @@ span[class*="cursor-pointer"] {
   touch-action: auto;
 }
 
+/* Semitic root consonant highlight */
+::highlight(szol-root) {
+  color: #34d399;
+  text-decoration: underline;
+  text-decoration-color: #059669;
+  text-underline-offset: 3px;
+}
+
 /* Number pronunciation annotations */
 ruby.szol-num { ruby-align: center; }
 ruby.szol-num rt {

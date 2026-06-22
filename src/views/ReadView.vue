@@ -44,8 +44,17 @@
         </div>
       </div>
 
+      <!-- Root highlight toggle (Hebrew / Arabic only) -->
+      <button
+        v-if="lang === 'he' || lang === 'ar'"
+        @click="rootHighlightOn = !rootHighlightOn"
+        :class="['text-xs px-3 py-1 rounded-full border transition-all',
+          rootHighlightOn ? 'bg-emerald-900 border-emerald-600 text-emerald-300' : 'border-gray-700 text-gray-500 hover:border-gray-500']"
+      >√ Root</button>
+
       <!-- Story text: displayed as clickable individual words. -->
       <div
+        ref="storyEl"
         class="leading-loose text-base"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right text-lg' : ''"
@@ -133,7 +142,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { LANGS } from '../data/stories.js'
 import { isRTL, hasFranco } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
@@ -141,6 +150,7 @@ import { normalize } from '../utils/scoring.js'
 import { useVoiceList, voicesForLang, pickVoice } from '../utils/voices.js'
 import { trackWord, getWordFrequency } from '../utils/api.js'
 import ExamplesPanel from '../components/ExamplesPanel.vue'
+import { rootHighlightOn, applyRoots, clearRoots } from '../utils/rootHighlight.js'
 
 const props = defineProps({
   story:       Object,
@@ -153,6 +163,14 @@ const emit = defineEmits(['go', 'saveWord', 'openAuth'])
 
 const francoOn = ref(false)
 const tapped   = ref(null)
+const storyEl  = ref(null)
+
+function refreshRoots() {
+  nextTick(() => applyRoots(storyEl.value, props.lang))
+}
+watch(() => props.story, refreshRoots)
+watch(() => props.lang,  () => { clearRoots(); refreshRoots() })
+watch(rootHighlightOn, v => v ? refreshRoots() : clearRoots())
 
 const voices = useVoiceList()
 

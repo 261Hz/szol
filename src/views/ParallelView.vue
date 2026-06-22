@@ -134,8 +134,17 @@
         </div>
       </div>
 
+      <!-- Root highlight toggle (Hebrew / Arabic only) -->
+      <button
+        v-if="srcLang === 'he' || srcLang === 'ar'"
+        @click="rootHighlightOn = !rootHighlightOn"
+        :class="['text-xs px-3 py-1 rounded-full border transition-all self-start',
+          rootHighlightOn ? 'bg-emerald-900 border-emerald-600 text-emerald-300' : 'border-gray-700 text-gray-500 hover:border-gray-500']"
+      >√ Root</button>
+
       <!-- Source paragraph (what you read) -->
       <div
+        ref="paraEl"
         class="bg-slate-900 border border-violet-800/50 rounded-xl px-4 py-4 text-sm text-gray-100 leading-relaxed"
         :dir="isRTL(srcLang) ? 'rtl' : 'ltr'"
       >{{ srcText }}</div>
@@ -206,11 +215,12 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { LANGS } from '../data/stories.js'
 import { PARALLEL_STORIES } from '../data/parallel-stories.js'
 import { checkTranslation } from '../utils/api.js'
 import { isRTL } from '../utils/rtl.js'
+import { rootHighlightOn, applyRoots, clearRoots } from '../utils/rootHighlight.js'
 
 const props = defineProps({ lang: String, currentUser: Object })
 
@@ -319,6 +329,14 @@ const article     = ref(null)
 const paraIdx     = ref(0)
 const userInput   = ref('')
 const checkResult = ref(null)
+const paraEl      = ref(null)
+
+watch([srcText, srcLang, rootHighlightOn], () => {
+  nextTick(() => {
+    if (rootHighlightOn.value && paraEl.value) applyRoots(paraEl.value, srcLang.value)
+    else clearRoots()
+  })
+})
 const checking    = ref(false)
 const showRef     = ref(false)
 
