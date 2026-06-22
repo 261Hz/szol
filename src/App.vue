@@ -5,16 +5,21 @@
     <LangPickView v-if="!activeLang" @pick="pickLang" />
 
     <template v-else>
-    <NavBar
-      :active="activeTab"
-      :lang="activeLang"
-      :current-user="currentUser"
-      :unread-messages="unreadMessages"
-      @tab="activeTab = $event"
-      @lang="changeLang"
-      @auth="showAuth = true"
-      @logout="handleLogout"
-    />
+    <div
+      class="sticky top-0 z-40 bg-white transition-all duration-500"
+      :class="navScrollHidden ? 'opacity-0 -translate-y-1 pointer-events-none' : ''"
+    >
+      <NavBar
+        :active="activeTab"
+        :lang="activeLang"
+        :current-user="currentUser"
+        :unread-messages="unreadMessages"
+        @tab="activeTab = $event"
+        @lang="changeLang"
+        @auth="showAuth = true"
+        @logout="handleLogout"
+      />
+    </div>
 
     <main class="max-w-3xl mx-auto px-4 py-6">
 
@@ -33,6 +38,7 @@
         :story="currentStory"
         :lang="activeLang"
         :current-user="currentUser"
+        @exit="activeTab = 'read'"
       />
 
       <LibraryView
@@ -81,7 +87,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import NavBar    from './components/NavBar.vue'
 import AuthModal from './components/AuthModal.vue'
 import ReadView     from './views/ReadView.vue'
@@ -92,6 +98,22 @@ import SpeakView    from './views/SpeakView.vue'
 import LangPickView from './views/LangPickView.vue'
 import VoiceView    from './views/VoiceView.vue'
 import { getMe, logout, onUnauthorized } from './utils/api.js'
+
+const navScrollHidden = ref(false)
+let _lastScrollY = 0
+
+function _onScroll() {
+  if (activeTab.value !== 'read') { navScrollHidden.value = false; return }
+  const y = window.scrollY
+  if (y < 60)              navScrollHidden.value = false
+  else if (y > _lastScrollY + 8) navScrollHidden.value = true
+  else if (y < _lastScrollY - 8) navScrollHidden.value = false
+  _lastScrollY = y
+}
+
+function _onMouseNearTop(e) {
+  if (e.clientY < 64) navScrollHidden.value = false
+}
 
 const activeTab      = ref('library')
 const unreadMessages = ref(0)
@@ -130,6 +152,13 @@ onMounted(async () => {
   const user = await getMe()
   if (user) currentUser.value = user
   else localStorage.removeItem('szol_token')
+  window.addEventListener('scroll',    _onScroll,      { passive: true })
+  window.addEventListener('mousemove', _onMouseNearTop, { passive: true })
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll',    _onScroll)
+  window.removeEventListener('mousemove', _onMouseNearTop)
 })
 
 const savedWordSet = computed(() =>

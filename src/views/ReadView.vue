@@ -23,6 +23,9 @@
             <span v-if="story.author"> · {{ story.author }}</span>
             <span v-if="story.source"> · {{ story.source }}</span>
           </div>
+          <div v-if="knownInText > 0" class="text-xs text-emerald-500 mt-1">
+            {{ knownInText }} word{{ knownInText !== 1 ? 's' : '' }} from your collection appear here
+          </div>
         </div>
         <div class="flex gap-2">
           <button
@@ -97,6 +100,17 @@
         </div>
         <div class="text-sm text-gray-600">{{ lookupResult.def }}</div>
         <div v-if="lookupResult.ex" class="text-xs text-gray-400 italic">"{{ lookupResult.ex }}"</div>
+        <div v-if="connectionsInText.length" class="border-t border-emerald-200 pt-2 mt-1">
+          <div class="text-xs text-emerald-600 mb-1.5">Also in this text, from your collection:</div>
+          <div class="flex flex-wrap gap-1">
+            <button
+              v-for="w in connectionsInText"
+              :key="w"
+              @click="lookup(w)"
+              class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full hover:bg-emerald-200 transition-colors"
+            >{{ w }}</button>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -123,6 +137,32 @@ const emit = defineEmits(['go', 'saveWord'])
 
 const francoOn = ref(false)
 const lookupResult = ref(null)
+
+const knownInText = computed(() => {
+  if (!props.story || !props.savedWords?.size) return 0
+  const seen = new Set()
+  for (const raw of props.story.text.split(/\s+/)) {
+    const n = normalize(raw)
+    if (n && props.savedWords.has(n)) seen.add(n)
+  }
+  return seen.size
+})
+
+const connectionsInText = computed(() => {
+  if (!props.story || !lookupResult.value || !props.savedWords?.size) return []
+  const current = normalize(lookupResult.value.word)
+  const seenNorm = new Set()
+  const result = []
+  for (const raw of props.story.text.split(/\s+/)) {
+    const display = raw.replace(/[^\p{L}\p{M}]/gu, '')
+    const n = normalize(display)
+    if (n && n !== current && props.savedWords.has(n) && !seenNorm.has(n)) {
+      seenNorm.add(n)
+      result.push(display)
+    }
+  }
+  return result.slice(0, 5)
+})
 
 const tokens = computed(() => {
   if (!props.story) return []

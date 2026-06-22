@@ -6,35 +6,38 @@
       {{ t(lang, 'loading') }}
     </div>
 
-    <div v-else class="flex flex-col gap-2">
+    <div v-else class="flex flex-col gap-3">
       <div
         v-for="story in filtered"
         :key="story.id"
         @click="$emit('load', story)"
         :class="[
-          'p-3 rounded-lg border cursor-pointer transition-all',
+          'p-4 rounded-xl border-l-4 border border-gray-100 cursor-pointer transition-all shadow-sm hover:shadow-md',
           current?.id === story.id
-            ? 'border-emerald-400 bg-emerald-50'
-            : 'border-gray-200 hover:border-emerald-300'
+            ? 'bg-emerald-50 border-emerald-100'
+            : 'bg-white hover:border-gray-200'
         ]"
+        :style="{ borderLeftColor: LANG_COLORS[story.lang] ?? '#10b981' }"
       >
-        <div
-          class="font-medium text-sm"
-          :class="{ 'text-right': isRTL(story.lang) }"
-          :dir="isRTL(story.lang) ? 'rtl' : 'ltr'"
-        >
-          {{ story.title }}
+        <div class="flex items-start justify-between gap-2">
+          <div
+            class="font-semibold text-sm text-gray-900 leading-snug"
+            :class="{ 'text-right': isRTL(story.lang) }"
+            :dir="isRTL(story.lang) ? 'rtl' : 'ltr'"
+          >
+            {{ story.title }}
+          </div>
+          <span class="shrink-0 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full whitespace-nowrap">
+            {{ story.text.split(/\s+/).length }} {{ t(lang, 'words') }}
+          </span>
         </div>
-        <div class="flex gap-2 mt-1 flex-wrap">
-          <span class="text-xs text-gray-400">{{ LANGS[story.lang]?.name }}</span>
-          <span class="text-xs text-gray-400">·</span>
-          <span class="text-xs text-gray-400">{{ story.text.split(/\s+/).length }} {{ t(lang, 'words') }}</span>
-          <span v-if="story.author" class="text-xs text-gray-400">· {{ story.author }}</span>
-          <span v-if="story.sequence_order" class="text-xs text-emerald-500">{{ t(lang, 'curated') }}</span>
-          <span v-if="story.community" class="text-xs text-blue-400">{{ t(lang, 'community') }}</span>
-          <span v-if="story.local" class="text-xs text-gray-400">{{ t(lang, 'local') }}</span>
-          <span v-if="story.franco" class="text-xs text-orange-400">franco</span>
-          <span v-if="story.feed" class="text-xs text-violet-400">{{ story.source_name }}</span>
+        <div class="flex gap-1.5 mt-2 flex-wrap items-center">
+          <span v-if="story.author" class="text-xs text-gray-400">{{ story.author }}</span>
+          <span v-if="story.sequence_order" class="text-xs bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full">{{ t(lang, 'curated') }}</span>
+          <span v-if="story.community" class="text-xs bg-blue-100 text-blue-500 px-2 py-0.5 rounded-full">{{ t(lang, 'community') }}</span>
+          <span v-if="story.local" class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{{ t(lang, 'local') }}</span>
+          <span v-if="story.franco" class="text-xs bg-orange-100 text-orange-500 px-2 py-0.5 rounded-full">franco</span>
+          <span v-if="story.feed" class="text-xs bg-violet-100 text-violet-500 px-2 py-0.5 rounded-full">{{ story.source_name }}</span>
           <a
             v-if="story.feed && story.source_url"
             :href="story.source_url"
@@ -112,6 +115,22 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { LANGS } from '../data/stories.js'
+
+const LANG_COLORS = {
+  en:  '#3b82f6',
+  es:  '#ef4444',
+  fr:  '#6366f1',
+  de:  '#71717a',
+  it:  '#22c55e',
+  ru:  '#dc2626',
+  he:  '#3b82f6',
+  ar:  '#16a34a',
+  arz: '#0d9488',
+  ja:  '#ef4444',
+  zh:  '#dc2626',
+  hu:  '#f59e0b',
+  el:  '#8b5cf6',
+}
 import { isRTL } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
 import { fetchCommunityStories, submitStory, fetchCuratedStories } from '../utils/supabase.js'
