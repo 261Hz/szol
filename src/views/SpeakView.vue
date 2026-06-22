@@ -49,6 +49,7 @@
       <!-- Target sentence display. -->
       <!-- Each word is individually colored after scoring: green = correct, red = wrong. -->
       <div
+        ref="sentenceEl"
         class="text-xl leading-relaxed p-4 rounded-xl bg-gray-900 border border-gray-700 break-words"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right' : ''"
@@ -138,10 +139,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
 import { LANGS } from '../data/stories.js'
 import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
+import { rootHighlightOn, applyRoots, clearRoots } from '../utils/rootHighlight.js'
 import { normalize, scoreWords } from '../utils/scoring.js'
 import { useVoiceList, pickVoice } from '../utils/voices.js'
 import { saveProgress, getProgress } from '../utils/api.js'
@@ -150,6 +152,12 @@ const props = defineProps({
   story:       Object,
   lang:        String,
   currentUser: Object,
+})
+
+const sentenceEl = ref(null)
+
+watch([() => props.story, () => props.lang, rootHighlightOn], ([, , on]) => {
+  nextTick(() => on ? applyRoots(sentenceEl.value, props.lang) : clearRoots())
 })
 
 // Load available TTS voices reactively (updates when browser finishes loading them).

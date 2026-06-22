@@ -44,14 +44,6 @@
         </div>
       </div>
 
-      <!-- Root highlight toggle (Hebrew / Arabic only) -->
-      <button
-        v-if="lang === 'he' || lang === 'ar'"
-        @click="rootHighlightOn = !rootHighlightOn"
-        :class="['text-xs px-3 py-1 rounded-full border transition-all',
-          rootHighlightOn ? 'bg-emerald-900 border-emerald-600 text-emerald-300' : 'border-gray-700 text-gray-500 hover:border-gray-500']"
-      >√ Root</button>
-
       <!-- Story text: displayed as clickable individual words. -->
       <div
         ref="storyEl"

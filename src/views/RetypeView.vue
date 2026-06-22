@@ -158,6 +158,7 @@ import { trackWord, saveProgress, getProgress } from '../utils/api.js'
 import ClickableText from '../components/ClickableText.vue'
 import { numToWords } from '../utils/numWords.js'
 import { charPinyin, charFranco, chineseToPinyinText, arabicToFranco } from '../utils/romanization.js'
+import { rootHighlightOn, applyRoots, clearRoots } from '../utils/rootHighlight.js'
 
 const props = defineProps({
   story:       Object,
@@ -167,6 +168,11 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['saveWord'])
+
+const overlayEl = ref(null)
+watch([() => props.story, () => props.lang, rootHighlightOn], ([, , on]) => {
+  nextTick(() => on ? applyRoots(overlayEl.value, props.lang) : clearRoots())
+})
 
 // ── Mode (native / franco / pinyin) ──────────────────────────────────────────
 
