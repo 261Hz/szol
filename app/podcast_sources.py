@@ -40,5 +40,6 @@ PODCAST_SOURCES = [
         "feed_url": "https://files.hosting.thmanyah.com/podcasts/89/1713955813943-768/rss-feed.rss",
         "lang": "ar",
         "max_episodes": 10,
+        "chapters_as_transcript": True,  # psc:chapters have timestamped Arabic titles
     },
 ]

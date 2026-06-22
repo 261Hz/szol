@@ -235,9 +235,8 @@ def _fetch_lex_transcript(slug: str) -> tuple[str | None, list[dict]]:
         if not raw:
             logger.warning("Lex transcript: no text extracted from %s", tx_url)
             return None, []
-        logger.warning("Lex transcript snippet: %r", raw[:300])
         text, segments = _parse_lex_segments(raw)
-        logger.warning("Lex transcript parse: %d segments, %d chars", len(segments), len(text))
+        logger.info("Lex transcript parse: %d segments, %d chars", len(segments), len(text))
         if not segments:
             logger.warning("Lex transcript: no timestamp segments parsed from %s", tx_url)
         return (text.strip() or None), segments
@@ -255,6 +254,59 @@ def _fetch_rss_transcript(url: str) -> str | None:
     except Exception as e:
         logger.warning("RSS transcript fetch failed %s: %s", url, e)
         return None
+
+
+def _ts_to_secs(ts: str) -> float:
+    """Parse HH:MM:SS or MM:SS timestamp string to seconds."""
+    parts = ts.strip().split(":")
+    try:
+        if len(parts) == 3:
+            return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+        if len(parts) == 2:
+            return int(parts[0]) * 60 + float(parts[1])
+        return float(parts[0])
+    except (ValueError, IndexError):
+        return 0.0
+
+
+def _psc_chapters_from_xml(raw_xml: bytes) -> dict[str, list[dict]]:
+    """Parse psc:chapter elements from raw RSS XML, keyed by entry GUID.
+
+    Returns {guid: [{start, end, text}, ...]} for entries that have chapters.
+    Used as a coarse transcript fallback for podcasts without text transcripts.
+    """
+    import xml.etree.ElementTree as ET
+    PSC = "http://podlove.org/simple-chapters"
+    result: dict[str, list[dict]] = {}
+    try:
+        root = ET.fromstring(raw_xml)
+        channel = root.find("channel")
+        if channel is None:
+            return result
+        for item in channel.findall("item"):
+            guid_el = item.find("guid")
+            guid = guid_el.text.strip() if guid_el is not None and guid_el.text else None
+            if not guid:
+                continue
+            chapters_el = item.find(f"{{{PSC}}}chapters")
+            if chapters_el is None:
+                continue
+            starts, titles = [], []
+            for ch in chapters_el.findall(f"{{{PSC}}}chapter"):
+                start_str = ch.get("start", "")
+                title = (ch.get("title") or "").strip()
+                if start_str and title:
+                    starts.append(_ts_to_secs(start_str))
+                    titles.append(title)
+            segs = []
+            for i, (start, title) in enumerate(zip(starts, titles)):
+                end = starts[i + 1] if i + 1 < len(starts) else start + 300
+                segs.append({"start": start, "end": end, "text": title})
+            if segs:
+                result[guid] = segs
+    except Exception as e:
+        logger.warning("psc:chapters parse error: %s", e)
+    return result
 
 
 def _parse_transcript_body(text: str, content_type: str) -> str:
@@ -282,15 +334,29 @@ def ingest_podcasts(db, dry_run: bool = False) -> int:
     total = 0
     for source in PODCAST_SOURCES:
         logger.info("→ [podcast] %s  [%s]", source["name"], source["lang"])
+        use_ogjre        = source.get("transcript_source") == "ogjre"
+        use_chapters     = source.get("chapters_as_transcript", False)
+        max_ep           = source.get("max_episodes", 10)
+        inserted         = 0
+
+        # Fetch raw bytes when we need ElementTree for psc:chapters
+        raw_xml: bytes | None = None
+        psc_chapters: dict[str, list[dict]] = {}
+        if use_chapters:
+            try:
+                r = requests.get(source["feed_url"], headers=_HEADERS, timeout=_TIMEOUT)
+                r.raise_for_status()
+                raw_xml = r.content
+                psc_chapters = _psc_chapters_from_xml(raw_xml)
+                logger.info("  psc:chapters: %d episode(s) with chapters", len(psc_chapters))
+            except Exception as e:
+                logger.warning("  Failed to fetch raw feed for psc:chapters: %s", e)
+
         try:
-            feed = feedparser.parse(source["feed_url"])
+            feed = feedparser.parse(raw_xml if raw_xml is not None else source["feed_url"])
         except Exception as e:
             logger.warning("  Failed to parse feed: %s", e)
             continue
-
-        use_ogjre = source.get("transcript_source") == "ogjre"
-        max_ep    = source.get("max_episodes", 10)
-        inserted  = 0
 
         for entry in feed.entries[:max_ep]:
             audio = _audio_url(entry)
@@ -301,7 +367,7 @@ def ingest_podcasts(db, dry_run: bool = False) -> int:
 
             title = _strip_html(entry.get("title", "Untitled"))
 
-            # Transcript: ogjre API > web page > RSS tag > null
+            # Transcript: ogjre API > lex web page > RSS tag > psc:chapters > null
             transcript, segments = None, []
             if use_ogjre:
                 transcript, segments = fetch_ogjre_transcript(title)
@@ -318,13 +384,19 @@ def ingest_podcasts(db, dry_run: bool = False) -> int:
                 tx_url = _transcript_url(entry)
                 if tx_url:
                     transcript = _fetch_rss_transcript(tx_url)
+            if not segments and use_chapters:
+                guid_el = entry.get("id") or ""
+                ch_segs = psc_chapters.get(guid_el)
+                if ch_segs:
+                    segments = ch_segs
+                    logger.info("    ✓ psc:chapters (%d segs): %s", len(ch_segs), title)
 
             if existing:
-                # Backfill transcript if we now have one and didn't before
-                if transcript and not existing.segments:
-                    existing.transcript = transcript
-                    existing.segments   = segments or None
-                    logger.info("    ↻ backfilled transcript: %s", title)
+                # Backfill segments if we now have some and didn't before
+                if segments and not existing.segments:
+                    existing.transcript = transcript or existing.transcript
+                    existing.segments   = segments
+                    logger.info("    ↻ backfilled segments: %s", title)
                 continue
 
             ep = PodcastEpisode(
