@@ -23,6 +23,9 @@
             <span v-if="story.author"> · {{ story.author }}</span>
             <span v-if="story.source"> · {{ story.source }}</span>
           </div>
+          <div v-if="knownInText > 0" class="text-xs text-green-500 mt-0.5">
+            {{ knownInText }} {{ knownInText === 1 ? 'word' : 'words' }} from your collection
+          </div>
         </div>
 
         <div class="flex gap-2">
@@ -152,6 +155,16 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['go', 'saveWord', 'openAuth'])
+
+const knownInText = computed(() => {
+  if (!props.story?.content || !props.savedWords?.size) return 0
+  const seen = new Set()
+  for (const raw of props.story.content.split(/\s+/)) {
+    const n = normalize(raw)
+    if (n && props.savedWords.has(n)) seen.add(n)
+  }
+  return seen.size
+})
 
 const francoOn = ref(false)
 const tapped   = ref(null)

@@ -51,14 +51,22 @@
 
         <button
           @click="$emit('tab', 'settings')"
-          :class="['text-lg px-1.5 py-0.5 rounded-md transition-all', active === 'settings' ? 'text-gray-50' : 'text-gray-500 hover:text-gray-200']"
+          :class="['p-1.5 rounded-md transition-all', active === 'settings' ? 'text-gray-50' : 'text-gray-500 hover:text-gray-200']"
           title="Settings"
-        >⚙</button>
+        >
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
 
         <div v-if="!currentUser">
           <button @click="$emit('auth')"
-            class="text-lg px-1.5 py-0.5 rounded-md text-gray-500 hover:text-gray-200 transition-all"
-            title="Login / Register">👤</button>
+            class="p-1.5 rounded-md text-gray-500 hover:text-gray-200 transition-all"
+            title="Login / Register">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          </button>
         </div>
         <div v-else class="flex items-center gap-1.5">
           <span class="text-xs text-gray-300 max-w-20 truncate hidden sm:inline">{{ currentUser.username }}</span>
@@ -68,19 +76,27 @@
       </div>
     </div>
 
-    <!-- Tab strip: scrolls horizontally on narrow screens -->
+    <!-- Tab strip: icon + label on active tab -->
     <div class="flex overflow-x-auto px-3 pb-2 gap-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
       <button
         v-for="tab in tabs"
         :key="tab.key"
         @click="$emit('tab', tab.key)"
         :class="[
-          'flex-shrink-0 whitespace-nowrap px-3 py-1.5 rounded-md text-sm transition-all',
-          active === tab.key
-            ? 'bg-violet-900 text-violet-100 font-medium'
-            : 'text-gray-400 hover:text-white'
+          'relative flex-shrink-0 flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-lg transition-all',
+          active === tab.key ? 'text-violet-300' : 'text-gray-600 hover:text-gray-400'
         ]"
-      >{{ tab.label }}</button>
+        :title="tab.label"
+      >
+        <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path :d="ICONS[tab.key] ?? ICONS.library" />
+        </svg>
+        <span
+          class="text-[9px] leading-none tracking-wide transition-opacity duration-150"
+          :class="active === tab.key ? 'opacity-50' : 'opacity-0'"
+          style="min-width: 28px; text-align: center;"
+        >{{ tab.label }}</span>
+      </button>
     </div>
 
   </nav>
@@ -144,6 +160,18 @@ function tapLogo() {
   tooltipTimer = setTimeout(() => { showTooltip.value = false }, 3000)
 }
 
+const ICONS = {
+  retype:   'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
+  listen:   'M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3',
+  speak:    'M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z',
+  write:    'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z',
+  vocab:    'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z',
+  parallel: 'M4 6h7M4 10h7M4 14h7M4 18h7M15 6h5M15 10h5M15 14h5M15 18h5',
+  library:  'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
+  journal:  'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+  messages: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
+}
+
 const tabs = computed(() => {
   const base = [
     { key: 'retype',   label: t(props.lang, 'retype') },
@@ -154,7 +182,7 @@ const tabs = computed(() => {
     { key: 'parallel', label: 'Parallel' },
     { key: 'library',  label: t(props.lang, 'library') },
     { key: 'journal',  label: t(props.lang, 'journal') },
-    { key: 'messages', label: '🎙 Voice' },
+    { key: 'messages', label: 'Voice' },
   ]
   return base
 })

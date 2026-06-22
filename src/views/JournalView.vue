@@ -1,6 +1,40 @@
 <template>
   <div class="space-y-6">
 
+    <!-- ── Personal writing journal ─────────────────────────────────────────── -->
+    <div class="journal-page">
+      <textarea
+        v-model="todayText"
+        @blur="saveJournal"
+        class="journal-textarea w-full"
+        :placeholder="placeholder"
+        :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+        rows="10"
+      />
+      <div class="journal-dates">
+        <span class="date-today">{{ formatLocalDate(todayISO) }}</span>
+        <span class="date-next">{{ formatLocalDate(tomorrowISO) }}</span>
+      </div>
+    </div>
+
+    <!-- Past local entries -->
+    <div v-if="pastEntries.length" class="flex flex-col gap-8">
+      <div class="text-xs text-gray-700 uppercase tracking-widest text-center select-none">Earlier</div>
+      <div
+        v-for="entry in pastEntries"
+        :key="entry.id"
+        class="journal-page journal-page--past"
+      >
+        <div class="journal-body" :dir="isRTL(lang) ? 'rtl' : 'ltr'">{{ entry.text }}</div>
+        <div class="journal-dates">
+          <span class="date-today">{{ formatLocalDate(entry.date) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Divider before curated content -->
+    <div class="border-t border-gray-800 pt-2" />
+
     <!-- ── Today's entries banner ───────────────────────────────────────────── -->
     <section v-if="todayItems.length" class="space-y-3">
       <h2 class="text-xs font-semibold uppercase tracking-widest text-violet-400">
@@ -188,6 +222,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { t } from '../utils/i18n.js'
+import { isRTL } from '../utils/rtl.js'
 import { fetchCollections, fetchCollection, fetchTodayDocuments } from '../utils/api.js'
 import { fetchDocumentContent } from '../utils/series/index.js'
 
@@ -197,6 +232,48 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['load'])
+
+// ── Personal writing journal (localStorage) ───────────────────────────────────
+
+const JOURNAL_KEY = 'szol_journal'
+const todayISO = new Date().toISOString().split('T')[0]
+const tomorrowISO = (() => {
+  const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0]
+})()
+
+const allJournalEntries = ref([])
+const todayText = ref('')
+
+const PLACEHOLDERS = [
+  'What did you notice today?',
+  'A word that stayed with you.',
+  'Something that surprised you in the language.',
+  'Write freely.',
+  'What did you read?',
+]
+const placeholder = PLACEHOLDERS[new Date().getDay() % PLACEHOLDERS.length]
+
+function formatLocalDate(iso) {
+  const d = new Date(iso + 'T12:00:00')
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+const pastEntries = computed(() =>
+  allJournalEntries.value
+    .filter(e => e.date !== todayISO && e.lang === props.lang)
+    .sort((a, b) => b.date.localeCompare(a.date))
+)
+
+function saveJournal() {
+  if (!todayText.value.trim()) return
+  const idx = allJournalEntries.value.findIndex(e => e.date === todayISO && e.lang === props.lang)
+  if (idx >= 0) {
+    allJournalEntries.value[idx].text = todayText.value.trim()
+  } else {
+    allJournalEntries.value.push({ id: Date.now(), date: todayISO, lang: props.lang, text: todayText.value.trim() })
+  }
+  localStorage.setItem(JOURNAL_KEY, JSON.stringify(allJournalEntries.value))
+}
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
@@ -251,8 +328,19 @@ async function load(lang) {
   }
 }
 
-onMounted(() => load(props.lang))
-watch(() => props.lang, lang => load(lang))
+onMounted(() => {
+  const saved = localStorage.getItem(JOURNAL_KEY)
+  if (saved) allJournalEntries.value = JSON.parse(saved)
+  const todayEntry = allJournalEntries.value.find(e => e.date === todayISO && e.lang === props.lang)
+  if (todayEntry) todayText.value = todayEntry.text
+  load(props.lang)
+})
+
+watch(() => props.lang, lang => {
+  const entry = allJournalEntries.value.find(e => e.date === todayISO && e.lang === lang)
+  todayText.value = entry?.text ?? ''
+  load(lang)
+})
 
 // ── Series expand ─────────────────────────────────────────────────────────────
 
@@ -310,5 +398,63 @@ function practiceChapter() {
 .slide-up-enter-from, .slide-up-leave-to {
   transform: translateY(100%);
   opacity: 0;
+}
+
+.journal-page {
+  position: relative;
+  background: #faf7f2;
+  border-left: 3px solid #e0d8cc;
+  border-radius: 0 2px 2px 0;
+  padding: 2rem 2.5rem 4rem 2.5rem;
+  min-height: 260px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3), 0 8px 32px rgba(0,0,0,0.2);
+}
+
+.journal-page--past { opacity: 0.5; }
+
+.journal-textarea {
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1rem;
+  line-height: 1.8;
+  color: #2a2118;
+  width: 100%;
+}
+
+.journal-body {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1rem;
+  line-height: 1.8;
+  color: #2a2118;
+  white-space: pre-wrap;
+}
+
+.journal-dates {
+  position: absolute;
+  bottom: 1.25rem;
+  right: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+}
+
+.date-today {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: #a09070;
+  letter-spacing: 0.02em;
+}
+
+.date-next {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.65rem;
+  font-style: italic;
+  color: #d4cfc8;
+  letter-spacing: 0.02em;
 }
 </style>
