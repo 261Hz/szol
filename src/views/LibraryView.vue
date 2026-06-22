@@ -1,12 +1,39 @@
 <template>
   <div class="flex flex-col gap-6">
 
-    <!-- Story list -->
+    <!-- Header row: mode toggle -->
+    <div v-if="!loading && filtered.length" class="flex justify-end">
+      <div class="flex gap-1 border border-gray-200 rounded-lg p-0.5">
+        <button
+          @click="viewMode = 'list'"
+          :class="viewMode === 'list' ? 'bg-gray-100 text-gray-800' : 'text-gray-400 hover:text-gray-600'"
+          class="p-1.5 rounded-md transition-colors"
+          title="List view"
+        >
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+          </svg>
+        </button>
+        <button
+          @click="viewMode = 'overview'"
+          :class="viewMode === 'overview' ? 'bg-gray-100 text-gray-800' : 'text-gray-400 hover:text-gray-600'"
+          class="p-1.5 rounded-md transition-colors"
+          title="Archive overview"
+        >
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading -->
     <div v-if="loading" class="text-gray-400 text-sm text-center py-12">
       {{ t(lang, 'loading') }}
     </div>
 
-    <div v-else class="flex flex-col gap-3">
+    <!-- List view -->
+    <div v-else-if="viewMode === 'list'" class="flex flex-col gap-3">
       <div
         v-for="story in filtered"
         :key="story.id"
@@ -50,8 +77,33 @@
       </div>
     </div>
 
-    <!-- Add your own -->
-    <div class="border border-gray-200 rounded-lg p-4 flex flex-col gap-3">
+    <!-- Spatial overview -->
+    <div v-else class="archive-grid">
+      <div
+        v-for="story in filteredByScore"
+        :key="story.id"
+        @click="$emit('load', story)"
+        class="archive-card cursor-pointer transition-all duration-300"
+        :style="archiveStyle(story)"
+        :title="story.title"
+      >
+        <div
+          class="text-xs font-medium leading-snug text-gray-800"
+          :dir="isRTL(story.lang) ? 'rtl' : 'ltr'"
+        >{{ story.title }}</div>
+        <div class="mt-1 text-xs text-gray-400">{{ story.text.split(/\s+/).length }} {{ t(lang, 'words') }}</div>
+        <div v-if="connectionScore(story) > 0" class="mt-1.5 text-xs text-emerald-500">
+          {{ connectionScore(story) }} known
+        </div>
+        <div
+          class="archive-accent"
+          :style="{ background: LANG_COLORS[story.lang] ?? '#10b981' }"
+        />
+      </div>
+    </div>
+
+    <!-- Add your own (list mode only) -->
+    <div v-if="viewMode === 'list'" class="border border-gray-200 rounded-lg p-4 flex flex-col gap-3">
       <div class="text-xs font-medium text-gray-500 uppercase tracking-wide">
         {{ t(lang, 'addStory') }}
       </div>
@@ -74,8 +126,6 @@
         placeholder="Franco transliteration (optional)..."
         class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400"
       />
-
-      <!-- Share form -->
       <div v-if="showShareForm" class="flex flex-col gap-2 border-t border-gray-100 pt-3">
         <div class="text-xs text-gray-500">{{ t(lang, 'shareRequired') }}</div>
         <input
@@ -91,7 +141,6 @@
           class="w-full border border-gray-200 rounded-md px-3 py-2 text-sm outline-none focus:border-emerald-400"
         />
       </div>
-
       <div class="flex items-center justify-end gap-2">
         <button
           @click="addLocal"
@@ -115,6 +164,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { LANGS } from '../data/stories.js'
+import { normalize } from '../utils/scoring.js'
 
 const LANG_COLORS = {
   en:  '#3b82f6',
@@ -137,13 +187,15 @@ import { fetchCommunityStories, submitStory, fetchCuratedStories } from '../util
 import { fetchFeed } from '../utils/api.js'
 
 const props = defineProps({
-  lang: String,
-  current: Object,
+  lang:       String,
+  current:    Object,
+  savedWords: Object,
 })
 
 defineEmits(['load'])
 
 const loading = ref(true)
+const viewMode = ref('list')
 const curatedStories = ref([])
 const localStories = ref([])
 const communityStories = ref([])
@@ -179,6 +231,36 @@ const filtered = computed(() => {
   ]
   return all.filter(s => s.lang === props.lang)
 })
+
+function connectionScore(story) {
+  if (!props.savedWords?.size) return 0
+  const seen = new Set()
+  for (const raw of story.text.split(/\s+/)) {
+    const n = normalize(raw)
+    if (n && props.savedWords.has(n)) seen.add(n)
+  }
+  return seen.size
+}
+
+const filteredByScore = computed(() =>
+  [...filtered.value].sort((a, b) => connectionScore(b) - connectionScore(a))
+)
+
+const maxScore = computed(() =>
+  Math.max(1, ...filtered.value.map(s => connectionScore(s)))
+)
+
+function archiveStyle(story) {
+  const score = connectionScore(story)
+  const ratio = Math.min(score / Math.max(maxScore.value, 3), 1)
+  const scale  = 0.8 + ratio * 0.2
+  const opacity = 0.3 + ratio * 0.7
+  return {
+    transform: `scale(${scale.toFixed(3)})`,
+    opacity: opacity.toFixed(3),
+    transformOrigin: 'top left',
+  }
+}
 
 function addLocal() {
   if (!customTitle.value.trim() || !customText.value.trim()) return
@@ -233,3 +315,41 @@ function clearForm() {
   customSource.value = ''
 }
 </script>
+
+<style scoped>
+.archive-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  perspective: 1200px;
+}
+
+@media (max-width: 480px) {
+  .archive-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.archive-card {
+  position: relative;
+  background: white;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 0.875rem 1rem 1.25rem;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.archive-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  opacity: 1 !important;
+  transform: scale(1) !important;
+}
+
+.archive-accent {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  opacity: 0.6;
+}
+</style>

@@ -45,7 +45,13 @@
         v-if="activeTab === 'library'"
         :lang="activeLang"
         :current="currentStory"
+        :saved-words="savedWordSet"
         @load="loadStory"
+      />
+
+      <JournalView
+        v-if="activeTab === 'journal'"
+        :lang="activeLang"
       />
 
       <VocabView
@@ -97,6 +103,7 @@ import VocabView    from './views/VocabView.vue'
 import SpeakView    from './views/SpeakView.vue'
 import LangPickView from './views/LangPickView.vue'
 import VoiceView    from './views/VoiceView.vue'
+import JournalView  from './views/JournalView.vue'
 import { getMe, logout, onUnauthorized } from './utils/api.js'
 
 const navScrollHidden = ref(false)
