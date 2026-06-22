@@ -176,27 +176,28 @@
       <div v-if="open.podcasts" class="px-4 pb-4 pt-1 flex flex-col gap-2">
         <div v-if="podcastLoading && !podcastEpisodes.length" class="text-gray-500 text-sm text-center py-6">Loading…</div>
         <div v-else-if="!podcastEpisodes.length" class="text-xs text-gray-500 py-4 text-center">No podcast episodes for this language yet.</div>
-        <div v-else class="flex flex-col gap-1.5">
-          <div
-            v-for="ep in podcastEpisodes"
-            :key="ep.id"
-            :class="['p-3 rounded-lg border transition-all',
-              current?.id === ep.id ? 'border-green-600 bg-green-950' : 'border-gray-700']"
-          >
-            <div class="font-medium text-sm text-gray-100 leading-snug">{{ ep.title }}</div>
-            <div class="flex gap-2 flex-wrap items-center mt-1">
-              <span class="text-xs text-gray-500">{{ ep.podcast_name }}</span>
-              <span v-if="ep.duration_sec" class="text-xs text-gray-600">
-                · {{ Math.round(ep.duration_sec / 60) }} min
-              </span>
-
-            </div>
-            <div v-if="ep.description" class="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{{ ep.description }}</div>
-            <div class="mt-2">
-              <button
-                @click="listenEpisode(ep)"
-                class="text-xs px-3 py-1.5 rounded-md border border-blue-700 text-blue-300 hover:border-blue-500 transition-all"
-              >▶ Listen</button>
+        <div v-else class="flex flex-col gap-4">
+          <div v-for="[showName, episodes] in podcastGroups" :key="showName">
+            <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5 px-0.5">{{ showName }}</div>
+            <div class="flex flex-col gap-1.5">
+              <div
+                v-for="ep in episodes"
+                :key="ep.id"
+                :class="['p-3 rounded-lg border transition-all',
+                  current?.id === ep.id ? 'border-green-600 bg-green-950' : 'border-gray-700']"
+              >
+                <div class="font-medium text-sm text-gray-100 leading-snug">{{ ep.title }}</div>
+                <div class="flex gap-2 flex-wrap items-center mt-1">
+                  <span v-if="ep.duration_sec" class="text-xs text-gray-600">{{ Math.round(ep.duration_sec / 60) }} min</span>
+                </div>
+                <div v-if="ep.description" class="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{{ ep.description }}</div>
+                <div class="mt-2">
+                  <button
+                    @click="listenEpisode(ep)"
+                    class="text-xs px-3 py-1.5 rounded-md border border-blue-700 text-blue-300 hover:border-blue-500 transition-all"
+                  >▶ Listen</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -720,11 +721,19 @@ async function submitPodcastSuggestion() {
 
 async function loadPodcasts() {
   podcastLoading.value = true
-  const eps = await fetchPodcasts(props.lang)
-  eps.sort((a, b) => (a.podcast_name ?? '').localeCompare(b.podcast_name ?? ''))
-  podcastEpisodes.value = eps
+  podcastEpisodes.value = await fetchPodcasts(props.lang)
   podcastLoading.value = false
 }
+
+const podcastGroups = computed(() => {
+  const map = new Map()
+  for (const ep of podcastEpisodes.value) {
+    const name = ep.podcast_name ?? 'Unknown'
+    if (!map.has(name)) map.set(name, [])
+    map.get(name).push(ep)
+  }
+  return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+})
 
 function listenEpisode(ep) {
   emit('open-listen', {
