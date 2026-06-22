@@ -819,6 +819,9 @@ let _rafId      = null
 function setupAnalyser() {
   if (!audioEl.value || _mediaSrc) return
   try {
+    // createMediaElementSource outputs silence for cross-origin audio without CORS headers.
+    // Skip it for any cross-origin URL; waveform uses the fake-animation fallback instead.
+    if (!audioEl.value.src.startsWith(window.location.origin + '/')) return
     if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)()
     if (_audioCtx.state === 'suspended') _audioCtx.resume().catch(() => {})
     const src = _audioCtx.createMediaElementSource(audioEl.value)
