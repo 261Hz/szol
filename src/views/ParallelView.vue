@@ -134,14 +134,6 @@
         </div>
       </div>
 
-      <!-- Root highlight toggle (Hebrew / Arabic only) -->
-      <button
-        v-if="srcLang === 'he' || srcLang === 'ar'"
-        @click="rootHighlightOn = !rootHighlightOn"
-        :class="['text-xs px-3 py-1 rounded-full border transition-all self-start',
-          rootHighlightOn ? 'bg-emerald-900 border-emerald-600 text-emerald-300' : 'border-gray-700 text-gray-500 hover:border-gray-500']"
-      >√ Root</button>
-
       <!-- Source paragraph (what you read) -->
       <div
         ref="paraEl"

@@ -14,7 +14,7 @@
     </div>
 
     <!-- Word card list -->
-    <div v-else class="flex flex-col gap-3">
+    <div v-else ref="vocabListEl" class="flex flex-col gap-3">
       <div
         v-for="({ word, originalIndex }) in filtered"
         :key="originalIndex"
@@ -136,8 +136,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { t }    from '../utils/i18n.js'
+import { rootHighlightOn, applyRoots, clearRoots } from '../utils/rootHighlight.js'
 import { LANGS } from '../data/stories.js'
 import ExamplesPanel  from '../components/ExamplesPanel.vue'
 import ClickableText  from '../components/ClickableText.vue'
@@ -151,6 +152,11 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['remove', 'saveWord', 'openAuth', 'openClip'])
+
+const vocabListEl = ref(null)
+watch([() => props.words, () => props.lang, rootHighlightOn], ([, , on]) => {
+  nextTick(() => on ? applyRoots(vocabListEl.value, props.lang) : clearRoots())
+})
 
 // freqPopup holds the word whose frequency popup is currently open, or null.
 const freqPopup = ref(null)
