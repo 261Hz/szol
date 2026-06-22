@@ -132,6 +132,23 @@
         />
       </div>
 
+      <!-- Cross-link strip: related stories by collection overlap -->
+      <div v-if="relatedStories.length" class="flex flex-col gap-2 pt-3 border-t border-gray-800">
+        <div class="text-xs text-gray-700 uppercase tracking-widest">Also in your collection</div>
+        <div class="flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <button
+            v-for="s in relatedStories"
+            :key="s.id"
+            @click="$emit('switch-story', s)"
+            class="flex-shrink-0 text-left border border-gray-800 rounded-lg p-2.5 hover:border-green-800 transition-all"
+            style="max-width: 150px;"
+          >
+            <div class="text-xs text-gray-300 font-medium leading-snug line-clamp-2" :dir="isRTL(s.lang) ? 'rtl' : 'ltr'">{{ s.title }}</div>
+            <div class="text-[10px] text-green-600 mt-1">{{ s.score }} known</div>
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
@@ -152,9 +169,28 @@ const props = defineProps({
   lang:        String,
   savedWords:  Object, // Set of normalized words for the active language
   currentUser: Object, // null if logged out
+  storyPool:   { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['go', 'saveWord', 'openAuth'])
+const emit = defineEmits(['go', 'saveWord', 'openAuth', 'switch-story'])
+
+const relatedStories = computed(() => {
+  if (!props.story || !props.storyPool?.length || !props.savedWords?.size) return []
+  return props.storyPool
+    .filter(s => s.id !== props.story?.id && s.lang === props.lang)
+    .map(s => {
+      const text = s.content ?? s.text ?? ''
+      const seen = new Set()
+      for (const raw of text.split(/\s+/)) {
+        const n = normalize(raw)
+        if (n && props.savedWords.has(n)) seen.add(n)
+      }
+      return { ...s, score: seen.size }
+    })
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+})
 
 const knownInText = computed(() => {
   if (!props.story?.content || !props.savedWords?.size) return 0

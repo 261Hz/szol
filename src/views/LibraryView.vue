@@ -84,7 +84,7 @@
     <!-- ─── 📖 CURATED ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('curated')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>📖 {{ t(lang, 'curated') }}</span>
+        <span>{{ t(lang, 'curated') }}</span>
         <span class="text-gray-500 text-xs">{{ open.curated ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.curated" class="px-4 pb-4 pt-1 min-h-[200px]">
@@ -160,7 +160,7 @@
     <!-- ─── 📰 FEED ARTICLES ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('feed')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>📰 Articles</span>
+        <span>Articles</span>
         <span class="text-gray-500 text-xs">{{ open.feed ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.feed" class="px-4 pb-4 pt-1 flex flex-col gap-2">
@@ -221,7 +221,7 @@
     <!-- ─── 🎙 PODCASTS ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('podcasts')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>🎙 Podcasts</span>
+        <span>Podcasts</span>
         <span class="text-gray-500 text-xs">{{ open.podcasts ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.podcasts" class="px-4 pb-4 pt-1 flex flex-col gap-2">
@@ -289,7 +289,7 @@
     <!-- ─── 🌍 TODAY ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('today')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>🌍 {{ t(lang, 'today') }}</span>
+        <span>{{ t(lang, 'today') }}</span>
         <span class="text-gray-500 text-xs">{{ open.today ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.today" class="px-4 pb-4 pt-1">
@@ -318,7 +318,7 @@
     <!-- ─── 📜 QUOTE OF THE DAY ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('quote')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>📜 {{ t(lang, 'quoteOfDay') }}</span>
+        <span>{{ t(lang, 'quoteOfDay') }}</span>
         <span class="text-gray-500 text-xs">{{ open.quote ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.quote" class="px-4 pb-4 pt-1">
@@ -335,7 +335,7 @@
     <!-- ─── 🕐 LITERARY CLOCK (English only) ─── -->
     <div v-if="lang === 'en'" class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('litclock')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>🕐 Literary Clock</span>
+        <span>Literary Clock</span>
         <span class="text-gray-500 text-xs">{{ open.litclock ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.litclock" class="px-4 pb-4 pt-1">
@@ -355,7 +355,7 @@
     <!-- ─── 📅 ON THIS DAY ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('onthisday')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>📅 {{ t(lang, 'onThisDay') }}</span>
+        <span>{{ t(lang, 'onThisDay') }}</span>
         <span class="text-gray-500 text-xs">{{ open.onthisday ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.onthisday" class="px-4 pb-4 pt-1">
@@ -379,7 +379,7 @@
     <!-- ─── 🔗 IMPORT URL ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('import')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>🔗 {{ t(lang, 'importUrlSec') }}</span>
+        <span>{{ t(lang, 'importUrlSec') }}</span>
         <span class="text-gray-500 text-xs">{{ open.import ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.import" class="px-4 pb-4 pt-1">
@@ -409,7 +409,7 @@
     <!-- ─── ⭐ BROWSE BY TOPIC ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('topics')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>⭐ {{ t(lang, 'browseTopics') }}</span>
+        <span>{{ t(lang, 'browseTopics') }}</span>
         <span class="text-gray-500 text-xs">{{ open.topics ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.topics" class="px-4 pb-4 pt-1">
@@ -438,7 +438,7 @@
     <!-- ─── COMMUNITY ─── -->
     <div class="border border-gray-700 rounded-lg overflow-hidden">
       <button @click="toggle('community')" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800 transition-all">
-        <span>👥 {{ t(lang, 'community') }}</span>
+        <span>{{ t(lang, 'community') }}</span>
         <span class="text-gray-500 text-xs">{{ open.community ? '▲' : '▼' }}</span>
       </button>
       <div v-if="open.community" class="px-4 pb-4 pt-1 flex flex-col gap-3">
@@ -531,7 +531,7 @@ const props = defineProps({
   words:       { type: Array, default: () => [] },
   currentUser: Object,  // null when logged out
 })
-const emit = defineEmits(['load', 'open-listen', 'saveWord', 'openAuth'])
+const emit = defineEmits(['load', 'open-listen', 'saveWord', 'openAuth', 'stories-loaded'])
 
 // ── View mode (list vs spatial archive overview) ───────────────────────────
 const viewMode = ref('list')
@@ -568,12 +568,22 @@ const sortedByScore = computed(() =>
   [...allStories.value].sort((a, b) => connectionScore(b) - connectionScore(a))
 )
 
+function storyDrift(story) {
+  let h = 0
+  const key = (story.id ?? '').toString()
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) & 0x7fffffff
+  const score = connectionScore(story)
+  const ratio = Math.min(score / Math.max(maxScore.value, 3), 1)
+  const maxDrift = ratio < 0.3 ? 36 : ratio < 0.6 ? 20 : 8
+  return (h % (maxDrift * 2 + 1)) - maxDrift
+}
+
 function archiveStyle(story) {
   const score = connectionScore(story)
   const ratio = Math.min(score / Math.max(maxScore.value, 3), 1)
   const scale   = (0.8 + ratio * 0.2).toFixed(3)
   const opacity = (0.25 + ratio * 0.75).toFixed(3)
-  const drift   = story._drift ?? 0
+  const drift   = storyDrift(story)
   return {
     transform:       `translateY(${drift}px) scale(${scale})`,
     opacity,
@@ -688,6 +698,7 @@ watch(() => props.lang, async (newLang) => {
   curatedStories.value   = curated
   communityStories.value = community
   loading.value          = false
+  emit('stories-loaded', allStories.value)
 
   // Reload whichever lazy sections the user already had open
   if (open.value.feed)      loadFeed(true)
@@ -699,6 +710,7 @@ watch(() => props.lang, async (newLang) => {
   curatedStories.value   = curated
   communityStories.value = community
   loading.value          = false // hide the spinner
+  emit('stories-loaded', allStories.value)
   startLitClockTimer()
 })
 

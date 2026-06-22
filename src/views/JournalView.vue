@@ -139,8 +139,7 @@
                 <p v-if="ch.voice && ch.title" class="text-xs text-gray-500 mt-0.5">{{ ch.voice }}</p>
               </div>
 
-              <!-- Lock icon for future entries -->
-              <span v-if="!ch.available" class="text-gray-600 text-sm">🔒</span>
+              <span v-if="!ch.available" class="text-gray-600 text-sm">—</span>
               <span v-else class="text-gray-600 text-xs">›</span>
             </button>
           </div>
