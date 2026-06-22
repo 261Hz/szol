@@ -1,5 +1,5 @@
 <template>
-  <nav class="sticky top-0 z-40" style="background: rgba(243,231,211,0.97); border-bottom: 1px solid rgba(42,36,28,0.1); backdrop-filter: blur(2px);">
+  <nav class="sticky top-0 z-40" style="background: rgba(20,17,14,0.97); border-bottom: 1px solid rgba(245,235,220,0.08); backdrop-filter: blur(2px);">
 
     <!-- Top row: brand + language selector + controls -->
     <div class="flex items-center justify-between px-4 py-2">
@@ -8,27 +8,27 @@
         <button
           @click="tapLogo"
           class="select-none hover:opacity-70 transition-opacity"
-          style="color:#2a241c; font-family:'IM Fell English',serif; font-size:1.35rem;"
-        >Sz<span style="color:#8b3a3a">ó</span>l</button>
+          style="color:rgba(245,235,220,0.92); font-family:'IM Fell English',serif; font-size:1.35rem;"
+        >Sz<span style="color:#b45a5a">ó</span>l</button>
         <Transition name="tooltip">
           <div
             v-if="showTooltip"
             class="absolute top-full left-0 mt-1.5 z-50 px-4 py-3 shadow-xl min-w-[180px]"
-            style="background:#ede0c8; border:1px solid rgba(42,36,28,0.15); border-radius:2px;"
+            style="background:#1f1a15; border:1px solid rgba(245,235,220,0.1); border-radius:2px;"
           >
             <div class="flex items-baseline gap-2 mb-1">
-              <span class="text-base font-semibold" style="color:#2a241c; font-family:'IM Fell English',serif;">Szól</span>
-              <span class="text-xs font-mono" style="color:#8c7a66;">[soːl]</span>
+              <span class="text-base font-semibold" style="color:rgba(245,235,220,0.92); font-family:'IM Fell English',serif;">Szól</span>
+              <span class="text-xs font-mono" style="color:rgba(245,235,220,0.35);">[soːl]</span>
             </div>
-            <div class="text-xs mb-2" style="color:#5a4a3b;">{{ tooltipInfo.label }}</div>
-            <div class="text-xs mb-1" style="color:#8c7a66;">{{ tooltipInfo.intro }}</div>
+            <div class="text-xs mb-2" style="color:rgba(245,235,220,0.65);">{{ tooltipInfo.label }}</div>
+            <div class="text-xs mb-1" style="color:rgba(245,235,220,0.35);">{{ tooltipInfo.intro }}</div>
             <ul class="space-y-0.5">
               <li
                 v-for="m in tooltipInfo.meanings"
                 :key="m"
                 class="text-sm flex items-center gap-1.5"
-                style="color:#2a241c;"
-              ><span style="color:#8b3a3a;">•</span>{{ m }}</li>
+                style="color:rgba(245,235,220,0.85);"
+              ><span style="color:#b45a5a;">•</span>{{ m }}</li>
             </ul>
           </div>
         </Transition>
@@ -40,23 +40,23 @@
           aria-label="Language"
           @change="$emit('lang', $event.target.value)"
           class="text-sm bg-transparent border-0 border-b px-1 py-0.5 max-w-28"
-          style="border-color:rgba(42,36,28,0.25); color:#5a4a3b; font-family:'EB Garamond',serif;"
+          style="border-color:rgba(245,235,220,0.2); color:rgba(245,235,220,0.65); font-family:'EB Garamond',serif;"
         >
-          <option v-for="(l, code) in LANGS" :key="code" :value="code">{{ l.name }}</option>
+          <option v-for="(l, code) in LANGS" :key="code" :value="code" style="background:#1f1a15;">{{ l.name }}</option>
         </select>
 
         <button
           v-if="lang === 'he' || lang === 'ar'"
           @click="rootHighlightOn = !rootHighlightOn"
           class="text-xs px-2 py-0.5 border-b transition-all"
-          :style="rootHighlightOn ? 'color:#8b3a3a; border-color:#8b3a3a;' : 'color:#8c7a66; border-color:rgba(42,36,28,0.2);'"
+          :style="rootHighlightOn ? 'color:#b45a5a; border-color:#b45a5a;' : 'color:rgba(245,235,220,0.35); border-color:rgba(245,235,220,0.15);'"
           title="Toggle root highlighting"
         >√ Root</button>
 
         <button
           @click="$emit('tab', 'settings')"
           class="p-1.5 transition-all"
-          :style="active === 'settings' ? 'color:#2a241c;' : 'color:#5a4a3b;'"
+          :style="active === 'settings' ? 'color:rgba(245,235,220,0.92);' : 'color:rgba(245,235,220,0.45);'"
           title="Settings"
         >
           <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -91,7 +91,7 @@
         :key="tab.key"
         @click="$emit('tab', tab.key)"
         class="relative flex-shrink-0 flex flex-col items-center gap-0.5 px-2.5 py-1 transition-all"
-        :style="active === tab.key ? 'color:#2a241c;' : 'color:#8c7a66;'"
+        :style="active === tab.key ? 'color:rgba(245,235,220,0.92);' : 'color:rgba(245,235,220,0.28);'"
         :title="tab.label"
       >
         <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -99,13 +99,13 @@
         </svg>
         <span
           class="text-[9px] leading-none tracking-wide transition-opacity duration-150"
-          :style="active === tab.key ? 'opacity:1;' : 'opacity:0;'"
+          :style="active === tab.key ? 'opacity:0.85;' : 'opacity:0.28;'"
           style="min-width: 28px; text-align: center;"
         >{{ tab.label }}</span>
         <div
           v-if="active === tab.key"
           class="absolute bottom-0 left-1/2 -translate-x-1/2 h-[1.5px] w-4 transition-all"
-          style="background:#2a241c;"
+          style="background:#b45a5a;"
         ></div>
       </button>
     </div>
@@ -172,33 +172,16 @@ function tapLogo() {
 }
 
 const ICONS = {
-  read:     'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
-  retype:   'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
-  listen:   'M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3',
-  speak:    'M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z',
-  write:    'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z',
-  vocab:    'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z',
-  parallel: 'M4 6h7M4 10h7M4 14h7M4 18h7M15 6h5M15 10h5M15 14h5M15 18h5',
-  library:  'M8 14v3m4-8v8m4-5v5M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z',
-  journal:  'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
-  messages: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
+  browse: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z',
+  read:   'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
+  saved:  'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z',
 }
 
-const tabs = computed(() => {
-  const base = [
-    { key: 'read',     label: t(props.lang, 'read') },
-    { key: 'retype',   label: t(props.lang, 'retype') },
-    { key: 'listen',   label: t(props.lang, 'listen') },
-    { key: 'speak',    label: t(props.lang, 'speak') },
-    { key: 'write',    label: t(props.lang, 'write') },
-    { key: 'vocab',    label: t(props.lang, 'vocab') },
-    { key: 'parallel', label: 'Parallel' },
-    { key: 'library',  label: t(props.lang, 'library') },
-    { key: 'journal',  label: t(props.lang, 'journal') },
-    { key: 'messages', label: 'Voice' },
-  ]
-  return base
-})
+const tabs = computed(() => [
+  { key: 'browse', label: 'Browse' },
+  { key: 'read',   label: 'Read' },
+  { key: 'saved',  label: 'Saved' },
+])
 </script>
 
 <style scoped>

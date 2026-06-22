@@ -26,12 +26,12 @@
 }
 
 body {
-  background-color: #f3e7d3;
+  background-color: #14110e;
   background-image:
-    radial-gradient(ellipse at 0% 0%, rgba(42,36,28,0.04) 0%, transparent 60%),
-    radial-gradient(ellipse at 100% 100%, rgba(42,36,28,0.03) 0%, transparent 55%);
+    radial-gradient(ellipse at 0% 0%,   rgba(245,235,220,0.025) 0%, transparent 60%),
+    radial-gradient(ellipse at 100% 100%, rgba(245,235,220,0.015) 0%, transparent 55%);
   font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
-  color: #2a241c;
+  color: rgba(245,235,220,0.92);
   line-height: 1.75;
 }
 
@@ -42,8 +42,8 @@ body {
 input:focus,
 textarea:focus,
 select:focus {
-  box-shadow: 0 1px 0 rgba(42,36,28,0.25);
-  border-color: rgba(42,36,28,0.4);
+  box-shadow: 0 1px 0 rgba(245,235,220,0.25);
+  border-color: rgba(245,235,220,0.4);
 }
 
 /* Ensure textareas and inputs work on mobile */
@@ -75,9 +75,9 @@ span[class*="cursor-pointer"] {
 
 /* Semitic root consonant highlight */
 ::highlight(szol-root) {
-  color: #8b3a3a;
+  color: #b45a5a;
   text-decoration: underline;
-  text-decoration-color: #6b2a2a;
+  text-decoration-color: #8b3a3a;
   text-underline-offset: 3px;
 }
 
@@ -85,7 +85,7 @@ span[class*="cursor-pointer"] {
 ruby.szol-num { ruby-align: center; }
 ruby.szol-num rt {
   font-size: 0.6em;
-  color: #8c7a66;
+  color: rgba(245,235,220,0.35);
   font-style: italic;
   font-weight: normal;
 }
@@ -99,6 +99,6 @@ ruby.szol-num rt {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(42,36,28,0.15);
+  background: rgba(245,235,220,0.12);
   border-radius: 2px;
 }

@@ -7,10 +7,10 @@
       <div
         v-if="appLoading"
         class="fixed inset-0 z-[100] flex flex-col items-center justify-center"
-        style="background:#f3e7d3;"
+        style="background:#14110e;"
       >
         <div class="flex flex-col items-center gap-4">
-          <div class="text-4xl font-bold tracking-tight select-none" style="color:#2a241c; font-family:'IM Fell English',serif;">
+          <div class="text-4xl font-bold tracking-tight select-none" style="color:rgba(245,235,220,0.92); font-family:'IM Fell English',serif;">
             Sz<span style="color:#8b3a3a">ó</span>l
           </div>
           <div class="flex gap-1.5">
@@ -41,6 +41,14 @@
     />
 
     <main class="max-w-3xl mx-auto px-3 py-4 sm:px-4 sm:py-6">
+
+      <BrowseView
+        v-if="activeTab === 'browse'"
+        :lang="activeLang"
+        :current-user="currentUser"
+        @load="loadStory"
+        @stories-loaded="storyPool = $event"
+      />
 
       <RetypeView
         v-if="activeTab === 'retype'"
@@ -78,7 +86,7 @@
       />
 
       <LibraryView
-        v-if="activeTab === 'library'"
+        v-if="activeTab === 'saved' || activeTab === 'library'"
         :lang="activeLang"
         :current="currentStory"
         :words="vocabBank"
@@ -164,6 +172,7 @@ import AuthModal   from './components/AuthModal.vue'
 import LitClock    from './components/LitClock.vue'
 import LibraryView from './views/LibraryView.vue'
 import WelcomeView from './views/WelcomeView.vue'
+import BrowseView  from './views/BrowseView.vue'
 
 const ContentView  = defineAsyncComponent(() => import('./views/ContentView.vue'))
 const RetypeView   = defineAsyncComponent(() => import('./views/RetypeView.vue'))
@@ -181,7 +190,7 @@ import { getMe, logout, onUnauthorized, getAccountVocab, saveVocabWord, removeVo
 import { updateSEO } from './utils/seo.js'
 import { useEchoIndex } from './composables/useEchoIndex.js'
 
-const activeTab    = ref('library')
+const activeTab    = ref('browse')
 // null = first visit → show WelcomeView; otherwise restore saved language
 const activeLang   = ref(localStorage.getItem('szol_lang') || null)
 const currentStory = ref(null)

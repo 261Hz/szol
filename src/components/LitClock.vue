@@ -77,35 +77,37 @@ onUnmounted(() => {
 }
 
 .litclock:hover {
-  background: rgba(42,36,28,0.04);
+  background: rgba(245,235,220,0.04);
 }
 
 .litclock-text {
   font-size: 0.6rem;
   line-height: 1.55;
   font-style: italic;
-  color: rgba(42,36,28,0.18);
+  color: rgba(245,235,220,0.35);
   transition: color 0.2s;
 }
 
 .litclock:hover .litclock-text,
 .litclock--expanded .litclock-text {
-  color: rgba(42,36,28,0.45);
+  color: rgba(245,235,220,0.55);
 }
 
 .litclock-time {
   font-style: normal;
   font-weight: 500;
-  color: rgba(42,36,28,0.5);
+  letter-spacing: 0.02em;
+  color: rgba(245,235,220,0.85);
 }
 
+.litclock:hover .litclock-time,
 .litclock--expanded .litclock-time {
-  color: rgba(42,36,28,0.75);
+  color: rgba(245,235,220,1);
 }
 
 .litclock-credit {
   font-size: 0.55rem;
-  color: rgba(42,36,28,0.25);
+  color: rgba(245,235,220,0.3);
   margin-top: 0.3rem;
   font-style: normal;
 }
