@@ -194,11 +194,31 @@ def _lex_find_transcript_url(slug: str) -> str | None:
     return None
 
 
+def _lex_html_to_text(html: str) -> str:
+    """Strip HTML to plain text for Lex transcript pages.
+
+    trafilatura.extract() only captures the short intro on Lex's Next.js pages;
+    stripping tags ourselves gets the full transcript body.
+    """
+    import html as _html
+    # Remove script/style/noscript blocks entirely
+    html = re.sub(r"<(script|style|noscript)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    # Block elements → newlines
+    html = re.sub(r"<(?:br|p|div|li|h[1-6]|tr|td|th)[^>]*/?>", "\n", html, flags=re.IGNORECASE)
+    html = re.sub(r"</(?:p|div|li|h[1-6]|tr|td|th)>", "\n", html, flags=re.IGNORECASE)
+    # Strip all remaining tags
+    text = re.sub(r"<[^>]+>", "", html)
+    text = _html.unescape(text)
+    lines = [ln.strip() for ln in text.splitlines()]
+    return "\n".join(ln for ln in lines if ln)
+
+
 def _fetch_lex_transcript(slug: str) -> tuple[str | None, list[dict]]:
     """Fetch a Lex Fridman transcript by episode slug.
 
     Discovers the real transcript URL by fetching the episode page, then
-    extracts text with trafilatura.fetch_url (handles Cloudflare).
+    extracts text by stripping HTML directly (trafilatura.extract() only
+    captures the short intro on Lex's Next.js pages).
     """
     try:
         import trafilatura
@@ -211,11 +231,9 @@ def _fetch_lex_transcript(slug: str) -> tuple[str | None, list[dict]]:
         if not html:
             logger.warning("Lex transcript page empty or blocked: %s", tx_url)
             return None, []
-        # favor_recall=True captures more of the page — important for long transcripts
-        # where trafilatura's boilerplate filter can trim the actual dialogue
-        raw = trafilatura.extract(html, favor_recall=True, include_comments=False)
+        raw = _lex_html_to_text(html)
         if not raw:
-            logger.warning("Lex transcript: trafilatura extracted nothing from %s", tx_url)
+            logger.warning("Lex transcript: no text extracted from %s", tx_url)
             return None, []
         logger.warning("Lex transcript snippet: %r", raw[:300])
         text, segments = _parse_lex_segments(raw)
