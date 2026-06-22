@@ -59,54 +59,17 @@
       </div>
     </div>
 
-    <!-- ── Voice Settings ── -->
-    <div class="text-sm font-medium text-gray-200">{{ t(lang, 'voiceSettings') }}</div>
-
-    <div class="flex flex-col gap-4">
-      <div
-        v-for="(langConfig, code) in LANGS"
-        :key="code"
-        class="flex items-center justify-between gap-4 py-2 border-b border-gray-800 last:border-0"
-      >
-        <div class="text-sm text-gray-200 min-w-[90px]">{{ langConfig.name }}</div>
-
-        <div v-if="!voicesForLang(voices, langConfig.bcp47).length" class="text-xs text-amber-600 flex items-center gap-1 flex-1">
-          {{ t(lang, 'noVoice') }}
-          <a href="ms-settings:regionlanguage" class="underline hover:text-amber-800">Install →</a>
-        </div>
-
-        <select
-          v-else
-          :value="prefs[code] || ''"
-          @change="save(code, $event.target.value)"
-          class="flex-1 text-sm border border-gray-700 rounded-md px-2 py-1 bg-gray-900 text-gray-200"
-        >
-          <option value="">{{ t(lang, 'autoSelect') }}</option>
-          <option
-            v-for="v in voicesForLang(voices, langConfig.bcp47)"
-            :key="v.name"
-            :value="v.name"
-          >{{ v.name }}</option>
-        </select>
-      </div>
-    </div>
-
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
 import { LANGS } from '../data/stories.js'
-import { useVoiceList, voicesForLang, getVoicePrefs, setVoicePref } from '../utils/voices.js'
-import { updateSettings, deleteAccount } from '../utils/api.js'
-import { logout } from '../utils/api.js'
+import { updateSettings, deleteAccount, logout } from '../utils/api.js'
 import { t } from '../utils/i18n.js'
 
 const props = defineProps({ currentUser: Object, lang: String })
 const emit  = defineEmits(['openAuth', 'userUpdated', 'logout'])
-
-const voices = useVoiceList()
-const prefs  = ref(getVoicePrefs())
 
 const openToMessages = ref(props.currentUser?.open_to_messages ?? false)
 const settingsError  = ref('')
@@ -147,8 +110,4 @@ async function doDelete() {
   }
 }
 
-function save(langCode, voiceName) {
-  setVoicePref(langCode, voiceName)
-  prefs.value = getVoicePrefs()
-}
 </script>
