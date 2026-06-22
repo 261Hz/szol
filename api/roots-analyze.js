@@ -11,6 +11,9 @@
  * No DB writes. Caller caches in memory / localStorage.
  */
 
+// Dicta nakdan API — used for Hebrew morphology + root extraction.
+// Endpoint confirmed from dicta-vue-components source usage.
+// Returns per-token analyses with a `morph` field containing root (shoresh).
 const DICTA_URL = 'https://nakdan.dicta.org.il/api'
 const CAMEL_URL = process.env.CAMEL_API_URL  // optional self-hosted CAMeL endpoint
 
@@ -19,23 +22,24 @@ async function hebrewRoot(word) {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      task:       'morphanalyzer',
-      genre:      'modern',
-      useTokens:  true,
-      tokenized:  false,
-      text:       word,
+      task:      'nakdan',
+      genre:     'modern',
+      addmorph:  true,
+      keepqq:    false,
+      nodagesh:  false,
+      text:      word,
     }),
   })
   if (!res.ok) return null
   const data = await res.json()
-  // Dicta returns an array of token arrays, each with option objects.
-  // Pick the first (highest-confidence) analysis of the first token.
-  const token  = data?.[0]?.[0]
-  const option = token?.options?.[0] ?? token?.analyses?.[0] ?? token
-  // root is returned as e.g. "כתב" — split to char array
-  const root = option?.root ?? option?.shoresh ?? null
-  if (!root || typeof root !== 'string') return null
-  return [...root.replace(/[-\s]/g, '')]
+  // Response: array of word objects. Each word has `morph` array of analyses.
+  // morph[0].lex contains the lemma/root string.
+  const word0  = Array.isArray(data) ? data[0] : null
+  const morph0 = word0?.morph?.[0]
+  // Dicta returns shoresh as e.g. "כ.ת.ב" or "כתב"
+  const raw = morph0?.shoresh ?? morph0?.lex ?? null
+  if (!raw || typeof raw !== 'string') return null
+  return [...raw.replace(/[.\-\s]/g, '')]
 }
 
 async function arabicRoot(word) {
