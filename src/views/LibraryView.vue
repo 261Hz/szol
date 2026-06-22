@@ -189,7 +189,7 @@
               <span v-if="ep.duration_sec" class="text-xs text-gray-600">
                 · {{ Math.round(ep.duration_sec / 60) }} min
               </span>
-              <span v-if="ep.has_transcript" class="text-xs text-green-600">· transcript ready</span>
+
             </div>
             <div v-if="ep.description" class="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{{ ep.description }}</div>
             <div class="mt-2">
