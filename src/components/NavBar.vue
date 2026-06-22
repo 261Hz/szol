@@ -1,31 +1,34 @@
 <template>
-  <nav class="border-b border-gray-800 bg-gray-950 sticky top-0 z-40">
+  <nav class="sticky top-0 z-40" style="background: rgba(243,231,211,0.97); border-bottom: 1px solid rgba(42,36,28,0.1); backdrop-filter: blur(2px);">
 
     <!-- Top row: brand + language selector + controls -->
-    <div class="flex items-center justify-between px-4 py-2.5">
+    <div class="flex items-center justify-between px-4 py-2">
 
       <div class="relative flex-shrink-0">
         <button
           @click="tapLogo"
-          class="text-xl font-semibold tracking-tight select-none hover:opacity-75 transition-opacity"
-        >Sz<span class="text-violet-400">ó</span>l</button>
+          class="select-none hover:opacity-70 transition-opacity"
+          style="color:#2a241c; font-family:'IM Fell English',serif; font-size:1.35rem;"
+        >Sz<span style="color:#8b3a3a">ó</span>l</button>
         <Transition name="tooltip">
           <div
             v-if="showTooltip"
-            class="absolute top-full left-0 mt-1.5 z-50 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 shadow-xl min-w-[180px]"
+            class="absolute top-full left-0 mt-1.5 z-50 px-4 py-3 shadow-xl min-w-[180px]"
+            style="background:#ede0c8; border:1px solid rgba(42,36,28,0.15); border-radius:2px;"
           >
             <div class="flex items-baseline gap-2 mb-1">
-              <span class="text-base font-semibold text-gray-100">Szól</span>
-              <span class="text-xs text-gray-500 font-mono">[soːl]</span>
+              <span class="text-base font-semibold" style="color:#2a241c; font-family:'IM Fell English',serif;">Szól</span>
+              <span class="text-xs font-mono" style="color:#8c7a66;">[soːl]</span>
             </div>
-            <div class="text-xs text-gray-400 mb-2">{{ tooltipInfo.label }}</div>
-            <div class="text-xs text-gray-500 mb-1">{{ tooltipInfo.intro }}</div>
+            <div class="text-xs mb-2" style="color:#5a4a3b;">{{ tooltipInfo.label }}</div>
+            <div class="text-xs mb-1" style="color:#8c7a66;">{{ tooltipInfo.intro }}</div>
             <ul class="space-y-0.5">
               <li
                 v-for="m in tooltipInfo.meanings"
                 :key="m"
-                class="text-sm text-gray-200 flex items-center gap-1.5"
-              ><span class="text-violet-400">•</span>{{ m }}</li>
+                class="text-sm flex items-center gap-1.5"
+                style="color:#2a241c;"
+              ><span style="color:#8b3a3a;">•</span>{{ m }}</li>
             </ul>
           </div>
         </Transition>
@@ -36,7 +39,8 @@
           :value="lang"
           aria-label="Language"
           @change="$emit('lang', $event.target.value)"
-          class="text-sm border border-gray-700 rounded-md px-2 py-1 bg-gray-900 text-gray-200 max-w-28"
+          class="text-sm bg-transparent border-0 border-b px-1 py-0.5 max-w-28"
+          style="border-color:rgba(42,36,28,0.25); color:#5a4a3b; font-family:'EB Garamond',serif;"
         >
           <option v-for="(l, code) in LANGS" :key="code" :value="code">{{ l.name }}</option>
         </select>
@@ -44,14 +48,15 @@
         <button
           v-if="lang === 'he' || lang === 'ar'"
           @click="rootHighlightOn = !rootHighlightOn"
-          :class="['text-xs px-2 py-1 rounded-full border transition-all',
-            rootHighlightOn ? 'bg-emerald-900 border-emerald-600 text-emerald-300' : 'border-gray-700 text-gray-500 hover:border-gray-500']"
+          class="text-xs px-2 py-0.5 border-b transition-all"
+          :style="rootHighlightOn ? 'color:#8b3a3a; border-color:#8b3a3a;' : 'color:#8c7a66; border-color:rgba(42,36,28,0.2);'"
           title="Toggle root highlighting"
         >√ Root</button>
 
         <button
           @click="$emit('tab', 'settings')"
-          :class="['p-1.5 rounded-md transition-all', active === 'settings' ? 'text-gray-50' : 'text-gray-500 hover:text-gray-200']"
+          class="p-1.5 transition-all"
+          :style="active === 'settings' ? 'color:#2a241c;' : 'color:#5a4a3b;'"
           title="Settings"
         >
           <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -61,7 +66,8 @@
 
         <div v-if="!currentUser">
           <button @click="$emit('auth')"
-            class="p-1.5 rounded-md text-gray-500 hover:text-gray-200 transition-all"
+            class="p-1.5 transition-all"
+            style="color:#5a4a3b;"
             title="Login / Register">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -69,23 +75,23 @@
           </button>
         </div>
         <div v-else class="flex items-center gap-1.5">
-          <span class="text-xs text-gray-300 max-w-20 truncate hidden sm:inline">{{ currentUser.username }}</span>
+          <span class="text-xs max-w-20 truncate hidden sm:inline" style="color:#5a4a3b;">{{ currentUser.username }}</span>
           <button @click="$emit('logout')"
-            class="text-xs text-gray-400 hover:text-red-400 transition-all" title="Logout" aria-label="Logout">✕</button>
+            class="text-xs transition-all" style="color:#8c7a66;" title="Logout" aria-label="Logout"
+            onmouseover="this.style.color='#8b3a3a'" onmouseout="this.style.color='#8c7a66'"
+          >✕</button>
         </div>
       </div>
     </div>
 
     <!-- Tab strip: icon + label on active tab -->
-    <div class="flex overflow-x-auto px-3 pb-2 gap-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+    <div class="flex overflow-x-auto px-4 pb-1.5 gap-0.5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
       <button
         v-for="tab in tabs"
         :key="tab.key"
         @click="$emit('tab', tab.key)"
-        :class="[
-          'relative flex-shrink-0 flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-lg transition-all',
-          active === tab.key ? 'text-violet-300' : 'text-gray-600 hover:text-gray-400'
-        ]"
+        class="relative flex-shrink-0 flex flex-col items-center gap-0.5 px-2.5 py-1 transition-all"
+        :style="active === tab.key ? 'color:#2a241c;' : 'color:#8c7a66;'"
         :title="tab.label"
       >
         <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -93,9 +99,14 @@
         </svg>
         <span
           class="text-[9px] leading-none tracking-wide transition-opacity duration-150"
-          :class="active === tab.key ? 'opacity-50' : 'opacity-0'"
+          :style="active === tab.key ? 'opacity:1;' : 'opacity:0;'"
           style="min-width: 28px; text-align: center;"
         >{{ tab.label }}</span>
+        <div
+          v-if="active === tab.key"
+          class="absolute bottom-0 left-1/2 -translate-x-1/2 h-[1.5px] w-4 transition-all"
+          style="background:#2a241c;"
+        ></div>
       </button>
     </div>
 

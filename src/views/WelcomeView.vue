@@ -1,12 +1,12 @@
 <template>
-  <div class="min-h-screen bg-gray-950 flex flex-col items-center justify-center p-6 gap-8">
+  <div class="min-h-screen flex flex-col items-center justify-center p-6 gap-8">
 
     <!-- Brand -->
     <div class="flex flex-col items-center gap-1.5">
-      <div class="text-5xl font-bold tracking-tight text-gray-50 select-none">
-        Sz<span class="text-violet-400">ó</span>l
+      <div class="text-5xl font-bold tracking-tight select-none" style="color:#2a241c; font-family:'IM Fell English',serif;">
+        Sz<span style="color:#8b3a3a">ó</span>l
       </div>
-      <div class="text-[11px] text-gray-700 tracking-[0.2em] uppercase">a language archive</div>
+      <div class="text-[11px] tracking-[0.2em] uppercase" style="color:#8c7a66;">a language archive</div>
     </div>
 
     <!-- Paper map surface -->
@@ -37,7 +37,9 @@
           v-if="selected"
           type="button"
           @click="$emit('pick', selected)"
-          class="px-8 py-2.5 rounded-lg bg-green-700 text-white font-medium text-sm hover:bg-green-600 transition-all"
+          class="px-8 py-2.5 text-sm font-medium transition-all"
+          style="background:#8b3a3a; color:#f3e7d3; border-radius:2px;"
+          onmouseover="this.style.background='#7a2e2e'" onmouseout="this.style.background='#8b3a3a'"
           :dir="ui.rtl ? 'rtl' : 'ltr'"
         >{{ ui.start }}</button>
       </Transition>
@@ -46,7 +48,8 @@
           v-if="selected"
           type="button"
           @click="$emit('sign-in', selected)"
-          class="text-sm text-gray-600 hover:text-gray-300 transition-all"
+          class="text-sm transition-all"
+          style="color:#8c7a66;"
           :dir="ui.rtl ? 'rtl' : 'ltr'"
         >{{ ui.signIn }}</button>
       </Transition>
@@ -91,10 +94,10 @@ const ui = computed(() => UI[selected.value] ?? UI.en)
 
 <style scoped>
 .map-paper {
-  background: #f5f0e8;
+  background: #ede0c8;
   border-radius: 2px;
   padding: 2rem 2.5rem;
-  box-shadow: 0 6px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
+  box-shadow: 0 6px 32px rgba(42,36,28,0.18), 0 2px 8px rgba(42,36,28,0.10);
   position: relative;
   overflow: hidden;
 }

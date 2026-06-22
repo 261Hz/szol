@@ -1,21 +1,22 @@
 <!-- App.vue is the root component -- the outermost shell that holds everything else. -->
 <template>
-  <div class="min-h-screen bg-gray-950 text-gray-50">
+  <div class="min-h-screen">
 
     <!-- Loading splash -->
     <Transition name="splash">
       <div
         v-if="appLoading"
-        class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-gray-950"
+        class="fixed inset-0 z-[100] flex flex-col items-center justify-center"
+        style="background:#f3e7d3;"
       >
         <div class="flex flex-col items-center gap-4">
-          <div class="text-4xl font-bold tracking-tight text-gray-100 select-none">
-            Sz<span class="text-green-400">ó</span>l
+          <div class="text-4xl font-bold tracking-tight select-none" style="color:#2a241c; font-family:'IM Fell English',serif;">
+            Sz<span style="color:#8b3a3a">ó</span>l
           </div>
           <div class="flex gap-1.5">
-            <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-bounce" style="animation-delay: 0ms" />
-            <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-bounce" style="animation-delay: 150ms" />
-            <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-bounce" style="animation-delay: 300ms" />
+            <div class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#8b3a3a; animation-delay: 0ms" />
+            <div class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#8b3a3a; animation-delay: 150ms" />
+            <div class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#8b3a3a; animation-delay: 300ms" />
           </div>
         </div>
       </div>
