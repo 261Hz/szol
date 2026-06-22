@@ -62,7 +62,7 @@ async function fetchRoot(word, lang) {
   const key = `${lang}:${word}`
   if (_inflight.has(key)) return _inflight.get(key)
 
-  const promise = fetch('/api/roots/analyze', {
+  const promise = fetch('/api/roots-analyze', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify({ word, lang }),
