@@ -720,7 +720,9 @@ async function submitPodcastSuggestion() {
 
 async function loadPodcasts() {
   podcastLoading.value = true
-  podcastEpisodes.value = await fetchPodcasts(props.lang)
+  const eps = await fetchPodcasts(props.lang)
+  eps.sort((a, b) => (a.podcast_name ?? '').localeCompare(b.podcast_name ?? ''))
+  podcastEpisodes.value = eps
   podcastLoading.value = false
 }
 
