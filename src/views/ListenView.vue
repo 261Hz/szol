@@ -720,6 +720,9 @@ function togglePlay() {
   if (isYouTubeStory()) {
     isPlaying.value ? player.pauseVideo() : player.playVideo()
   } else {
+    // AudioContext is created suspended when not in a user-gesture context.
+    // Resume here (button click IS a user gesture) so audio actually plays.
+    if (_audioCtx?.state === 'suspended') _audioCtx.resume().catch(() => {})
     isPlaying.value ? audioEl.value.pause() : audioEl.value.play()
   }
 }
