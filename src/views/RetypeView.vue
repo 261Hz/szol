@@ -169,7 +169,6 @@ const props = defineProps({
 
 const emit = defineEmits(['saveWord'])
 
-const overlayEl = ref(null)
 watch([() => props.story, () => props.lang, rootHighlightOn], ([, , on]) => {
   nextTick(() => on ? applyRoots(overlayEl.value, props.lang) : clearRoots())
 })
