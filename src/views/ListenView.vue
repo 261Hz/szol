@@ -158,21 +158,23 @@
       <div class="flex items-start gap-3">
         <button
           @click="backToList"
-          class="flex-shrink-0 text-gray-500 hover:text-white text-lg leading-none pt-0.5 transition-all"
+          class="flex-shrink-0 text-lg leading-none pt-0.5 transition-all"
+          style="color:rgba(31,27,23,0.45);"
           title="Back to list"
         >←</button>
         <div class="flex flex-col gap-0.5 min-w-0 flex-1">
-          <h2 class="font-semibold text-gray-100 text-base leading-snug">{{ selectedStory.title }}</h2>
-          <div class="text-xs text-gray-500 flex gap-2">
+          <h2 class="font-semibold text-base leading-snug" style="color:#1f1b17; font-family:'EB Garamond',serif;">{{ selectedStory.title?.replace(/_/g,' ') }}</h2>
+          <div class="text-xs flex gap-2 flex-wrap" style="color:rgba(31,27,23,0.45); font-family:'EB Garamond',serif;">
             <span v-if="selectedStory.author">{{ selectedStory.author }}</span>
-            <span v-if="selectedStory.source" class="uppercase tracking-wide">{{ selectedStory.source }}</span>
+            <span v-if="selectedStory.source && selectedStory.source !== selectedStory.author">{{ selectedStory.source }}</span>
             <span>{{ LANGS[selectedStory.lang]?.name ?? selectedStory.lang }}</span>
           </div>
         </div>
         <button
           v-if="resumeSegment !== null"
           @click="resumeFromSaved"
-          class="flex-shrink-0 text-xs text-emerald-400 border border-emerald-800 rounded-md px-2.5 py-1 hover:bg-emerald-950 transition-all"
+          class="flex-shrink-0 text-xs rounded px-2.5 py-1 transition-all"
+          style="border:1px solid rgba(31,27,23,0.2); color:rgba(31,27,23,0.55); font-family:'EB Garamond',serif;"
         >{{ t(lang, 'resumeSeg') }} {{ resumeSegment + 1 }}</button>
       </div>
 
@@ -1258,13 +1260,13 @@ onUnmounted(() => {
 }
 .amp-tube {
   position: relative;
-  width: 26px;
-  height: 50px;
+  width: 34px;
+  height: 66px;
 }
 .tube-glass {
   width: 100%;
-  height: 80%;
-  border-radius: 13px 13px 5px 5px;
+  height: 78%;
+  border-radius: 17px 17px 6px 6px;
   background: linear-gradient(180deg,
     rgba(255,180,50,calc(var(--glow) * 0.13)) 0%,
     rgba(255,110,15,calc(var(--glow) * 0.28)) 55%,
@@ -1380,21 +1382,21 @@ onUnmounted(() => {
 }
 .vfd-body { flex: 1; min-width: 0; }
 .vfd-title {
-  font-size: 11.5px;
+  font-size: 13px;
   font-family: 'Courier New', monospace;
   color: #f59e0b;
-  letter-spacing: 0.025em;
+  letter-spacing: 0.02em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 0 7px rgba(245,158,11,0.55);
-  margin-bottom: 2px;
+  text-shadow: 0 0 8px rgba(245,158,11,0.6);
+  margin-bottom: 3px;
   line-height: 1.3;
 }
 .vfd-sub {
-  font-size: 9.5px;
+  font-size: 11px;
   font-family: 'Courier New', monospace;
-  color: rgba(245,158,11,0.48);
+  color: rgba(245,158,11,0.55);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1407,16 +1409,16 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 .vfd-time {
-  font-size: 10.5px;
+  font-size: 12px;
   font-family: 'Courier New', monospace;
-  color: rgba(245,158,11,0.82);
-  text-shadow: 0 0 4px rgba(245,158,11,0.38);
+  color: rgba(245,158,11,0.88);
+  text-shadow: 0 0 5px rgba(245,158,11,0.42);
   font-variant-numeric: tabular-nums;
 }
 .vfd-seg, .vfd-loading {
-  font-size: 9.5px;
+  font-size: 11px;
   font-family: 'Courier New', monospace;
-  color: rgba(245,158,11,0.42);
+  color: rgba(245,158,11,0.48);
 }
 .vfd-word {
   font-size: 10px;
