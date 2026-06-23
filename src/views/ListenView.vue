@@ -212,114 +212,97 @@
         </div>
       </div>
 
-      <!-- Hybrid tube/solid-state integrated amplifier -->
-      <div class="amp-body">
-        <div class="amp-screw tl" /><div class="amp-screw tr" />
-        <div class="amp-screw bl" /><div class="amp-screw br" />
+      <!-- Analog VU meters + transport -->
+      <div class="vu-wrap">
 
-        <!-- Face: tubes · VU meters · VFD display -->
-        <div class="amp-face">
+        <!-- Dual needle meters -->
+        <svg class="vu-svg" viewBox="0 0 430 130" xmlns="http://www.w3.org/2000/svg">
+          <!-- LEFT CHANNEL -->
+          <g>
+            <path :d="VU_ARC_FULL" fill="none" stroke="rgba(31,27,23,0.11)" stroke-width="2.5" stroke-linecap="round"/>
+            <path :d="VU_ARC_RED"  fill="none" stroke="rgba(155,25,15,0.38)" stroke-width="2.5" stroke-linecap="round"/>
+            <g v-for="t in VU_TICKS" :key="'L'+t.label">
+              <line
+                :x1="(100 + 67 * Math.sin(t.angle * DEG)).toFixed(1)" :y1="(105 - 67 * Math.cos(t.angle * DEG)).toFixed(1)"
+                :x2="(100 + 79 * Math.sin(t.angle * DEG)).toFixed(1)" :y2="(105 - 79 * Math.cos(t.angle * DEG)).toFixed(1)"
+                :stroke="t.red ? 'rgba(155,25,15,0.4)' : 'rgba(31,27,23,0.25)'" stroke-width="1.2"/>
+              <text
+                :x="(100 + 91 * Math.sin(t.angle * DEG)).toFixed(1)" :y="(105 - 91 * Math.cos(t.angle * DEG)).toFixed(1)"
+                text-anchor="middle" dominant-baseline="middle" font-size="7"
+                :fill="t.red ? 'rgba(155,25,15,0.5)' : 'rgba(31,27,23,0.38)'"
+                font-family="'Courier New',monospace">{{ t.label }}</text>
+            </g>
+            <g :transform="`rotate(${needleAngleL.toFixed(1)},100,105)`">
+              <line x1="100" y1="105" x2="100" y2="26" stroke="rgba(31,27,23,0.72)" stroke-width="1.4" stroke-linecap="round"/>
+            </g>
+            <circle cx="100" cy="105" r="3" fill="rgba(31,27,23,0.48)"/>
+            <text x="100" y="122" text-anchor="middle" font-size="7" fill="rgba(31,27,23,0.3)" font-family="'Courier New',monospace" letter-spacing="1.5">LEFT CHANNEL</text>
+          </g>
+          <!-- RIGHT CHANNEL (offset 215px) -->
+          <g transform="translate(215,0)">
+            <path :d="VU_ARC_FULL" fill="none" stroke="rgba(31,27,23,0.11)" stroke-width="2.5" stroke-linecap="round"/>
+            <path :d="VU_ARC_RED"  fill="none" stroke="rgba(155,25,15,0.38)" stroke-width="2.5" stroke-linecap="round"/>
+            <g v-for="t in VU_TICKS" :key="'R'+t.label">
+              <line
+                :x1="(100 + 67 * Math.sin(t.angle * DEG)).toFixed(1)" :y1="(105 - 67 * Math.cos(t.angle * DEG)).toFixed(1)"
+                :x2="(100 + 79 * Math.sin(t.angle * DEG)).toFixed(1)" :y2="(105 - 79 * Math.cos(t.angle * DEG)).toFixed(1)"
+                :stroke="t.red ? 'rgba(155,25,15,0.4)' : 'rgba(31,27,23,0.25)'" stroke-width="1.2"/>
+              <text
+                :x="(100 + 91 * Math.sin(t.angle * DEG)).toFixed(1)" :y="(105 - 91 * Math.cos(t.angle * DEG)).toFixed(1)"
+                text-anchor="middle" dominant-baseline="middle" font-size="7"
+                :fill="t.red ? 'rgba(155,25,15,0.5)' : 'rgba(31,27,23,0.38)'"
+                font-family="'Courier New',monospace">{{ t.label }}</text>
+            </g>
+            <g :transform="`rotate(${needleAngleR.toFixed(1)},100,105)`">
+              <line x1="100" y1="105" x2="100" y2="26" stroke="rgba(31,27,23,0.72)" stroke-width="1.4" stroke-linecap="round"/>
+            </g>
+            <circle cx="100" cy="105" r="3" fill="rgba(31,27,23,0.48)"/>
+            <text x="100" y="122" text-anchor="middle" font-size="7" fill="rgba(31,27,23,0.3)" font-family="'Courier New',monospace" letter-spacing="1.5">RIGHT CHANNEL</text>
+          </g>
+        </svg>
 
-          <!-- Left tube (12AX7 preamp) -->
-          <div class="amp-tube-wrap">
-            <div class="amp-tube" :style="{ '--glow': tubeGlowIntensity }">
-              <div class="tube-glass">
-                <div class="tube-plate" />
-                <div class="tube-grid" />
-                <div class="tube-glow-inner" />
-              </div>
-              <div class="tube-pins"><span /><span /><span /></div>
-            </div>
-            <span class="tube-label">12AX7</span>
+        <!-- Physics-realistic waveform -->
+        <canvas ref="waveformCanvas" class="wave-canvas" @click="onWaveClick" @mousedown="onWaveDragStart" />
+
+        <!-- Time + scrubber -->
+        <div class="vu-timeline">
+          <div class="vu-time">
+            {{ fmtTime(currentTime) }} / {{ fmtTime(duration || (currentSegment?.end ?? 0)) }}
+            <span v-if="segments.length" class="vu-seg-n">· {{ segmentIdx + 1 }}/{{ segments.length }}</span>
+            <span v-if="currentWord && isPlaying" class="vu-word">{{ currentWord.raw }}</span>
           </div>
-
-          <!-- L VU meter -->
-          <div class="amp-vu">
-            <div class="vu-leds">
-              <div v-for="n in 8" :key="n" class="vu-led"
-                :class="vuLeft >= n ? (n <= 5 ? 'vu-g' : n <= 7 ? 'vu-y' : 'vu-r') : 'vu-off'" />
-            </div>
-            <span class="vu-ch">L</span>
-          </div>
-
-          <!-- VFD display panel -->
-          <div class="amp-display" :class="selectedStory.image_url ? 'amp-display-art' : ''">
-            <img v-if="selectedStory.image_url" :src="selectedStory.image_url" class="art-thumb" alt="" />
-            <div class="vfd-body">
-            <div class="vfd-title">{{ selectedStory.title?.replace(/_/g, ' ') }}</div>
-            <div class="vfd-sub">{{ selectedStory.source ?? selectedStory.author ?? '' }}</div>
-            <div class="vfd-row">
-              <span class="vfd-time">{{ fmtTime(currentTime) }} / {{ fmtTime(duration || (currentSegment?.end ?? 0)) }}</span>
-              <span v-if="segments.length" class="vfd-seg">{{ segmentIdx + 1 }}/{{ segments.length }}</span>
-              <span v-if="currentWord && isPlaying" class="vfd-word">{{ currentWord.raw }}</span>
-              <span v-if="!playerReady && !playerError" class="vfd-loading">loading…</span>
-            </div>
-            <div v-if="playerError" class="vfd-err">{{ playerError }}</div>
-            </div>
-          </div>
-
-          <!-- R VU meter -->
-          <div class="amp-vu">
-            <span class="vu-ch">R</span>
-            <div class="vu-leds">
-              <div v-for="n in 8" :key="n" class="vu-led"
-                :class="vuRight >= n ? (n <= 5 ? 'vu-g' : n <= 7 ? 'vu-y' : 'vu-r') : 'vu-off'" />
-            </div>
-          </div>
-
-          <!-- Right tube (KT88 output) -->
-          <div class="amp-tube-wrap">
-            <div class="amp-tube" :style="{ '--glow': tubeGlowIntensity }">
-              <div class="tube-glass">
-                <div class="tube-plate" />
-                <div class="tube-grid" />
-                <div class="tube-glow-inner" />
-              </div>
-              <div class="tube-pins"><span /><span /><span /></div>
-            </div>
-            <span class="tube-label">KT88</span>
-          </div>
+          <input type="range" class="seek-bar"
+            min="0" :max="duration > 0 ? duration : 1" step="0.1"
+            :value="currentTime"
+            @input="seekTo(Number($event.target.value))"
+            :disabled="!playerReady"
+          />
+          <div v-if="playerError" class="vu-err">{{ playerError }}</div>
+          <div v-if="!playerReady && !playerError" class="vu-loading">loading…</div>
         </div>
-
-        <div class="amp-divider" />
 
         <!-- Controls: speed · transport · volume -->
-        <div class="amp-controls">
-
-          <!-- Speed -->
-          <div class="amp-section">
-            <span class="amp-label">SPEED</span>
-            <div class="speed-btns">
-              <button v-for="s in [0.5, 1, 1.5]" :key="s"
-                @click="setSpeed(s)"
-                :class="['speed-btn', speed === s ? 'speed-on' : '']">{{ s }}×</button>
-            </div>
+        <div class="vu-controls">
+          <div class="spd-row">
+            <button v-for="s in [0.5, 1, 1.5]" :key="s"
+              @click="setSpeed(s)"
+              :class="['spd-btn', speed === s ? 'spd-on' : '']">{{ s }}×</button>
           </div>
-
-          <!-- Transport -->
-          <div class="amp-transport">
-            <button @click="skipBack"           :disabled="!playerReady" class="xport-btn" title="-15s">
+          <div class="xport-row">
+            <button @click="skipBack" :disabled="!playerReady" class="xbtn">
               <span class="xi">⏮</span><span class="xl">15s</span>
             </button>
-            <button @click="seekToSegmentStart" :disabled="!playerReady" class="xport-btn" title="Restart segment">
-              <span class="xi">↩</span>
-            </button>
-            <button @click="togglePlay"         :disabled="!playerReady" class="xport-play">{{ isPlaying ? '⏸' : '▶' }}</button>
-            <button @click="nextSegment"        :disabled="!playerReady || segmentIdx >= segments.length - 1" class="xport-btn" title="Next segment">
-              <span class="xi">↪</span>
-            </button>
-            <button @click="skipFwd"            :disabled="!playerReady" class="xport-btn" title="+15s">
-              <span class="xi">⏭</span><span class="xl">15s</span>
+            <button @click="togglePlay" :disabled="!playerReady" class="xplay">{{ isPlaying ? '⏸' : '▶' }}</button>
+            <button @click="skipFwd" :disabled="!playerReady" class="xbtn">
+              <span class="xl">15s</span><span class="xi">⏭</span>
             </button>
           </div>
-
-          <!-- Volume -->
-          <div class="amp-section">
-            <span class="amp-label">VOL</span>
-            <input type="range" min="0" max="1" step="0.05" v-model.number="volume" @input="applyVolume" class="vol-slider" />
+          <div class="vol-row">
+            <span class="vol-lbl">vol</span>
+            <input type="range" min="0" max="1" step="0.05" v-model.number="volume" @input="applyVolume" class="vol-bar" />
           </div>
-
         </div>
+
       </div>
 
       <!-- Input area -->
@@ -625,6 +608,9 @@ const translateTo         = ref(props.lang === 'en' ? 'es' : 'en')
 const transcriptLoading   = ref(false)
 const speed               = ref(1)
 const volume              = ref(1)
+const waveformCanvas      = ref(null)
+const waveformData        = ref([])   // 400 amplitude values 0-1 (seeded from metadata)
+const liveWave            = ref([])   // real-time time-domain data –1..1 from analyser
 
 // ── On-device transcription (Whisper via @huggingface/transformers) ───────────
 
@@ -986,22 +972,142 @@ function skipFwd() {
   seekTo(Math.min(maxTime, now + 15))
 }
 
-// VU meter levels derived from analyser bars (0–8 segments each channel)
+// ── Waveform canvas (physics-realistic amplitude overview) ────────────────────
+
+function _seedRng(seed) {
+  let h = 0
+  for (const c of String(seed || '')) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0
+  return () => { h = (Math.imul(1664525, h) + 1013904223) | 0; return (h >>> 0) / 2 ** 32 }
+}
+
+function generateWaveform(seed, count = 400) {
+  const rng = _seedRng(seed)
+  const raw = Array.from({ length: count }, rng)
+  // 3-tap smooth
+  const sm = raw.map((v, i) => (raw[i - 1] ?? v) * 0.25 + v * 0.5 + (raw[i + 1] ?? v) * 0.25)
+  // Speech-like loudness envelope: quiet passages + louder sections
+  return sm.map((v, i) => {
+    const t = i / count
+    const env = 0.22 + 0.78 * (0.5 + 0.5 * Math.sin(t * 21.4 + Math.sin(t * 6.1) * 2.9))
+    return Math.max(0.04, v * env)
+  })
+}
+
+function drawWaveform() {
+  const canvas = waveformCanvas.value
+  if (!canvas) return
+  const data = waveformData.value
+  if (!data.length) return
+
+  const dpr = window.devicePixelRatio || 1
+  const W = canvas.offsetWidth
+  const H = canvas.offsetHeight
+  if (!W || !H) return
+
+  const pw = Math.round(W * dpr)
+  const ph = Math.round(H * dpr)
+  if (canvas.width !== pw || canvas.height !== ph) {
+    canvas.width  = pw
+    canvas.height = ph
+    canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0)
+  }
+
+  const ctx = canvas.getContext('2d')
+  ctx.clearRect(0, 0, W, H)
+
+  const dur    = duration.value > 0 ? duration.value : (currentSegment.value?.end ?? 1)
+  const pos    = Math.min(1, currentTime.value / dur)
+  const playX  = pos * W
+  const cy     = H / 2
+  const barW   = W / data.length
+  const live   = liveWave.value
+  const lStart = live.length ? Math.floor(pos * data.length) - Math.floor(live.length / 2) : -1
+
+  data.forEach((amp, i) => {
+    const x     = i * barW
+    // Blend in real-time time-domain data near the playhead
+    let   disp  = amp
+    const li    = i - lStart
+    if (li >= 0 && li < live.length) disp = Math.abs(live[li]) * 0.88 + 0.12
+
+    const h     = disp * cy * 0.82
+    ctx.fillStyle = x < playX ? 'rgba(31,27,23,0.42)' : 'rgba(31,27,23,0.16)'
+    ctx.fillRect(x, cy - h, Math.max(1, barW - 0.8), h * 2)
+  })
+
+  // Playhead
+  ctx.fillStyle = 'rgba(31,27,23,0.62)'
+  ctx.fillRect(Math.round(playX) - 0.5, 0, 1.5, H)
+}
+
+function onWaveClick(e) {
+  if (!playerReady.value) return
+  const rect = waveformCanvas.value.getBoundingClientRect()
+  const pos  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+  seekTo(pos * (duration.value || currentSegment.value?.end || 0))
+}
+
+function onWaveDragStart(e) {
+  if (!playerReady.value) return
+  const move = (ev) => {
+    const rect = waveformCanvas.value?.getBoundingClientRect()
+    if (!rect) return
+    const pos = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width))
+    seekTo(pos * (duration.value || currentSegment.value?.end || 0))
+  }
+  const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up) }
+  window.addEventListener('mousemove', move)
+  window.addEventListener('mouseup',  up)
+}
+
+// Regenerate waveform when story changes; redraw on time update
+watch(selectedStory, async (story) => {
+  waveformData.value = story ? generateWaveform(story.id ?? story.audio_url ?? story.title ?? '', 400) : []
+  await nextTick()
+  drawWaveform()
+})
+watch(currentTime, drawWaveform)
+
+// ── Analog VU meter constants ─────────────────────────────────────────────────
+
+const DEG      = Math.PI / 180
+const VU_START = -80   // degrees from 12 o'clock at -20 dB
+const VU_END   = +40   // degrees from 12 o'clock at +3 dB
+const VU_RANGE = VU_END - VU_START
+
+function _vuPt(deg, r) {
+  return [(100 + r * Math.sin(deg * DEG)).toFixed(1), (105 - r * Math.cos(deg * DEG)).toFixed(1)]
+}
+function vuArcPath(startDeg, endDeg, r) {
+  const [x1,y1] = _vuPt(startDeg, r)
+  const [x2,y2] = _vuPt(endDeg, r)
+  const la = Math.abs(endDeg - startDeg) > 180 ? 1 : 0
+  return `M ${x1} ${y1} A ${r} ${r} 0 ${la} 1 ${x2} ${y2}`
+}
+function _dbToAngle(db) { return VU_START + ((db + 20) / 23) * VU_RANGE }
+
+const VU_ARC_FULL = vuArcPath(VU_START, VU_END, 78)
+const VU_ARC_RED  = vuArcPath(_dbToAngle(0), VU_END, 78)
+const VU_TICKS    = [-20, -10, -6, 0, 3].map(db => ({
+  label: db > 0 ? `+${db}` : `${db}`,
+  angle: _dbToAngle(db),
+  red:   db >= 0,
+}))
+
+// VU meter 0–1 levels from analyser bars
 const vuLeft = computed(() => {
   if (!isPlaying.value) return 0
   const avg = bars.value.slice(0, 20).reduce((a, b) => a + b, 0) / 20
-  return Math.ceil((avg / 44) * 8)
+  return Math.min(1, avg / 44)
 })
 const vuRight = computed(() => {
   if (!isPlaying.value) return 0
   const avg = bars.value.slice(20).reduce((a, b) => a + b, 0) / 20
-  return Math.ceil((avg / 44) * 8)
+  return Math.min(1, avg / 44)
 })
-const tubeGlowIntensity = computed(() => {
-  if (!isPlaying.value) return 0.22
-  const avg = bars.value.reduce((a, b) => a + b, 0) / bars.value.length
-  return 0.45 + (avg / 56) * 0.55
-})
+// Needle angles in degrees from 12 o'clock (clockwise)
+const needleAngleL = computed(() => VU_START + vuLeft.value  * VU_RANGE)
+const needleAngleR = computed(() => VU_START + vuRight.value * VU_RANGE)
 
 // ── Waveform (Web Audio API analyser with fake-animation fallback) ────────────
 
@@ -1047,28 +1153,45 @@ function onAudioCorsError() {
 function startWave() {
   stopWave()
   if (_analyser) {
-    const buf  = new Uint8Array(_analyser.frequencyBinCount)
-    const step = buf.length / 40
+    _analyser.fftSize = 512
+    const freqBuf = new Uint8Array(_analyser.frequencyBinCount)
+    const timeBuf = new Uint8Array(_analyser.fftSize)
+    const fStep   = freqBuf.length / 40
+    const tStep   = timeBuf.length / 80
     function tick() {
-      _analyser.getByteFrequencyData(buf)
+      _analyser.getByteFrequencyData(freqBuf)
+      _analyser.getByteTimeDomainData(timeBuf)
       bars.value = Array.from({ length: 40 }, (_, i) => {
-        const v = buf[Math.floor(i * step)]
+        const v = freqBuf[Math.floor(i * fStep)]
         return Math.max(4, Math.round((v / 255) * 52 + 4))
       })
+      liveWave.value = Array.from({ length: 80 }, (_, i) => {
+        return (timeBuf[Math.floor(i * tStep)] - 128) / 128
+      })
+      drawWaveform()
       _rafId = requestAnimationFrame(tick)
     }
     _rafId = requestAnimationFrame(tick)
   } else {
+    // Fake: synthesise plausible speech-like waveform from noise
     waveTimer = setInterval(() => {
       bars.value = BASE_HEIGHTS.map(b => Math.max(4, Math.min(56, b + (Math.random() - 0.5) * 28)))
-    }, 90)
+      const t = currentTime.value
+      liveWave.value = Array.from({ length: 80 }, (_, i) => {
+        const ph = i / 80
+        return (Math.sin(ph * 12.5 + t * 7.3) * 0.35 + (Math.random() - 0.5) * 0.65) * 0.9
+      })
+      drawWaveform()
+    }, 80)
   }
 }
 
 function stopWave() {
   cancelAnimationFrame(_rafId); _rafId = null
   clearInterval(waveTimer);     waveTimer = null
-  bars.value = [...BASE_HEIGHTS]
+  bars.value     = [...BASE_HEIGHTS]
+  liveWave.value = []
+  drawWaveform()
 }
 
 // ── Word tick (audio feedback on word completion) ─────────────────────────────
@@ -1187,18 +1310,25 @@ watch([() => props.lang, currentSegment], () => {
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
+let _resizeObs = null
 onMounted(() => {
   if (props.currentUser) loadStories()
   if (props.story) loadStory(props.story)
-  // Pre-load YouTube iframe API (used by dictation player).
   if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
     const s = document.createElement('script')
     s.src   = 'https://www.youtube.com/iframe_api'
     document.head.appendChild(s)
   }
+  nextTick(() => {
+    if (waveformCanvas.value) {
+      _resizeObs = new ResizeObserver(drawWaveform)
+      _resizeObs.observe(waveformCanvas.value)
+    }
+  })
 })
 
 onUnmounted(() => {
+  _resizeObs?.disconnect()
   teardown()
 })
 </script>
@@ -1221,399 +1351,200 @@ onUnmounted(() => {
 .mode-on  { background: #1f1b17; color: #e8d8b8; border-color: #1f1b17; }
 .diff-on  { background: rgba(20,55,28,0.12); color: #2a6a3a; border-color: rgba(42,106,58,0.45); }
 
-/* ── Amplifier chassis ─────────────────────────────────────────────────────── */
-.amp-body {
-  position: relative;
-  background: linear-gradient(170deg, #1e1508 0%, #130e04 100%);
-  border: 1px solid #3a2a14;
-  border-radius: 6px;
-  padding: 14px 16px 12px;
-  box-shadow: 0 4px 28px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,200,80,0.05);
-}
-.amp-screw {
-  position: absolute;
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #6b5030, #2a1c08);
-  border: 1px solid #4a3520;
-}
-.amp-screw.tl { top:6px;    left:6px; }
-.amp-screw.tr { top:6px;    right:6px; }
-.amp-screw.bl { bottom:6px; left:6px; }
-.amp-screw.br { bottom:6px; right:6px; }
+/* ── VU panel ───────────────────────────────────────────────────────────────── */
+.vu-wrap { display: flex; flex-direction: column; gap: 10px; padding: 12px 0 4px; }
+.vu-svg  { width: 100%; height: auto; }
 
-/* ── Amp face (tube · VU · display · VU · tube) ────────────────────────────── */
-.amp-face {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-/* Tubes */
-.amp-tube-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
-.amp-tube {
-  position: relative;
-  width: 34px;
-  height: 66px;
-}
-.tube-glass {
+/* ── Waveform canvas ────────────────────────────────────────────────────────── */
+.wave-canvas {
   width: 100%;
-  height: 78%;
-  border-radius: 17px 17px 6px 6px;
-  background: linear-gradient(180deg,
-    rgba(255,180,50,calc(var(--glow) * 0.13)) 0%,
-    rgba(255,110,15,calc(var(--glow) * 0.28)) 55%,
-    rgba(180,60,5,calc(var(--glow) * 0.18)) 100%);
-  border: 1px solid rgba(255,160,40,calc(var(--glow) * 0.65));
-  box-shadow:
-    0 0 calc(var(--glow) * 14px) calc(var(--glow) * 3px) rgba(255,110,20,calc(var(--glow) * 0.45)),
-    inset 0 0 7px rgba(255,195,70,calc(var(--glow) * 0.18));
-  overflow: hidden;
-  transition: border-color 0.3s, box-shadow 0.3s;
-}
-.tube-plate {
-  position: absolute;
-  left: 28%; right: 28%;
-  top: 14%; bottom: 14%;
-  border: 1px solid rgba(255,160,40,0.35);
+  height: 56px;
+  display: block;
+  cursor: crosshair;
   border-radius: 2px;
 }
-.tube-grid {
-  position: absolute;
-  left: 18%; right: 18%;
-  top: 26%; height: 1px;
-  background: rgba(255,155,35,0.45);
-  box-shadow: 0 6px 0 rgba(255,155,35,0.35), 0 12px 0 rgba(255,155,35,0.25);
-}
-.tube-glow-inner {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(ellipse at 50% 65%,
-    rgba(255,140,25,calc(var(--glow) * 0.55)) 0%,
-    transparent 72%);
-  animation: tube-pulse 2.4s ease-in-out infinite;
-}
-@keyframes tube-pulse {
-  0%,100% { opacity: 1; }
-  50%      { opacity: 0.65; }
-}
-.tube-pins {
-  display: flex;
-  justify-content: center;
-  gap: 3px;
-  height: 11px;
-  align-items: flex-end;
-}
-.tube-pins span {
-  width: 3px; height: 8px;
-  background: #3a2510;
-  border-radius: 1px;
-}
-.tube-label {
-  font-size: 8.5px;
-  color: #5a4020;
+
+/* ── Time / scrubber ────────────────────────────────────────────────────────── */
+.vu-timeline { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.vu-time {
+  font-size: 10.5px;
   font-family: 'Courier New', monospace;
+  color: rgba(31,27,23,0.45);
   letter-spacing: 0.04em;
-  text-align: center;
-}
-
-/* VU meters */
-.amp-vu {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  padding-top: 2px;
-}
-.vu-leds {
-  display: flex;
-  flex-direction: column-reverse;
-  gap: 2px;
-}
-.vu-led {
-  width: 13px; height: 5px;
-  border-radius: 1px;
-  transition: background 0.06s, box-shadow 0.06s;
-}
-.vu-g   { background: #15803d; box-shadow: 0 0 5px rgba(21,128,61,0.75); }
-.vu-y   { background: #a16207; box-shadow: 0 0 5px rgba(161,98,7,0.75); }
-.vu-r   { background: #b91c1c; box-shadow: 0 0 5px rgba(185,28,28,0.75); }
-.vu-off { background: rgba(255,255,255,0.05); }
-.vu-ch  {
-  font-size: 8.5px;
-  color: #7a5a30;
-  font-family: 'Courier New', monospace;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
-
-/* VFD display */
-.amp-display {
-  flex: 1;
-  min-width: 0;
-  background-color: #080401;
-  border: 1px solid #2a1c08;
-  border-radius: 4px;
-  padding: 7px 10px 6px;
-  box-shadow: inset 0 2px 6px rgba(0,0,0,0.85);
-}
-.amp-display-art {
-  display: flex;
-  gap: 8px;
-  padding: 6px 10px 6px 6px;
-}
-.art-thumb {
-  width: 46px;
-  height: 46px;
-  border-radius: 3px;
-  object-fit: cover;
-  flex-shrink: 0;
-  opacity: 0.85;
-  border: 1px solid #2a1c08;
-}
-.vfd-body { flex: 1; min-width: 0; }
-.vfd-title {
-  font-size: 13px;
-  font-family: 'Courier New', monospace;
-  color: #f59e0b;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-shadow: 0 0 8px rgba(245,158,11,0.6);
-  margin-bottom: 3px;
-  line-height: 1.3;
-}
-.vfd-sub {
-  font-size: 11px;
-  font-family: 'Courier New', monospace;
-  color: rgba(245,158,11,0.55);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-bottom: 5px;
-}
-.vfd-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.vfd-time {
-  font-size: 12px;
-  font-family: 'Courier New', monospace;
-  color: rgba(245,158,11,0.88);
-  text-shadow: 0 0 5px rgba(245,158,11,0.42);
   font-variant-numeric: tabular-nums;
 }
-.vfd-seg, .vfd-loading {
-  font-size: 11px;
-  font-family: 'Courier New', monospace;
-  color: rgba(245,158,11,0.48);
-}
-.vfd-word {
+.vu-seg-n { margin-left: 6px; color: rgba(31,27,23,0.3); }
+.vu-word  { margin-left: 8px; color: rgba(31,27,23,0.65); font-style: italic; }
+.vu-err, .vu-loading {
   font-size: 10px;
   font-family: 'Courier New', monospace;
-  color: #6ee07a;
-  text-shadow: 0 0 5px rgba(110,224,122,0.5);
-  margin-left: auto;
+  color: rgba(31,27,23,0.35);
 }
-.vfd-err {
-  font-size: 9.5px;
-  font-family: 'Courier New', monospace;
-  color: #f87171;
-  margin-top: 3px;
-}
+.vu-err { color: rgba(160,30,20,0.65); }
 
-/* Divider */
-.amp-divider {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, #3a2a14 25%, #3a2a14 75%, transparent);
-  margin: 0 -16px 12px;
+.seek-bar {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 2px;
+  background: rgba(31,27,23,0.13);
+  border-radius: 1px;
+  outline: none;
+  cursor: pointer;
 }
+.seek-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: rgba(31,27,23,0.52);
+  cursor: pointer;
+}
+.seek-bar::-moz-range-thumb {
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: rgba(31,27,23,0.52);
+  border: none;
+  cursor: pointer;
+}
+.seek-bar:disabled { opacity: 0.28; cursor: not-allowed; }
 
-/* Controls row */
-.amp-controls {
+/* ── Controls row ───────────────────────────────────────────────────────────── */
+.vu-controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  padding: 2px 0;
 }
-.amp-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-}
-.amp-label {
-  font-size: 7.5px;
-  color: #5a4020;
+.spd-row { display: flex; gap: 4px; flex-shrink: 0; }
+.spd-btn {
+  font-size: 10.5px;
   font-family: 'Courier New', monospace;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-/* Speed */
-.speed-btns { display: flex; gap: 3px; }
-.speed-btn {
-  font-size: 9.5px;
-  font-family: 'Courier New', monospace;
-  padding: 3px 7px;
-  border-radius: 3px;
-  border: 1px solid #3a2a14;
-  background: #130e04;
-  color: #7a5a30;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.speed-btn:hover { border-color: #c8a96e; color: #c8a96e; }
-.speed-on { border-color: #c8a96e; background: #2a1c08; color: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.25); }
-
-/* Transport */
-.amp-transport {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 1;
-  justify-content: center;
-}
-.xport-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  padding: 5px 8px;
+  padding: 4px 10px;
   border-radius: 4px;
-  border: 1px solid #3a2a14;
-  background: #130e04;
-  color: #7a5a30;
+  border: 1px solid rgba(31,27,23,0.18);
+  background: transparent;
+  color: rgba(31,27,23,0.4);
   cursor: pointer;
-  transition: all 0.15s;
-  line-height: 1;
+  transition: all 0.14s;
 }
-.xport-btn:hover:not(:disabled) { border-color: #c8a96e; color: #c8a96e; }
-.xport-btn:disabled { opacity: 0.28; cursor: not-allowed; }
-.xi { font-size: 13px; }
-.xl { font-size: 7.5px; font-family: 'Courier New', monospace; }
-.xport-play {
-  width: 42px; height: 42px;
-  border-radius: 50%;
-  border: 2px solid #c8a96e;
-  background: radial-gradient(circle at 40% 38%, #3a2a14, #130e04);
-  color: #f59e0b;
-  font-size: 17px;
+.spd-btn:hover { border-color: rgba(31,27,23,0.42); color: rgba(31,27,23,0.68); }
+.spd-on { background: rgba(31,27,23,0.07); border-color: rgba(31,27,23,0.5); color: rgba(31,27,23,0.82); }
+
+.xport-row { display: flex; align-items: center; gap: 8px; flex: 1; justify-content: center; }
+.xbtn {
+  display: flex; align-items: center; gap: 3px;
+  padding: 5px 11px;
+  border-radius: 4px;
+  border: 1px solid rgba(31,27,23,0.18);
+  background: transparent;
+  color: rgba(31,27,23,0.45);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.15s;
-  box-shadow: 0 0 12px rgba(245,158,11,0.18), inset 0 1px 0 rgba(255,200,80,0.08);
+  transition: all 0.14s;
+}
+.xbtn:hover:not(:disabled) { border-color: rgba(31,27,23,0.45); color: rgba(31,27,23,0.7); }
+.xbtn:disabled { opacity: 0.28; cursor: not-allowed; }
+.xi { font-size: 13px; }
+.xl { font-size: 9px; font-family: 'Courier New', monospace; }
+.xplay {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(31,27,23,0.42);
+  background: transparent;
+  color: rgba(31,27,23,0.72);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.14s;
   flex-shrink: 0;
 }
-.xport-play:hover:not(:disabled) { box-shadow: 0 0 20px rgba(245,158,11,0.45), inset 0 1px 0 rgba(255,200,80,0.14); }
-.xport-play:disabled { opacity: 0.3; cursor: not-allowed; }
+.xplay:hover:not(:disabled) { background: rgba(31,27,23,0.06); border-color: rgba(31,27,23,0.65); }
+.xplay:disabled { opacity: 0.28; cursor: not-allowed; }
 
-/* Volume */
-.vol-slider {
-  width: 56px;
-  height: 3px;
-  -webkit-appearance: none;
-  appearance: none;
-  background: #3a2a14;
-  border-radius: 2px;
+.vol-row { display: flex; align-items: center; gap: 6px; flex-shrink: 0; min-width: 80px; }
+.vol-lbl { font-size: 9px; font-family: 'Courier New', monospace; color: rgba(31,27,23,0.35); letter-spacing: 0.1em; }
+.vol-bar {
+  width: 58px;
+  -webkit-appearance: none; appearance: none;
+  height: 2px;
+  background: rgba(31,27,23,0.15);
+  border-radius: 1px;
   outline: none;
   cursor: pointer;
 }
-.vol-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 12px; height: 12px;
+.vol-bar::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 10px; height: 10px;
   border-radius: 50%;
-  background: radial-gradient(circle at 38% 35%, #f59e0b, #9a6a18);
-  border: 1px solid #c8a96e;
+  background: rgba(31,27,23,0.52);
   cursor: pointer;
-  box-shadow: 0 0 4px rgba(245,158,11,0.4);
 }
-.vol-slider::-moz-range-thumb {
-  width: 12px; height: 12px;
+.vol-bar::-moz-range-thumb {
+  width: 10px; height: 10px;
   border-radius: 50%;
-  background: radial-gradient(circle at 38% 35%, #f59e0b, #9a6a18);
-  border: 1px solid #c8a96e;
-  cursor: pointer;
+  background: rgba(31,27,23,0.52);
+  border: none;
 }
 
 /* ── Transcript / input text areas ─────────────────────────────────────────── */
 .listen-textarea {
   width: 100%;
-  background: #0e0a03;
-  border: 1px solid #3a2a14;
+  background: rgba(31,27,23,0.03);
+  border: 1px solid rgba(31,27,23,0.18);
   border-radius: 5px;
   padding: 10px 12px;
-  font-size: 0.875rem;
-  color: #e8d8b8;
+  font-size: 0.9rem;
+  color: #1f1b17;
   outline: none;
   resize: none;
   transition: border-color 0.15s;
   font-family: 'EB Garamond', Georgia, serif;
   line-height: 1.6;
 }
-.listen-textarea:focus { border-color: #c8a96e; }
-.listen-textarea::placeholder { color: rgba(232,216,184,0.22); }
+.listen-textarea:focus { border-color: rgba(31,27,23,0.42); }
+.listen-textarea::placeholder { color: rgba(31,27,23,0.25); }
 
 .listen-reveal {
-  background: #0e0a03;
-  border: 1px solid #4a3820;
+  background: rgba(31,27,23,0.03);
+  border: 1px solid rgba(31,27,23,0.16);
   border-radius: 5px;
   padding: 12px 14px;
-  font-size: 0.875rem;
-  color: #e8d8b8;
+  font-size: 0.9rem;
+  color: #1f1b17;
   line-height: 1.75;
   font-family: 'EB Garamond', Georgia, serif;
 }
 .listen-translation {
-  background: #0a0d14;
-  border: 1px solid #1e2a3a;
+  background: rgba(31,27,23,0.025);
+  border: 1px solid rgba(31,27,23,0.1);
   border-radius: 5px;
   padding: 12px 14px;
-  font-size: 0.875rem;
-  color: rgba(200,210,232,0.7);
+  font-size: 0.88rem;
+  color: rgba(31,27,23,0.55);
   line-height: 1.7;
   font-style: italic;
   font-family: 'EB Garamond', Georgia, serif;
 }
 
 /* ── Word feedback chips ────────────────────────────────────────────────────── */
-.word-correct { background: rgba(21,80,38,0.55); color: #6ee07a; }
-.word-wrong   { background: rgba(60,15,70,0.55); color: #c084fc; }
-.word-pending { color: rgba(200,180,140,0.35); }
+.word-correct { background: rgba(20,55,28,0.12); color: #2a6a3a; }
+.word-wrong   { background: rgba(80,15,80,0.1);  color: #7a3a8a; }
+.word-pending { color: rgba(31,27,23,0.32); }
 
 /* ── Action row buttons ─────────────────────────────────────────────────────── */
 .act-btn {
   font-size: 0.72rem;
   padding: 5px 11px;
   border-radius: 4px;
-  border: 1px solid #3a2a14;
+  border: 1px solid rgba(31,27,23,0.2);
   background: transparent;
-  color: rgba(200,169,110,0.65);
+  color: rgba(31,27,23,0.5);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.14s;
   font-family: 'EB Garamond', serif;
 }
-.act-btn:hover:not(:disabled) { border-color: #c8a96e; color: #c8a96e; }
-.act-primary { background: #2a1c08; color: #f0c860; border-color: #c8a96e; }
-.act-primary:hover:not(:disabled) { box-shadow: 0 0 8px rgba(245,158,11,0.25); }
-
-/* ── Accuracy / model download lines ───────────────────────────────────────── */
-:deep(.text-gray-500)  { color: rgba(200,180,140,0.45) !important; }
-:deep(.text-gray-600)  { color: rgba(200,180,140,0.3)  !important; }
+.act-btn:hover:not(:disabled) { border-color: rgba(31,27,23,0.45); color: rgba(31,27,23,0.75); }
+.act-primary { background: #1f1b17; color: #e8d8b8; border-color: #1f1b17; }
+.act-primary:hover:not(:disabled) { background: #2a2418; }
 </style>
