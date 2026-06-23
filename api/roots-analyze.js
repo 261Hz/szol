@@ -11,21 +11,32 @@ async function hebrewRootsBatch(words) {
   if (!hfToken) { console.error('[roots-hf] HF_TOKEN not set'); return {} }
 
   const text = words.join(' ')
-  const res  = await fetch(HF_URL, {
-    method:  'POST',
-    headers: {
-      'Authorization': `Bearer ${hfToken}`,
-      'Content-Type':  'application/json',
-    },
-    body: JSON.stringify({ inputs: text, wait_for_model: true }),
-  })
+  let res
+  try {
+    res = await fetch(HF_URL, {
+      method:  'POST',
+      headers: {
+        'Authorization': `Bearer ${hfToken}`,
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify({ inputs: text }),
+    })
+  } catch (err) {
+    console.error('[roots-hf] network error:', err.message,
+      '| cause:', err.cause?.code ?? '', err.cause?.message ?? '')
+    return {}
+  }
 
   if (res.status === 503) {
     const body = await res.json().catch(() => ({}))
     console.log('[roots-hf] model loading, estimated', body.estimated_time, 's')
     return {}
   }
-  if (!res.ok) { console.error('[roots-hf] HTTP', res.status); return {} }
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    console.error('[roots-hf] HTTP', res.status, body.slice(0, 300))
+    return {}
+  }
 
   const data = await res.json()
 
