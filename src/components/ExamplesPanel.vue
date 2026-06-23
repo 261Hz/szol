@@ -378,9 +378,9 @@ const removeProgress = onExplainerProgress((info) => {
     localDefDownloading.value = true
     localDefPct.value   = Math.round(info.progress ?? 0)
     localDefLabel.value = info.file ?? ''
-  } else if (info.status === 'done') {
+  } else if (info.status === 'done' || info.status === 'ready') {
     doneFiles++
-    if (doneFiles >= pendingFiles) {
+    if (doneFiles >= pendingFiles && pendingFiles > 0) {
       localDefPct.value = 100
       localDefLabel.value = ''
       setTimeout(() => { localDefDownloading.value = false; doneFiles = 0; pendingFiles = 0 }, 600)
@@ -426,12 +426,19 @@ async function loadCorpus() {
   corpus.value.done    = true
 }
 
+function clearDownload() {
+  localDefDownloading.value = false
+  localDefLoading.value     = false
+  pendingFiles = 0
+  doneFiles    = 0
+}
+
 async function enableAndExplain() {
   setLocalModelsEnabled(true)
   modelsOn.value = true
   localDefLoading.value = true
   try { localDef.value = await explain(props.word, props.lang) } catch {}
-  localDefLoading.value = false
+  clearDownload()
 }
 
 async function loadDict() {
@@ -443,7 +450,7 @@ async function loadDict() {
   if (!dict.value.data && props.lang !== 'en' && localModelsEnabled()) {
     localDefLoading.value = true
     try { localDef.value = await explain(props.word, props.lang) } catch {}
-    localDefLoading.value = false
+    clearDownload()
   }
 }
 
