@@ -11,7 +11,7 @@
       <div class="flex items-center justify-between">
         <div>
           <div class="font-semibold text-lg" :dir="isRTL(lang) ? 'rtl' : 'ltr'">
-            {{ story.title }}
+            {{ story.title.replace(/_/g, ' ') }}
           </div>
           <div class="text-xs mt-0.5" style="color:rgba(31,27,23,0.4); font-family:'EB Garamond',serif;">
             {{ LANGS[lang]?.name }}
@@ -164,7 +164,7 @@
             onmouseover="this.style.borderColor='rgba(31,27,23,0.28)'"
             onmouseout="this.style.borderColor='rgba(31,27,23,0.1)'"
           >
-            <div class="text-xs font-medium leading-snug line-clamp-2" style="color:#1f1b17;" :dir="isRTL(s.lang) ? 'rtl' : 'ltr'">{{ s.title }}</div>
+            <div class="text-xs font-medium leading-snug line-clamp-2" style="color:#1f1b17;" :dir="isRTL(s.lang) ? 'rtl' : 'ltr'">{{ s.title.replace(/_/g, ' ') }}</div>
             <div class="text-[10px] mt-1" style="color:#3a7a3a;">{{ s.score }} known</div>
           </button>
         </div>
