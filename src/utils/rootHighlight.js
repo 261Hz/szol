@@ -31,26 +31,6 @@ export const rootHighlightOn = computed(() => rootMode.value !== 'off')
 
 watch(rootMode, v => localStorage.setItem('szol_roots', v))
 
-// ── Manuscript ink palette ────────────────────────────────────────────────────
-
-const PALETTE = [
-  '#8b3a3a',  // burgundy
-  '#2d5a7b',  // deep blue
-  '#4a6b3a',  // forest
-  '#7a4a2a',  // amber
-  '#5a3a7a',  // purple
-  '#3a6a5a',  // teal
-  '#7a5a2a',  // gold
-  '#6a2a5a',  // plum
-]
-
-export function rootInkColor(root) {
-  if (!root) return '#1f1b17'
-  let h = 0
-  for (const ch of root) h = (h * 31 + ch.codePointAt(0)) | 0
-  return PALETTE[Math.abs(h) % PALETTE.length]
-}
-
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
 const CACHE_KEY   = 'szol_root_cache_v3'  // v3: correct loadbalancer URL + new response format

@@ -270,7 +270,7 @@ import { t } from '../utils/i18n.js'
 import { normalize } from '../utils/scoring.js'
 import { useVoiceList, pickVoice } from '../utils/voices.js'
 import ExamplesPanel from '../components/ExamplesPanel.vue'
-import { rootMode, preFetchRoots, rootInkColor } from '../utils/rootHighlight.js'
+import { rootMode, preFetchRoots } from '../utils/rootHighlight.js'
 
 const props = defineProps({
   story:       Object,
