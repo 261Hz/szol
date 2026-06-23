@@ -389,8 +389,35 @@
       <div v-if="transcriptLoading" class="text-xs text-gray-500 text-center py-1 animate-pulse">
         Loading transcript…
       </div>
-      <div v-else-if="!segments.length && selectedStory?.source_type === 'podcast'" class="text-xs text-gray-600 text-center py-1">
-        No transcript available for this episode
+
+      <!-- On-device transcription panel -->
+      <div v-else-if="!segments.length && selectedStory?.audio_url" class="flex flex-col gap-2 py-1">
+        <!-- Idle: offer to generate -->
+        <div v-if="xStage === 'idle' || xStage === 'done'" class="flex items-center justify-between gap-2">
+          <span class="text-xs" style="color:rgba(255,255,255,0.35);">No transcript — generate one on this device?</span>
+          <button
+            @click="startTranscribe"
+            class="text-xs px-3 py-1 rounded border border-emerald-700 text-emerald-400 hover:bg-emerald-900 transition-all flex-shrink-0"
+          >Generate transcript</button>
+        </div>
+        <!-- Loading model or transcribing -->
+        <div v-else-if="xStage === 'loading' || xStage === 'transcribing'" class="flex flex-col gap-1.5">
+          <div class="flex items-center justify-between text-xs" style="color:rgba(255,255,255,0.5);">
+            <span>{{ xStage === 'loading' ? 'Downloading Whisper model…' : 'Transcribing…' }}</span>
+            <span>{{ xPct }}%</span>
+          </div>
+          <div class="w-full rounded-full overflow-hidden" style="height:3px; background:rgba(255,255,255,0.08);">
+            <div class="h-full rounded-full bg-emerald-500 transition-all duration-300" :style="`width:${xPct}%`" />
+          </div>
+          <div v-if="xStage === 'loading'" class="text-[10px]" style="color:rgba(255,255,255,0.25);">
+            ~80 MB download · cached after first use · stays on your device
+          </div>
+        </div>
+        <!-- Error -->
+        <div v-else-if="xStage === 'error'" class="flex items-center justify-between gap-2">
+          <span class="text-xs text-red-400">{{ xError }}</span>
+          <button @click="startTranscribe" class="text-xs text-emerald-400 underline flex-shrink-0">Retry</button>
+        </div>
       </div>
 
       <!-- Action row -->
@@ -442,6 +469,8 @@ import { isRTL } from '../utils/rtl.js'
 import { spokenNumbers } from '../utils/spokenNumbers.js'
 import { rootHighlightOn, applyRoots, clearRoots } from '../utils/rootHighlight.js'
 import { useLocalTranslator } from '../composables/useLocalTranslator.js'
+import { useTranscribe } from '../composables/useTranscribe.js'
+import { getStoredTranscript, saveStoredTranscript } from '../utils/transcriptStore.js'
 
 const { translateText, isTranslating, isDownloading, downloadPct, downloadLabel } = useLocalTranslator()
 const localTranslation = ref('')
@@ -559,6 +588,21 @@ const mode                = ref('dictation') // 'dictation' | 'translation'
 const translateTo         = ref(props.lang === 'en' ? 'es' : 'en')
 const transcriptLoading   = ref(false)
 
+// ── On-device transcription (Whisper via @huggingface/transformers) ───────────
+
+const { transcribe, stage: xStage, pct: xPct, error: xError, reset: xReset } = useTranscribe()
+
+async function startTranscribe() {
+  const story = selectedStory.value
+  if (!story?.audio_url) return
+  xReset()
+  const segs = await transcribe(story.audio_url, props.lang)
+  if (segs?.length) {
+    segments.value = segs
+    await saveStoredTranscript(story.id, segs)
+  }
+}
+
 async function tryFetchTranscript(storyId, title, podcastName) {
   transcriptLoading.value = true
   try {
@@ -651,10 +695,16 @@ async function loadStory(story, startAt = null) {
     }
   }
 
-  // Auto-fetch transcript for podcast episodes that don't have segments yet
-  if (story.source_type === 'podcast' && !story.segments?.length) {
-    tryFetchTranscript(story.id, story.title, story.podcast_name)
+  // Auto-fetch transcript for known podcast sources; check IndexedDB first for RSS imports
+  if (!story.segments?.length) {
+    const stored = await getStoredTranscript(story.id)
+    if (stored?.length) {
+      segments.value = stored
+    } else if (story.source_type === 'podcast') {
+      tryFetchTranscript(story.id, story.title, story.podcast_name)
+    }
   }
+  xReset()
 }
 
 function backToList() {
