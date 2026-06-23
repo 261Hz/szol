@@ -10,7 +10,7 @@
       <div v-if="inProgress.length || vocabCount > 0" class="continue-block">
 
         <div v-if="inProgress.length" class="continue-item" @click="resume(inProgress[0])">
-          <span class="ci-label">Continue</span>
+          <span class="ci-label">{{ t(lang, 'resume') }}</span>
           <span class="ci-title">{{ inProgress[0].story_title || 'Untitled' }}</span>
           <span class="ci-meta">§{{ inProgress[0].sentence_index }}</span>
         </div>
@@ -25,10 +25,10 @@
       <!-- Stories — shown directly -->
       <div class="stories-section">
         <div class="stories-header">
-          <span class="section-label">Stories</span>
+          <span class="section-label">{{ t(lang, 'storiesSection') }}</span>
         </div>
-        <div v-if="storiesLoading" class="status-text">Loading…</div>
-        <div v-else-if="!stories.length" class="status-text italic-muted">No stories yet for this language.</div>
+        <div v-if="storiesLoading" class="status-text">{{ t(lang, 'loading') }}</div>
+        <div v-else-if="!stories.length" class="status-text italic-muted">{{ t(lang, 'noStoriesYet') }}</div>
         <div v-else class="item-list" :dir="isRTL(lang) ? 'rtl' : 'ltr'">
           <button
             v-for="story in stories"
@@ -45,15 +45,15 @@
       <!-- Other categories -->
       <div class="drawer-list">
         <button @click="pick('podcasts')" class="drawer-row">
-          <span class="drawer-label">Podcasts</span>
+          <span class="drawer-label">{{ t(lang, 'podcasts') }}</span>
           <span class="drawer-arrow">→</span>
         </button>
         <button @click="pick('articles')" class="drawer-row">
-          <span class="drawer-label">Articles</span>
+          <span class="drawer-label">{{ t(lang, 'articles') }}</span>
           <span class="drawer-arrow">→</span>
         </button>
         <button @click="pick('history')" class="drawer-row">
-          <span class="drawer-label">History</span>
+          <span class="drawer-label">{{ t(lang, 'history') }}</span>
           <span class="drawer-arrow">→</span>
         </button>
       </div>
@@ -61,7 +61,7 @@
       <!-- Import URL — at the very bottom, minimal -->
       <div class="import-section">
         <button v-if="!showImport" @click="showImport = true" class="import-toggle">
-          or paste a URL to import
+          {{ t(lang, 'orPasteUrl') }}
         </button>
         <div v-else>
           <div class="import-row">
@@ -74,7 +74,7 @@
               autofocus
             />
             <button @click="fetchArticle" :disabled="importLoading" class="import-btn">
-              {{ importLoading ? '…' : 'Fetch' }}
+              {{ importLoading ? '…' : t(lang, 'fetch') }}
             </button>
             <button @click="showImport = false; importPreview = null; importError = ''" class="import-cancel">×</button>
           </div>
@@ -99,10 +99,10 @@
     <template v-else-if="level === 'podcasts' && !source">
       <div class="nav-bar">
         <button @click="back" class="back-link">← Archive</button>
-        <span class="nav-title">Podcasts</span>
+        <span class="nav-title">{{ t(lang, 'podcasts') }}</span>
       </div>
-      <div v-if="podcastLoading" class="status-text">Loading…</div>
-      <div v-else-if="!podcastShows.length" class="status-text">No podcasts yet for this language.</div>
+      <div v-if="podcastLoading" class="status-text">{{ t(lang, 'loading') }}</div>
+      <div v-else-if="!podcastShows.length" class="status-text">{{ t(lang, 'noPodcasts') }}</div>
       <div v-else class="item-list">
         <button
           v-for="[show, eps] in podcastShows"
@@ -120,12 +120,12 @@
           <input
             v-model="rssUrl"
             type="url"
-            placeholder="Podcast RSS feed URL…"
+            :placeholder="t(lang, 'podcastRssUrl')"
             @keydown.enter="importRss"
             class="import-input"
           />
           <button @click="importRss" :disabled="rssLoading" class="import-btn">
-            {{ rssLoading ? '…' : 'Import' }}
+            {{ rssLoading ? '…' : t(lang, 'import') }}
           </button>
         </div>
         <div v-if="rssError" class="import-error">{{ rssError }}</div>
@@ -160,10 +160,10 @@
     <template v-else-if="level === 'articles' && !source">
       <div class="nav-bar">
         <button @click="back" class="back-link">← Archive</button>
-        <span class="nav-title">Articles</span>
+        <span class="nav-title">{{ t(lang, 'articles') }}</span>
       </div>
-      <div v-if="feedLoading" class="status-text">Loading…</div>
-      <div v-else-if="!feedSources.length" class="status-text">No articles yet for this language.</div>
+      <div v-if="feedLoading" class="status-text">{{ t(lang, 'loading') }}</div>
+      <div v-else-if="!feedSources.length" class="status-text">{{ t(lang, 'noArticles') }}</div>
       <div v-else class="item-list">
         <button
           v-for="src in feedSources"
@@ -203,9 +203,9 @@
     <template v-else-if="level === 'history'">
       <div class="nav-bar">
         <button @click="back" class="back-link">← Archive</button>
-        <span class="nav-title">History</span>
+        <span class="nav-title">{{ t(lang, 'history') }}</span>
       </div>
-      <div v-if="historyLoading" class="status-text">Loading…</div>
+      <div v-if="historyLoading" class="status-text">{{ t(lang, 'loading') }}</div>
       <template v-else>
 
         <div v-if="todayArticle" class="history-block">
@@ -227,7 +227,7 @@
         </div>
 
         <div v-if="!todayArticle && !onThisDay.length" class="status-text">
-          No content for this language today.
+          {{ t(lang, 'noToday') }}
         </div>
 
       </template>
@@ -241,6 +241,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { fetchCuratedStories, fetchFeed, fetchFeedArticle, fetchPodcasts, fetchPodcastRss, getAllProgress } from '../utils/api.js'
 import { fetchFeaturedArticle, fetchOnThisDay } from '../utils/wikipedia.js'
 import { isRTL } from '../utils/rtl.js'
+import { t } from '../utils/i18n.js'
 
 const props = defineProps({
   lang:        String,
@@ -367,7 +368,7 @@ async function importRss() {
   const data = await fetchPodcastRss(url)
   rssLoading.value = false
   if (!data?.episodes?.length) {
-    rssError.value = data?.detail ?? 'No audio episodes found in this feed.'
+    rssError.value = data?.detail ?? t(props.lang, 'noRssEpisodes')
     return
   }
   rssTitle.value    = data.title
