@@ -24,7 +24,7 @@
               class="map-lang"
               :class="{ 'map-lang--active': selected === code }"
               :dir="LANGS[code]?.rtl ? 'rtl' : 'ltr'"
-            >{{ LANGS[code].name }}</button>
+            >{{ LANGS[code].name }}<span v-if="learners[code]" class="map-lang-count">{{ learners[code] }}</span></button>
           </div>
         </div>
       </div>
@@ -59,12 +59,18 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { LANGS } from '../data/stories.js'
+import { fetchLearnerCounts } from '../utils/api.js'
 
 defineEmits(['pick', 'sign-in'])
 
 const selected = ref(null)
+const learners = ref({})
+
+onMounted(async () => {
+  learners.value = await fetchLearnerCounts()
+})
 
 const REGIONS = [
   { name: 'Western Europe', langs: ['en', 'fr', 'de', 'es', 'it', 'el'] },
@@ -163,6 +169,14 @@ const ui = computed(() => UI[selected.value] ?? UI.en)
   color: #1a0c00;
   font-weight: 600;
   border-left-color: #8b6914;
+}
+
+.map-lang-count {
+  margin-left: 0.4rem;
+  font-size: 0.65rem;
+  color: #b09060;
+  font-weight: 400;
+  letter-spacing: 0.02em;
 }
 
 .rise-enter-active { transition: opacity 0.25s ease, transform 0.25s ease; }
