@@ -22,14 +22,14 @@
 
     <!-- Header: title + test toggle + close -->
     <div class="flex items-center justify-between">
-      <span class="text-xs text-blue-400 font-medium">Video clip</span>
+      <span class="text-xs text-blue-400 font-medium">{{ t(lang, 'videoClip') }}</span>
       <div class="flex items-center gap-3">
         <button
           @click="toggleTest"
           :class="testMode ? 'text-emerald-400 font-medium' : 'text-gray-500 hover:text-emerald-400'"
           class="text-xs transition-all"
           title="Listening comprehension test — hides transcript and disables CC"
-        >🎧 Test</button>
+        >🎧 {{ t(lang, 'listenTest') }}</button>
         <button @click="closeClip" class="text-xs text-gray-500 hover:text-white transition-all">✕</button>
       </div>
     </div>
@@ -78,7 +78,7 @@
       <template v-if="!testResult">
         <textarea
           v-model="testInput"
-          placeholder="Listen and type what you hear…"
+          :placeholder="t(lang, 'typeWhatYouHear')"
           rows="2"
           class="w-full text-sm bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:border-emerald-700"
           @keydown.meta.enter.prevent="checkAnswer"
@@ -89,7 +89,7 @@
             @click="checkAnswer"
             :disabled="!testInput.trim()"
             class="text-xs px-3 py-1 rounded-md bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white transition-all"
-          >Check</button>
+          >{{ t(lang, 'check') }}</button>
           <span class="text-xs text-gray-600">Ctrl/Cmd+Enter</span>
         </div>
       </template>
@@ -98,9 +98,9 @@
       <template v-else>
         <div class="flex items-center gap-3 text-xs">
           <span :class="testResult.pct >= 80 ? 'text-green-400' : testResult.pct >= 50 ? 'text-yellow-400' : 'text-red-400'" class="font-medium">
-            {{ testResult.correct }}/{{ testResult.total }} words
+            {{ testResult.correct }}/{{ testResult.total }} {{ t(lang, 'words') }}
           </span>
-          <button @click="testResult = null; testInput = ''" class="text-gray-600 hover:text-blue-400 transition-all">Try again</button>
+          <button @click="testResult = null; testInput = ''" class="text-gray-600 hover:text-blue-400 transition-all">{{ t(lang, 'tryAgain') }}</button>
         </div>
         <!-- Word-by-word colouring -->
         <p class="text-sm leading-relaxed">
@@ -114,7 +114,7 @@
           v-if="!clipShowTranscript"
           @click="clipShowTranscript = true"
           class="text-xs text-blue-400 hover:text-blue-300 transition-all self-start"
-        >Reveal transcript</button>
+        >{{ t(lang, 'revealTranscript') }}</button>
         <p v-if="clipShowTranscript" class="text-xs text-gray-400 leading-snug border-t border-gray-700 pt-2">{{ activeClip.context }}</p>
       </template>
     </template>
@@ -190,15 +190,15 @@
           <button
             @click="mode = 'dictation'; translationResult = null; showTranscript = false"
             :class="['mode-btn', mode === 'dictation' ? 'mode-on' : '']"
-          >Dictation</button>
+          >{{ t(lang, 'dictation') }}</button>
           <button
             @click="mode = 'loop'; translationResult = null; showTranscript = false; loopStep = 'dictation'; loopDictationSaved = null"
             :class="['mode-btn', mode === 'loop' ? 'mode-on' : '']"
-          >Listen + Translate</button>
+          >{{ t(lang, 'listenTranslate') }}</button>
           <button
             @click="mode = 'translation'; translationResult = null; showTranscript = false"
             :class="['mode-btn', mode === 'translation' ? 'mode-on' : '']"
-          >Translation</button>
+          >{{ t(lang, 'translation') }}</button>
         </div>
         <div v-if="mode === 'dictation' || (mode === 'loop' && loopStep === 'dictation')" class="flex gap-1.5">
           <button
@@ -352,7 +352,7 @@
             <button
               @click="advanceToTranslation"
               class="text-xs px-4 py-1.5 rounded-md bg-teal-700 text-white hover:bg-teal-600 transition-all"
-            >Translate it →</button>
+            >{{ t(lang, 'translateIt') }}</button>
           </div>
         </template>
 
@@ -360,12 +360,12 @@
         <template v-else-if="mode === 'translation' || (mode === 'loop' && loopStep === 'translation')">
           <!-- Loop mode: locked dictation result summary -->
           <div v-if="mode === 'loop' && loopDictationSaved" class="flex items-center gap-2 text-xs border border-gray-800 rounded-lg px-3 py-2 bg-slate-900">
-            <span class="text-gray-500">Dictation</span>
+            <span class="text-gray-500">{{ t(lang, 'dictation') }}</span>
             <span :class="loopDictationSaved.accuracy >= 80 ? 'text-emerald-400' : loopDictationSaved.accuracy >= 50 ? 'text-yellow-400' : 'text-red-400'" class="font-medium">{{ loopDictationSaved.accuracy }}%</span>
             <span class="text-gray-600">({{ loopDictationSaved.correct }}/{{ loopDictationSaved.total }} {{ t(lang, 'words') }})</span>
           </div>
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-xs text-gray-500">Translate to:</span>
+            <span class="text-xs text-gray-500">{{ t(lang, 'translateTo') }}:</span>
             <select
               v-model="translateTo"
               class="text-xs bg-slate-800 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
@@ -373,13 +373,13 @@
               <option v-for="opt in TRANSLATE_TO_OPTIONS" :key="opt.code" :value="opt.code">{{ opt.label }}</option>
             </select>
           </div>
-          <div v-if="sameLang" class="text-xs text-yellow-400">Source and target language are the same — pick a different language to translate to.</div>
+          <div v-if="sameLang" class="text-xs text-yellow-400">{{ t(lang, 'sameLangWarning') }}</div>
           <div v-else class="flex items-center gap-2">
             <button
               @click="runTranslationCheck"
               :disabled="!userInput.trim() || translationChecking"
               class="text-xs px-4 py-1.5 rounded-md bg-violet-700 text-white hover:bg-violet-600 disabled:opacity-40 transition-all"
-            >{{ translationChecking ? 'Checking…' : 'Check translation' }}</button>
+            >{{ translationChecking ? t(lang, 'checkingEllipsis') : t(lang, 'checkTranslation') }}</button>
           </div>
           <div v-if="translationResult" class="flex flex-col gap-1.5">
             <div class="flex items-center gap-2">
@@ -461,14 +461,14 @@
             v-if="segments.length"
             @click="showTranscript = !showTranscript"
             class="act-btn"
-          >{{ showTranscript ? t(lang, 'hideTranscript') : ((mode === 'translation' || (mode === 'loop' && loopStep === 'translation')) ? 'Show original' : t(lang, 'showCorrectText')) }}</button>
+          >{{ showTranscript ? t(lang, 'hideTranscript') : ((mode === 'translation' || (mode === 'loop' && loopStep === 'translation')) ? t(lang, 'showOriginal') : t(lang, 'showCorrectText')) }}</button>
 
           <button
             v-if="segments.length && currentSegment && lang !== 'en'"
             @click="translateSegment"
             :disabled="isTranslating || isDownloading"
             class="act-btn disabled:opacity-40"
-          >{{ isTranslating ? '…' : (localTranslation ? 'Retranslate' : 'Translate') }}</button>
+          >{{ isTranslating ? '…' : (localTranslation ? t(lang, 'retranslateBtn') : t(lang, 'translateBtn')) }}</button>
 
           <button
             v-if="selectedStory.audio_url"
@@ -986,10 +986,12 @@ function skipFwd() {
 
 // VU meter levels derived from analyser bars (0–8 segments each channel)
 const vuLeft = computed(() => {
+  if (!isPlaying.value) return 0
   const avg = bars.value.slice(0, 20).reduce((a, b) => a + b, 0) / 20
   return Math.ceil((avg / 44) * 8)
 })
 const vuRight = computed(() => {
+  if (!isPlaying.value) return 0
   const avg = bars.value.slice(20).reduce((a, b) => a + b, 0) / 20
   return Math.ceil((avg / 44) * 8)
 })
@@ -1203,18 +1205,19 @@ onUnmounted(() => {
 /* ── Mode / difficulty buttons ─────────────────────────────────────────────── */
 .mode-btn {
   font-size: 0.72rem;
-  padding: 4px 12px;
+  padding: 4px 11px;
   border-radius: 9999px;
-  border: 1px solid rgba(200,169,110,0.18);
-  background: rgba(255,255,255,0.03);
-  color: rgba(200,180,140,0.55);
+  border: 1px solid rgba(31,27,23,0.2);
+  background: transparent;
+  color: rgba(31,27,23,0.42);
   cursor: pointer;
   transition: all 0.15s;
   font-family: 'EB Garamond', serif;
+  white-space: nowrap;
 }
-.mode-btn:hover { color: rgba(232,216,184,0.85); border-color: rgba(200,169,110,0.4); }
-.mode-on  { background: #2a1c08; color: #f0c860; border-color: #c8a96e; }
-.diff-on  { background: #0d2010; color: #6ee07a; border-color: #3a7a3a; }
+.mode-btn:hover { color: rgba(31,27,23,0.7); border-color: rgba(31,27,23,0.38); }
+.mode-on  { background: #1f1b17; color: #e8d8b8; border-color: #1f1b17; }
+.diff-on  { background: rgba(20,55,28,0.12); color: #2a6a3a; border-color: rgba(42,106,58,0.45); }
 
 /* ── Amplifier chassis ─────────────────────────────────────────────────────── */
 .amp-body {
