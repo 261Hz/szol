@@ -38,11 +38,23 @@ async function hebrewRootsBatch(words) {
   const roots   = {}
   for (const item of items) {
     const w = stripNiqqud(item.str ?? '')
-    if (!w || !wordSet.has(w)) continue
+    if (!w) continue
     const opt = item.nakdan?.options?.[0]
     if (!opt) continue
     const lex = stripNiqqud(opt.lex ?? '')
-    if (lex.length >= 2) roots[w] = [...lex]
+    if (lex.length < 2) continue
+
+    if (wordSet.has(w)) {
+      roots[w] = [...lex]
+    } else {
+      // Dicta re-tokenizes prefixes: "הכובש" → ["ה","כובש"]. Match by suffix.
+      for (const inputWord of words) {
+        if (inputWord.endsWith(w) && inputWord.length > w.length) {
+          roots[inputWord] = [...lex]
+          break
+        }
+      }
+    }
   }
 
   console.log('[roots-dicta] roots found:', Object.keys(roots).length, '/', items.length)

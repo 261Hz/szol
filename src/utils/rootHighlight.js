@@ -106,31 +106,59 @@ async function loadLocalRoots(lang) {
   return _localRoots[lang]
 }
 
-// Strip diacritics so words match their dictionary headwords.
-// Hebrew niqqud: U+05B0–U+05C7. Arabic harakat: U+064B–U+065F + U+0670 (superscript alef).
+// Strip diacritics so words match dictionary headwords.
 function stripDiacritics(w) {
-  return w.replace(/[ְ-ׇً-ٰٟ]/g, '')
+  return w.replace(/[ְ-ׇً-ٰٟـ]/g, '')
 }
 
-// Prefix-stripped fallback: try removing common attached prefixes before giving up.
-// Arabic: ال (def. article), و/ب/ل/ف/ك (particles). Hebrew: ה/ו/ב/ל/כ/מ/ש.
+// Arabic alef variants all represent the same consonant in root patterns.
+function normalizeAlef(w) {
+  return w.replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي')
+}
+
 const PREFIXES = {
-  ar: ['وال', 'بال', 'لل', 'ال', 'و', 'ب', 'ل', 'ف', 'ك'],
+  ar: ['وال', 'بال', 'كال', 'فال', 'لل', 'ال', 'و', 'ب', 'ل', 'ف', 'ك'],
   he: ['וה', 'וב', 'ול', 'וכ', 'ומ', 'וש', 'ה', 'ו', 'ב', 'ל', 'כ', 'מ', 'ש'],
 }
 
+const AR_SUFFIXES = [
+  'وهم','وها','يهم','تهم','يها','تها',
+  'ية','هما','كما',
+  'هم','هن','كم','كن','نا',
+  'ون','ين','ات','ان',
+  'ها','ني','يا',
+  'ي','ة',
+]
+
 function dictLookup(word, lang, dict) {
-  const clean = stripDiacritics(word)
-  if (dict.has(clean)) return dict.get(clean)
-  for (const pre of (PREFIXES[lang] ?? [])) {
-    if (clean.startsWith(pre) && clean.length > pre.length + 2) {
-      const stem = clean.slice(pre.length)
-      if (dict.has(stem)) return dict.get(stem)
+  const raw  = stripDiacritics(word)
+  const norm = lang === 'ar' ? normalizeAlef(raw) : raw
+  const candidates = (lang === 'ar' && norm !== raw) ? [raw, norm] : [raw]
+  for (const w of candidates) {
+    if (dict.has(w)) return dict.get(w)
+    const pres = PREFIXES[lang] ?? []
+    const sufs = lang === 'ar' ? AR_SUFFIXES : []
+    for (const pre of pres) {
+      if (w.startsWith(pre) && w.length > pre.length + 2) {
+        const stem = w.slice(pre.length)
+        if (dict.has(stem)) return dict.get(stem)
+        for (const suf of sufs) {
+          if (stem.endsWith(suf) && stem.length > suf.length + 2) {
+            const core = stem.slice(0, stem.length - suf.length)
+            if (dict.has(core)) return dict.get(core)
+          }
+        }
+      }
+    }
+    for (const suf of sufs) {
+      if (w.endsWith(suf) && w.length > suf.length + 2) {
+        const stem = w.slice(0, w.length - suf.length)
+        if (dict.has(stem)) return dict.get(stem)
+      }
     }
   }
   return null
 }
-
 // ── Dicta via Vercel proxy ────────────────────────────────────────────────────
 // Browser-direct calls trigger CORS preflight that Dicta's loadbalancer rejects.
 // Route through /api/roots-analyze (same-origin) which calls Dicta server-side.
