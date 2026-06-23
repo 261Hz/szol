@@ -1,5 +1,12 @@
 export const config = { runtime: 'edge' }
 
+// Hebrew: proxies Dicta nakdan API (CORS-blocked from the browser).
+// Arabic: no server-side fallback — local ar-roots.json dict handles most MSA words.
+//   To add Arabic API support, route to a Python backend running CAMeL Tools:
+//     pip install camel-tools && camel_data -i morphology-db-msa-s31
+//   then POST { words: string[] } → { roots: Record<string, string[]> }
+//   from a /roots/arabic endpoint on the FastAPI backend.
+
 // Real Dicta loadbalancer URL — found via browser DevTools on nakdan.dicta.org.il
 // Payload uses `data` field; response: { data: [{ str, nakdan: { options: [{lex, prefix_len}] } }] }
 const DICTA_URL = 'https://nakdan-u1-0.loadbalancer.dicta.org.il/api'

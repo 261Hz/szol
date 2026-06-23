@@ -450,6 +450,12 @@ export async function fetchFeedArticle(url) {
   return await res.json().catch(() => null)
 }
 
+export async function fetchPodcastRss(url) {
+  const res = await fetch(`/api/podcast-rss?url=${encodeURIComponent(url)}`).catch(() => null)
+  if (!res?.ok) return null
+  return await res.json().catch(() => null)
+}
+
 export async function fetchPodcasts(lang) {
   const res = await fetch(`${API_URL}/podcasts/?lang=${encodeURIComponent(lang)}`).catch(() => null)
   if (!res?.ok) return []

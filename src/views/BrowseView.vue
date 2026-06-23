@@ -114,6 +114,22 @@
           <span class="item-meta">{{ eps.length }} ep{{ eps.length !== 1 ? 's' : '' }}</span>
         </button>
       </div>
+      <!-- RSS import -->
+      <div class="import-section" style="margin-top:1rem">
+        <div class="import-row">
+          <input
+            v-model="rssUrl"
+            type="url"
+            placeholder="Podcast RSS feed URL…"
+            @keydown.enter="importRss"
+            class="import-input"
+          />
+          <button @click="importRss" :disabled="rssLoading" class="import-btn">
+            {{ rssLoading ? '…' : 'Import' }}
+          </button>
+        </div>
+        <div v-if="rssError" class="import-error">{{ rssError }}</div>
+      </div>
     </template>
 
     <!-- PODCASTS — episodes -->
@@ -222,7 +238,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { fetchCuratedStories, fetchFeed, fetchFeedArticle, fetchPodcasts, getAllProgress } from '../utils/api.js'
+import { fetchCuratedStories, fetchFeed, fetchFeedArticle, fetchPodcasts, fetchPodcastRss, getAllProgress } from '../utils/api.js'
 import { fetchFeaturedArticle, fetchOnThisDay } from '../utils/wikipedia.js'
 import { isRTL } from '../utils/rtl.js'
 
@@ -327,6 +343,47 @@ async function openFeed(item) {
 const podcastLoading  = ref(false)
 const podcastEpisodes = ref([])
 
+// RSS-imported feed (user-provided URL, not in backend)
+const rssUrl      = ref('')
+const rssLoading  = ref(false)
+const rssError    = ref('')
+const rssTitle    = ref('')
+const rssEpisodes = ref([])
+
+function parseDurSec(d) {
+  if (!d) return null
+  const p = d.trim().split(':').map(Number)
+  if (p.length === 3) return p[0] * 3600 + p[1] * 60 + p[2]
+  if (p.length === 2) return p[0] * 60 + p[1]
+  const n = Number(d)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+async function importRss() {
+  const url = rssUrl.value.trim()
+  if (!url || rssLoading.value) return
+  rssLoading.value = true
+  rssError.value   = ''
+  const data = await fetchPodcastRss(url)
+  rssLoading.value = false
+  if (!data?.episodes?.length) {
+    rssError.value = data?.detail ?? 'No audio episodes found in this feed.'
+    return
+  }
+  rssTitle.value    = data.title
+  rssEpisodes.value = data.episodes.map(ep => ({
+    id:           ep.id ?? ep.audio_url,
+    title:        ep.title,
+    lang:         props.lang,
+    podcast_name: data.title,
+    audio_url:    ep.audio_url,
+    duration_sec: parseDurSec(String(ep.duration_sec ?? '')),
+    segments:     [],
+    source_type:  'podcast',
+  }))
+  source.value = data.title
+}
+
 const podcastShows = computed(() => {
   const map = new Map()
   for (const ep of podcastEpisodes.value) {
@@ -334,12 +391,16 @@ const podcastShows = computed(() => {
     if (!map.has(n)) map.set(n, [])
     map.get(n).push(ep)
   }
+  if (rssEpisodes.value.length && rssTitle.value) {
+    map.set(rssTitle.value, rssEpisodes.value)
+  }
   return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
 })
 
-const episodesByShow = computed(() =>
-  podcastEpisodes.value.filter(ep => ep.podcast_name === source.value)
-)
+const episodesByShow = computed(() => {
+  if (source.value === rssTitle.value && rssEpisodes.value.length) return rssEpisodes.value
+  return podcastEpisodes.value.filter(ep => ep.podcast_name === source.value)
+})
 
 async function loadPodcasts() {
   podcastLoading.value  = true
@@ -351,6 +412,7 @@ function listenEpisode(ep) {
   emit('load', {
     id: ep.id, title: ep.title, lang: ep.lang, author: ep.podcast_name,
     source: ep.podcast_name, audio_url: ep.audio_url, segments: ep.segments || [], content: null,
+    source_type: ep.source_type,
   })
 }
 
