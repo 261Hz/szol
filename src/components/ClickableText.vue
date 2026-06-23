@@ -9,8 +9,8 @@
         @touchend.passive="handleTouchEnd"
         @touchmove.passive="handleTouchMove"
         :class="[
-          'inline whitespace-nowrap rounded px-0.5 transition-all hover:bg-green-950 active:bg-green-950 select-none bg-transparent border-0 p-0 m-0 font-[inherit] text-[inherit] leading-[inherit] cursor-pointer',
-          savedWords && savedWords.has(normalize(tok.text)) ? 'bg-green-900 text-green-300' : '',
+          'inline whitespace-nowrap rounded px-0.5 transition-all hover:bg-[rgba(31,27,23,0.07)] active:bg-[rgba(31,27,23,0.07)] select-none bg-transparent border-0 p-0 m-0 font-[inherit] text-[inherit] leading-[inherit] cursor-pointer',
+          savedWords && savedWords.has(normalize(tok.text)) ? 'bg-[rgba(139,58,58,0.13)] text-[#8b3a3a]' : '',
         ]"
       >{{ tok.text }}</button>
       <ruby v-else-if="tok.type === 'word' && tok.numWord" class="szol-num">{{ tok.text }}<rt>{{ tok.numWord }}</rt></ruby>
@@ -23,15 +23,17 @@
     <div
       v-if="popup"
       :style="{ position: 'fixed', top: popup.y + 'px', left: popup.x + 'px', zIndex: 9999 }"
-      class="bg-gray-800 border border-emerald-700 rounded-lg shadow-xl px-3 py-2 flex items-center gap-2 text-sm"
+      class="px-3 py-2 flex items-center gap-2 text-sm"
+      style="background:#ece4ca; border:1px solid rgba(31,27,23,0.15); border-radius:2px; box-shadow:0 4px 16px rgba(31,27,23,0.14);"
       @click.stop
     >
-      <span class="text-gray-200 font-medium">{{ popup.word }}</span>
+      <span class="font-medium" style="color:#1f1b17; font-family:'EB Garamond',serif;">{{ popup.word }}</span>
       <button
         @click="confirmAdd"
-        class="text-xs px-2 py-0.5 rounded bg-emerald-700 text-white hover:bg-emerald-600 transition-all"
+        class="text-xs px-2 py-0.5 transition-all"
+        style="background:#2a2018; color:#e8dcc4; border-radius:2px;"
       >+ vocab</button>
-      <button @click="popup = null" class="text-gray-500 hover:text-white text-xs ml-0.5 transition-all">✕</button>
+      <button @click="popup = null" class="text-xs ml-0.5 transition-opacity hover:opacity-50" style="color:rgba(31,27,23,0.4);">✕</button>
     </div>
   </teleport>
 </template>

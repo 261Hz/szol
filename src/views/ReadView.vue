@@ -5,7 +5,7 @@
   <div class="flex flex-col gap-6">
 
     <!-- Shown when no story is loaded yet (user hasn't picked one from the Library). -->
-    <div v-if="!story" class="text-gray-500 text-sm text-center py-12">
+    <div v-if="!story" class="text-sm text-center py-12" style="color:rgba(31,27,23,0.35); font-style:italic; font-family:'EB Garamond',serif;">
       {{ t(lang, 'noStory') }}
     </div>
 
@@ -18,12 +18,12 @@
           <div class="font-semibold text-lg" :dir="isRTL(lang) ? 'rtl' : 'ltr'">
             {{ story.title }}
           </div>
-          <div class="text-xs text-gray-500 mt-0.5">
+          <div class="text-xs mt-0.5" style="color:rgba(31,27,23,0.4); font-family:'EB Garamond',serif;">
             {{ LANGS[lang]?.name }}
             <span v-if="story.author"> · {{ story.author }}</span>
             <span v-if="story.source"> · {{ story.source }}</span>
           </div>
-          <div v-if="knownInText > 0" class="text-xs text-green-500 mt-0.5">
+          <div v-if="knownInText > 0" class="text-xs mt-0.5" style="color:#3a7a3a;">
             {{ knownInText }} {{ knownInText === 1 ? 'word' : 'words' }} from your collection
           </div>
         </div>
@@ -37,12 +37,13 @@
               'text-xs px-3 py-1 rounded-full border transition-all',
               francoOn
                 ? 'bg-orange-400 text-white border-orange-400'
-                : 'border-gray-700 text-gray-400 hover:border-orange-300'
+                : 'border-[rgba(31,27,23,0.2)] text-[rgba(31,27,23,0.45)] hover:border-orange-400'
             ]"
           >Franco</button>
           <button
             @click="$emit('go', 'retype')"
-            class="text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 transition-all"
+            class="text-xs px-3 py-1.5 transition-all"
+            style="background:#2a2018; color:#e8dcc4; border-radius:2px; font-family:'EB Garamond',serif;"
           >{{ t(lang, 'retype') }} →</button>
         </div>
       </div>
@@ -59,8 +60,8 @@
             v-if="token.type === 'word'"
             @click="tap(token.text)"
             :class="[
-              'cursor-pointer rounded px-0.5 transition-all hover:bg-green-950',
-              savedWords.has(normalize(token.text)) ? 'bg-green-900 text-green-300' : ''
+              'cursor-pointer rounded px-0.5 transition-all hover:bg-[rgba(31,27,23,0.07)]',
+              savedWords.has(normalize(token.text)) ? 'bg-[rgba(139,58,58,0.13)] text-[#8b3a3a]' : ''
             ]"
           >{{ token.text }}</span>
           <span v-else>{{ token.text }}</span>
@@ -70,14 +71,14 @@
       <!-- Franco transliteration line -->
       <div
         v-if="francoOn && story.franco"
-        class="text-sm text-gray-500 border-t border-gray-800 pt-3 break-words"
+        class="text-sm pt-3 break-words" style="color:rgba(31,27,23,0.4); border-top:1px solid rgba(31,27,23,0.1);"
         dir="ltr"
       >{{ story.franco }}</div>
 
       <!-- Word panel: appears below the story when a word has been tapped. -->
       <div
         v-if="tapped"
-        class="border border-green-700 rounded-lg p-4 bg-green-950 flex flex-col gap-2"
+        class="p-4 flex flex-col gap-2" style="background:rgba(31,27,23,0.04); border:1px solid rgba(31,27,23,0.12); border-radius:3px;"
       >
         <!-- Top row: the tapped word (large) + Save button. -->
         <div class="flex items-start justify-between">
@@ -85,17 +86,18 @@
           <button
             @click="saveWord"
             :disabled="savedWords.has(normalize(tapped.word))"
-            class="text-xs px-3 py-1.5 rounded-md bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all"
+            class="text-xs px-3 py-1.5 disabled:opacity-40 transition-all"
+            style="background:#2a2018; color:#e8dcc4; border-radius:2px; font-family:'EB Garamond',serif;"
           >{{ savedWords.has(normalize(tapped.word)) ? t(lang, 'saved') : t(lang, 'save') }}</button>
         </div>
 
         <!-- Frequency rank badge -->
         <div v-if="tapped.frequencyRank != null" class="flex items-center gap-1.5">
           <span
-            :class="tapped.frequencyRank <= 500 ? 'text-green-400' : tapped.frequencyRank <= 2000 ? 'text-yellow-400' : 'text-gray-400'"
             class="text-xs font-medium"
+            :style="tapped.frequencyRank <= 500 ? 'color:#3a7a3a;' : tapped.frequencyRank <= 2000 ? 'color:#a88a4a;' : 'color:rgba(31,27,23,0.4);'"
           >#{{ tapped.frequencyRank.toLocaleString() }}</span>
-          <span class="text-xs text-gray-600">
+          <span class="text-xs" style="color:rgba(31,27,23,0.3);">
             {{ tapped.frequencyRank <= 500 ? 'very common word' : tapped.frequencyRank <= 2000 ? 'common word' : 'less common word' }}
           </span>
         </div>
@@ -103,7 +105,7 @@
         <!-- Context sentence -->
         <div
           v-if="tapped.sentence"
-          class="text-sm text-gray-400 italic"
+          class="text-sm italic" style="color:rgba(31,27,23,0.5); font-family:'EB Garamond',serif;"
           :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         >{{ tapped.sentence }}</div>
 
@@ -133,18 +135,20 @@
       </div>
 
       <!-- Cross-link strip: related stories by collection overlap -->
-      <div v-if="relatedStories.length" class="flex flex-col gap-2 pt-3 border-t border-gray-800">
-        <div class="text-xs text-gray-700 uppercase tracking-widest">Also in your collection</div>
+      <div v-if="relatedStories.length" class="flex flex-col gap-2 pt-3" style="border-top:1px solid rgba(31,27,23,0.09);">
+        <div class="text-xs uppercase tracking-widest" style="color:rgba(31,27,23,0.3); letter-spacing:0.14em; font-family:'EB Garamond',serif;">Also in your collection</div>
         <div class="flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <button
             v-for="s in relatedStories"
             :key="s.id"
             @click="$emit('switch-story', s)"
-            class="flex-shrink-0 text-left border border-gray-800 rounded-lg p-2.5 hover:border-green-800 transition-all"
-            style="max-width: 150px;"
+            class="flex-shrink-0 text-left p-2.5 transition-all"
+            style="border:1px solid rgba(31,27,23,0.1); border-radius:2px; max-width:150px;"
+            onmouseover="this.style.borderColor='rgba(31,27,23,0.28)'"
+            onmouseout="this.style.borderColor='rgba(31,27,23,0.1)'"
           >
-            <div class="text-xs text-gray-300 font-medium leading-snug line-clamp-2" :dir="isRTL(s.lang) ? 'rtl' : 'ltr'">{{ s.title }}</div>
-            <div class="text-[10px] text-green-600 mt-1">{{ s.score }} known</div>
+            <div class="text-xs font-medium leading-snug line-clamp-2" style="color:#1f1b17;" :dir="isRTL(s.lang) ? 'rtl' : 'ltr'">{{ s.title }}</div>
+            <div class="text-[10px] mt-1" style="color:#3a7a3a;">{{ s.score }} known</div>
           </button>
         </div>
       </div>
