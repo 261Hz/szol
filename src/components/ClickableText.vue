@@ -82,16 +82,17 @@ const tokens = computed(() => {
 // ── Desktop: direct click ─────────────────────────────────────────────────────
 
 function handleClick(word) {
-  // On touch devices the click fires after touchend — skip it, long press handles saving
-  if (isTouchDevice()) return
+  if (isTouchDevice()) return  // touch path handles this via touchend
   emit('tap', { word, sentence: props.text })
 }
 
-// ── Mobile: long press ────────────────────────────────────────────────────────
+// ── Mobile: tap (short) and long-press (vocab popup) ─────────────────────────
 
 const popup = ref(null)   // { word, x, y } or null
 let pressTimer = null
 let touchMoved = false
+let touchWord  = null
+let touchEvent = null
 
 function isTouchDevice() {
   return window.matchMedia('(pointer: coarse)').matches
@@ -99,19 +100,29 @@ function isTouchDevice() {
 
 function handleTouchStart(e, word) {
   touchMoved = false
+  touchWord  = word
+  touchEvent = e
   pressTimer = setTimeout(() => {
-    if (touchMoved) return
+    if (touchMoved) { pressTimer = null; return }
+    // Long press → show vocab popup
     const r = e.target.getBoundingClientRect()
-    // Position popup below the word, clamped to viewport edges
     const x = Math.min(r.left, window.innerWidth - 160)
     const y = Math.min(r.bottom + 8, window.innerHeight - 60)
     popup.value = { word, x: Math.max(8, x), y }
+    pressTimer = null   // marks long-press as having fired
   }, 500)
 }
 
 function handleTouchEnd() {
-  clearTimeout(pressTimer)
-  pressTimer = null
+  if (pressTimer !== null) {
+    // Timer hasn't fired → short tap
+    clearTimeout(pressTimer)
+    pressTimer = null
+    if (!touchMoved) emit('tap', { word: touchWord, sentence: props.text })
+  }
+  // If pressTimer is null, long-press already fired → nothing extra
+  touchWord  = null
+  touchEvent = null
 }
 
 function handleTouchMove() {
