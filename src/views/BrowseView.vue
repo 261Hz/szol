@@ -26,23 +26,15 @@
       <div class="stories-section">
         <div class="stories-header">
           <span class="section-label">Stories</span>
-          <div class="view-toggle">
-            <button @click="viewMode = 'list'" class="toggle-btn" :class="viewMode === 'list' ? 'toggle-active' : ''">
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="0" y="1" width="13" height="1.5" rx="0.75" fill="currentColor"/><rect x="0" y="5.75" width="13" height="1.5" rx="0.75" fill="currentColor"/><rect x="0" y="10.5" width="13" height="1.5" rx="0.75" fill="currentColor"/></svg>
-            </button>
-            <button @click="viewMode = 'grid'" class="toggle-btn" :class="viewMode === 'grid' ? 'toggle-active' : ''">
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="0" y="0" width="5.5" height="5.5" rx="0.5" fill="currentColor"/><rect x="7.5" y="0" width="5.5" height="5.5" rx="0.5" fill="currentColor"/><rect x="0" y="7.5" width="5.5" height="5.5" rx="0.5" fill="currentColor"/><rect x="7.5" y="7.5" width="5.5" height="5.5" rx="0.5" fill="currentColor"/></svg>
-            </button>
-          </div>
         </div>
         <div v-if="storiesLoading" class="status-text">Loading…</div>
         <div v-else-if="!stories.length" class="status-text italic-muted">No stories yet for this language.</div>
-        <div v-else :class="viewMode === 'grid' ? 'story-grid' : 'item-list'" :dir="isRTL(lang) ? 'rtl' : 'ltr'">
+        <div v-else class="item-list" :dir="isRTL(lang) ? 'rtl' : 'ltr'">
           <button
             v-for="story in stories"
             :key="story.id"
             @click="$emit('load', story)"
-            :class="viewMode === 'grid' ? 'story-card' : 'item-row'"
+            class="item-row"
           >
             <div class="item-title">{{ story.title }}</div>
             <div v-if="story.author" class="item-sub">{{ story.author }}</div>
@@ -243,11 +235,8 @@ const props = defineProps({
 const emit = defineEmits(['load', 'stories-loaded', 'go'])
 
 // ── Nav state ──────────────────────────────────────────────────
-const level    = ref(null)
-const source   = ref(null)
-const viewMode = ref(localStorage.getItem('szol_browse_view') || 'list')
-
-watch(viewMode, v => localStorage.setItem('szol_browse_view', v))
+const level  = ref(null)
+const source = ref(null)
 
 function pick(cat) {
   level.value  = cat
@@ -537,43 +526,6 @@ watch(() => props.currentUser, loadProgress)
   color: rgba(31,27,23,0.32);
   font-family: 'EB Garamond', serif;
 }
-
-.view-toggle {
-  display: flex;
-  gap: 0.25rem;
-}
-
-.toggle-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.2rem 0.3rem;
-  color: rgba(31,27,23,0.22);
-  transition: color 0.12s;
-  border-radius: 2px;
-  display: flex;
-  align-items: center;
-}
-.toggle-btn:hover { color: rgba(31,27,23,0.55); }
-.toggle-active { color: rgba(31,27,23,0.65) !important; }
-
-.story-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-
-.story-card {
-  background: none;
-  border: 1px solid rgba(31,27,23,0.1);
-  border-radius: 2px;
-  padding: 0.625rem 0.75rem;
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-  transition: border-color 0.12s, opacity 0.12s;
-}
-.story-card:hover { border-color: rgba(31,27,23,0.28); }
 
 .italic-muted {
   font-style: italic;
