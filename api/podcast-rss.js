@@ -50,6 +50,10 @@ export default async function handler(req, res) {
   const channelM = rssText.match(/<channel>([\s\S]*?)<\/channel>/)
   const channelXml = channelM?.[1] ?? rssText
   const feedTitle = textNode(channelXml.slice(0, 500), 'title') ?? 'Podcast'
+  const feedImage = (() => {
+    const m = channelXml.slice(0, 2000).match(/<itunes:image[^>]+href="([^"]+)"/)
+    return m?.[1] ?? null
+  })()
 
   // Parse <item> blocks
   const episodes = []
@@ -80,5 +84,5 @@ export default async function handler(req, res) {
   if (!episodes.length) return res.status(404).json({ detail: 'No audio episodes found in this feed.' })
 
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate')
-  return res.status(200).json({ title: feedTitle, episodes })
+  return res.status(200).json({ title: feedTitle, image: feedImage, episodes })
 }
