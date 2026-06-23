@@ -56,15 +56,35 @@
 
       <!-- ═══════════════════════ READ MODE ═══════════════════════ -->
       <template v-if="activeTool === 'read'">
+
+        <!-- Root mode switcher — Hebrew and Arabic only -->
+        <div v-if="lang === 'ar' || lang === 'he'" class="flex gap-0.5">
+          <button
+            v-for="m in ROOT_MODES"
+            :key="m.key"
+            @click="rootMode = m.key"
+            class="text-xs px-2 py-0.5 rounded-full transition-all"
+            :style="rootMode === m.key
+              ? 'background:#2a2018; color:#e8dcc4;'
+              : 'color:rgba(31,27,23,0.38);'"
+          >{{ m.label }}</button>
+        </div>
+
         <div
           class="font-serif leading-[1.8] text-base"
           style="color:#2a241c;"
           :dir="isRTL(lang) ? 'rtl' : 'ltr'"
           :class="isRTL(lang) ? 'text-right text-lg' : ''"
         >
-          <span v-for="(tok, i) in tokens" :key="i">
+          <template v-for="(tok, i) in tokens" :key="i">
+            <ruby
+              v-if="tok.type === 'word' && rootMode !== 'off' && wordRootMap[tok.clean]"
+              class="szol-root cursor-pointer transition-all"
+              :style="wordStyle(tok)"
+              @click="tap(tok.text)"
+            >{{ tok.text }}<rt>{{ wordRootMap[tok.clean] }}</rt></ruby>
             <span
-              v-if="tok.type === 'word'"
+              v-else-if="tok.type === 'word'"
               @click="tap(tok.text)"
               class="cursor-pointer transition-all"
               :style="savedWords?.has(normalize(tok.text)) ? 'color:#8b3a3a; text-decoration:underline; text-decoration-style:solid;' : ''"
@@ -72,17 +92,32 @@
               onmouseover="if(!this.dataset.saved){this.style.textDecoration='underline dotted';this.style.textDecorationColor='#8b3a3a';}" onmouseout="if(!this.dataset.saved){this.style.textDecoration='';}"
             >{{ tok.text }}</span>
             <span v-else>{{ tok.text }}</span>
-          </span>
+          </template>
         </div>
 
         <!-- Word panel -->
         <div v-if="tapped" class="flex flex-col gap-2 py-3" style="border-left:2px solid rgba(139,58,58,0.3); padding-left:1rem;">
           <div class="flex items-start justify-between">
-            <div class="text-xl font-semibold" style="color:#2a241c; font-family:'IM Fell English',serif;" :dir="isRTL(lang) ? 'rtl' : 'ltr'">{{ tapped.word }}</div>
+            <div>
+              <div class="text-xl font-semibold" style="color:#2a241c; font-family:'IM Fell English',serif;" :dir="isRTL(lang) ? 'rtl' : 'ltr'">{{ tapped.word }}</div>
+              <div v-if="tapped.root" class="text-xs mt-0.5" style="font-family:'EB Garamond',serif; color:#8b3a3a; font-style:italic;">
+                √ {{ tapped.root }}
+                <template v-if="tapped.rootFamily.length > 1">
+                  <span style="color:rgba(31,27,23,0.28);"> · </span>
+                  <span
+                    v-for="(w, wi) in tapped.rootFamily.slice(0, 4)"
+                    :key="wi"
+                    class="cursor-pointer hover:underline"
+                    style="color:rgba(31,27,23,0.5);"
+                    @click="tap(w)"
+                  >{{ w }} </span>
+                </template>
+              </div>
+            </div>
             <button
               @click="saveWord"
               :disabled="savedWords?.has(normalize(tapped.word))"
-              class="text-xs border-b transition-all disabled:opacity-40"
+              class="text-xs border-b transition-all disabled:opacity-40 flex-shrink-0"
               style="border-color:rgba(139,58,58,0.4); color:#8b3a3a;"
             >{{ savedWords?.has(normalize(tapped.word)) ? t(lang, 'saved') : t(lang, 'save') }}</button>
           </div>
@@ -226,6 +261,7 @@ import { t } from '../utils/i18n.js'
 import { normalize } from '../utils/scoring.js'
 import { useVoiceList, pickVoice } from '../utils/voices.js'
 import ExamplesPanel from '../components/ExamplesPanel.vue'
+import { rootMode, preFetchRoots, rootInkColor } from '../utils/rootHighlight.js'
 
 const props = defineProps({
   story:       Object,
@@ -354,12 +390,59 @@ const accuracy = computed(() => {
   return Math.round(correct / segmentWords.value.length * 100)
 })
 
+// ── Root annotation ───────────────────────────────────────────────────────────
+
+const ROOT_MODES = [
+  { key: 'off',        label: 'Text' },
+  { key: 'roots',      label: 'Roots' },
+  { key: 'manuscript', label: 'Manuscript' },
+]
+
+const wordRootMap = ref({})
+
+watch(
+  [() => props.story, () => props.lang, rootMode],
+  async ([story, lang, mode]) => {
+    if (mode === 'off' || !story || !['ar', 'he'].includes(lang)) {
+      wordRootMap.value = {}
+      return
+    }
+    const words = [...new Set(
+      story.content.split(/\s+/)
+        .map(w => w.replace(/[^\p{L}\p{M}]/gu, ''))
+        .filter(Boolean)
+    )]
+    wordRootMap.value = await preFetchRoots(words, lang)
+  },
+  { immediate: true }
+)
+
+const rootFamilyMap = computed(() => {
+  const map = {}
+  for (const [word, root] of Object.entries(wordRootMap.value)) {
+    if (!map[root]) map[root] = []
+    if (!map[root].includes(word)) map[root].push(word)
+  }
+  return map
+})
+
+function wordStyle(tok) {
+  if (props.savedWords?.has(normalize(tok.text))) {
+    return 'color:#8b3a3a; text-decoration:underline; text-decoration-style:solid; text-underline-offset:2px;'
+  }
+  if (rootMode.value === 'manuscript' && wordRootMap.value[tok.clean]) {
+    return `color:${rootInkColor(wordRootMap.value[tok.clean])};`
+  }
+  return ''
+}
+
 // ── Read mode: tokens + word tap ─────────────────────────────────────────────
 const tokens = computed(() => {
   if (!props.story?.content) return []
   return props.story.content.split(/(\s+)/).map(tok => ({
-    type: /^\s+$/.test(tok) ? 'space' : 'word',
-    text: tok,
+    type:  /^\s+$/.test(tok) ? 'space' : 'word',
+    text:  tok,
+    clean: tok.replace(/[^\p{L}\p{M}]/gu, ''),
   }))
 })
 
@@ -381,7 +464,10 @@ function tap(word, contextSentence) {
   const sentence = contextSentence
     ?? props.story?.content.split(/(?<=[.!?؟।。！？])\s*/).find(s => s.includes(word))
     ?? ''
-  tapped.value = { word: clean, sentence }
+
+  const root       = wordRootMap.value[clean] ?? null
+  const rootFamily = root ? (rootFamilyMap.value[root] ?? []) : []
+  tapped.value = { word: clean, sentence, root, rootFamily }
 }
 
 function saveWord() {
