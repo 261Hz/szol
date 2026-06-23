@@ -77,7 +77,7 @@
           :class="isRTL(lang) ? 'text-right text-lg' : ''"
         >
           <template v-for="(tok, i) in tokens" :key="i">
-            <!-- Root mode: character-level segmentation -->
+            <!-- Root mode: root consonants in blue, affixes hollowed in manuscript -->
             <span
               v-if="tok.type === 'word' && segMap.get(tok)"
               class="cursor-pointer"
@@ -85,15 +85,11 @@
             ><span
                 v-for="(seg, si) in segMap.get(tok)"
                 :key="si"
-                :style="rootMode === 'manuscript'
-                  ? (seg.role === 'root'
-                      ? `color:${rootInkColor(wordRootMap[tok.clean])};`
-                      : seg.role === 'affix'
-                        ? `color:${rootInkColor(wordRootMap[tok.clean])}; opacity:0.45;`
-                        : '')
-                  : (seg.role === 'root'
-                      ? 'color:#8b3a3a;'
-                      : '')"
+                :style="seg.role === 'root'
+                  ? 'color:#3a4f6b;'
+                  : seg.role === 'affix' && rootMode === 'manuscript'
+                    ? 'color:transparent; -webkit-text-stroke:0.7px rgba(42,36,28,0.35);'
+                    : ''"
               >{{ seg.ch }}</span></span>
             <!-- Plain word — no root data, or roots off -->
             <span
@@ -102,9 +98,7 @@
               class="cursor-pointer"
               :style="savedWords?.has(normalize(tok.text))
                 ? 'color:#8b3a3a; text-decoration:underline; text-underline-offset:2px;'
-                : rootMode === 'manuscript'
-                  ? 'color:#8c7a66;'
-                  : ''"
+                : ''"
             >{{ tok.text }}</span>
             <span v-else>{{ tok.text }}</span>
           </template>
