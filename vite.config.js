@@ -7,6 +7,9 @@ export default defineConfig({
     vue(),
     tailwindcss(),
   ],
+  optimizeDeps: {
+    exclude: ['@huggingface/transformers'],
+  },
   server: {
     proxy: {
       // In local dev, redirect /api/tatoeba to Tatoeba's real API.
