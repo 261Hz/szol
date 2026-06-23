@@ -23,7 +23,8 @@ async function hebrewRootsBatch(words) {
         body: JSON.stringify({ task: 'nakdan', genre: 'modern', addmorph: true, keepqq: false, nodagesh: false, text }),
       })
       if (res.ok) break
-      console.log('[roots-dicta] attempt', attempt, 'status', res.status)
+      const errBody = await res.text().catch(() => '')
+      console.log('[roots-dicta] attempt', attempt, 'status', res.status, errBody.slice(0, 200))
     } catch (err) {
       console.log('[roots-dicta] attempt', attempt, 'error:', err.message)
     }
