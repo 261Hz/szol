@@ -189,18 +189,15 @@
         <div class="flex gap-1">
           <button
             @click="mode = 'dictation'; translationResult = null; showTranscript = false"
-            :class="['text-xs px-3 py-1.5 rounded-full transition-all',
-              mode === 'dictation' ? 'bg-sky-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-white']"
+            :class="['mode-btn', mode === 'dictation' ? 'mode-on' : '']"
           >Dictation</button>
           <button
             @click="mode = 'loop'; translationResult = null; showTranscript = false; loopStep = 'dictation'; loopDictationSaved = null"
-            :class="['text-xs px-3 py-1.5 rounded-full transition-all',
-              mode === 'loop' ? 'bg-teal-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-white']"
+            :class="['mode-btn', mode === 'loop' ? 'mode-on' : '']"
           >Listen + Translate</button>
           <button
             @click="mode = 'translation'; translationResult = null; showTranscript = false"
-            :class="['text-xs px-3 py-1.5 rounded-full transition-all',
-              mode === 'translation' ? 'bg-violet-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-white']"
+            :class="['mode-btn', mode === 'translation' ? 'mode-on' : '']"
           >Translation</button>
         </div>
         <div v-if="mode === 'dictation' || (mode === 'loop' && loopStep === 'dictation')" class="flex gap-1.5">
@@ -208,82 +205,119 @@
             v-for="d in ['easy', 'medium', 'hard']"
             :key="d"
             @click="difficulty = d"
-            :class="['text-xs px-3 py-1.5 rounded-full transition-all',
-              difficulty === d ? 'bg-emerald-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-white']"
+            :class="['mode-btn', difficulty === d ? 'diff-on' : '']"
           >{{ t(lang, d) }}</button>
         </div>
       </div>
 
-      <!-- Waveform + timing -->
-      <div class="bg-slate-900 rounded-xl px-4 pt-4 pb-3 flex flex-col gap-2">
-        <svg width="100%" height="60" viewBox="0 0 400 60" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="wave-grad" x1="0" y1="60" x2="0" y2="0" gradientUnits="userSpaceOnUse">
-              <stop offset="0%"   :stop-color="isPlaying ? '#7c3aed' : '#3b0764'" />
-              <stop offset="100%" :stop-color="isPlaying ? '#10b981' : '#065f46'" />
-            </linearGradient>
-          </defs>
-          <rect
-            v-for="(h, i) in bars"
-            :key="i"
-            :x="i * 10 + 1"
-            :width="8"
-            :y="(60 - h) / 2"
-            :height="h"
-            rx="2"
-            fill="url(#wave-grad)"
-            :opacity="isPlaying ? 0.92 : 0.35"
-          />
-        </svg>
-        <div class="flex justify-between text-xs text-gray-500">
-          <span v-if="segments.length">{{ t(lang, 'segment') }} {{ segmentIdx + 1 }} / {{ segments.length }}</span>
-          <span v-else-if="selectedStory?.source_type === 'podcast'">🎙 {{ selectedStory.source }}</span>
-          <span v-else>–</span>
-          <span>{{ fmtTime(currentTime) }} / {{ fmtTime(segments.length ? segDuration : duration) }}</span>
+      <!-- Hybrid tube/solid-state integrated amplifier -->
+      <div class="amp-body">
+        <div class="amp-screw tl" /><div class="amp-screw tr" />
+        <div class="amp-screw bl" /><div class="amp-screw br" />
+
+        <!-- Face: tubes · VU meters · VFD display -->
+        <div class="amp-face">
+
+          <!-- Left tube (12AX7 preamp) -->
+          <div class="amp-tube-wrap">
+            <div class="amp-tube" :style="{ '--glow': tubeGlowIntensity }">
+              <div class="tube-glass">
+                <div class="tube-plate" />
+                <div class="tube-grid" />
+                <div class="tube-glow-inner" />
+              </div>
+              <div class="tube-pins"><span /><span /><span /></div>
+            </div>
+            <span class="tube-label">12AX7</span>
+          </div>
+
+          <!-- L VU meter -->
+          <div class="amp-vu">
+            <div class="vu-leds">
+              <div v-for="n in 8" :key="n" class="vu-led"
+                :class="vuLeft >= n ? (n <= 5 ? 'vu-g' : n <= 7 ? 'vu-y' : 'vu-r') : 'vu-off'" />
+            </div>
+            <span class="vu-ch">L</span>
+          </div>
+
+          <!-- VFD display panel -->
+          <div class="amp-display" :class="selectedStory.image_url ? 'amp-display-art' : ''">
+            <img v-if="selectedStory.image_url" :src="selectedStory.image_url" class="art-thumb" alt="" />
+            <div class="vfd-body">
+            <div class="vfd-title">{{ selectedStory.title?.replace(/_/g, ' ') }}</div>
+            <div class="vfd-sub">{{ selectedStory.source ?? selectedStory.author ?? '' }}</div>
+            <div class="vfd-row">
+              <span class="vfd-time">{{ fmtTime(currentTime) }} / {{ fmtTime(duration || (currentSegment?.end ?? 0)) }}</span>
+              <span v-if="segments.length" class="vfd-seg">{{ segmentIdx + 1 }}/{{ segments.length }}</span>
+              <span v-if="currentWord && isPlaying" class="vfd-word">{{ currentWord.raw }}</span>
+              <span v-if="!playerReady && !playerError" class="vfd-loading">loading…</span>
+            </div>
+            <div v-if="playerError" class="vfd-err">{{ playerError }}</div>
+            </div>
+          </div>
+
+          <!-- R VU meter -->
+          <div class="amp-vu">
+            <span class="vu-ch">R</span>
+            <div class="vu-leds">
+              <div v-for="n in 8" :key="n" class="vu-led"
+                :class="vuRight >= n ? (n <= 5 ? 'vu-g' : n <= 7 ? 'vu-y' : 'vu-r') : 'vu-off'" />
+            </div>
+          </div>
+
+          <!-- Right tube (KT88 output) -->
+          <div class="amp-tube-wrap">
+            <div class="amp-tube" :style="{ '--glow': tubeGlowIntensity }">
+              <div class="tube-glass">
+                <div class="tube-plate" />
+                <div class="tube-grid" />
+                <div class="tube-glow-inner" />
+              </div>
+              <div class="tube-pins"><span /><span /><span /></div>
+            </div>
+            <span class="tube-label">KT88</span>
+          </div>
         </div>
-      </div>
 
-      <!-- Word highlight (visible during playback when word-level data is available) -->
-      <div v-if="selectedStory?.words" class="h-7 flex items-center justify-center">
-        <span
-          v-if="currentWord && isPlaying"
-          class="text-emerald-400 font-bold text-base tracking-wider"
-        >{{ currentWord.raw }}</span>
-      </div>
+        <div class="amp-divider" />
 
-      <!-- Player error -->
-      <div v-if="playerError" class="text-xs text-red-400 text-center py-2">{{ playerError }}</div>
+        <!-- Controls: speed · transport · volume -->
+        <div class="amp-controls">
 
-      <!-- Controls -->
-      <div class="flex items-center justify-center gap-6">
-        <button
-          @click="rewind"
-          :disabled="!playerReady"
-          class="text-sm text-gray-400 hover:text-white disabled:opacity-30 transition-all flex flex-col items-center gap-0.5"
-        >
-          <span class="text-lg">⏮</span>
-          <span class="text-xs">10s</span>
-        </button>
+          <!-- Speed -->
+          <div class="amp-section">
+            <span class="amp-label">SPEED</span>
+            <div class="speed-btns">
+              <button v-for="s in [0.5, 1, 1.5]" :key="s"
+                @click="setSpeed(s)"
+                :class="['speed-btn', speed === s ? 'speed-on' : '']">{{ s }}×</button>
+            </div>
+          </div>
 
-        <button
-          @click="togglePlay"
-          :disabled="!playerReady"
-          :class="['w-14 h-14 rounded-full text-2xl flex items-center justify-center transition-all',
-            playerReady ? 'bg-emerald-700 hover:bg-emerald-600 text-white' : 'bg-gray-800 text-gray-600']"
-        >{{ isPlaying ? '⏸' : '▶' }}</button>
+          <!-- Transport -->
+          <div class="amp-transport">
+            <button @click="skipBack"           :disabled="!playerReady" class="xport-btn" title="-15s">
+              <span class="xi">⏮</span><span class="xl">15s</span>
+            </button>
+            <button @click="seekToSegmentStart" :disabled="!playerReady" class="xport-btn" title="Restart segment">
+              <span class="xi">↩</span>
+            </button>
+            <button @click="togglePlay"         :disabled="!playerReady" class="xport-play">{{ isPlaying ? '⏸' : '▶' }}</button>
+            <button @click="nextSegment"        :disabled="!playerReady || segmentIdx >= segments.length - 1" class="xport-btn" title="Next segment">
+              <span class="xi">↪</span>
+            </button>
+            <button @click="skipFwd"            :disabled="!playerReady" class="xport-btn" title="+15s">
+              <span class="xi">⏭</span><span class="xl">15s</span>
+            </button>
+          </div>
 
-        <button
-          @click="seekToSegmentStart"
-          :disabled="!playerReady"
-          class="text-sm text-gray-400 hover:text-white disabled:opacity-30 transition-all flex flex-col items-center gap-0.5"
-        >
-          <span class="text-lg">↩</span>
-          <span class="text-xs">restart</span>
-        </button>
-      </div>
+          <!-- Volume -->
+          <div class="amp-section">
+            <span class="amp-label">VOL</span>
+            <input type="range" min="0" max="1" step="0.05" v-model.number="volume" @input="applyVolume" class="vol-slider" />
+          </div>
 
-      <div v-if="!playerReady && !playerError" class="text-xs text-gray-500 text-center">
-        {{ t(lang, 'loadingPlayer') }}
+        </div>
       </div>
 
       <!-- Input area -->
@@ -293,7 +327,7 @@
           rows="3"
           :placeholder="(mode === 'translation' || (mode === 'loop' && loopStep === 'translation')) ? `Type your ${TRANSLATE_TO_OPTIONS.find(o => o.code === translateTo)?.label ?? ''} translation…` : t(lang, 'typeWhatYouHear')"
           @keydown.space="(mode === 'dictation' || (mode === 'loop' && loopStep === 'dictation')) ? playWordTick() : undefined"
-          class="w-full bg-slate-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-100 outline-none focus:border-emerald-600 resize-none placeholder:text-gray-600 transition-all"
+          class="listen-textarea"
         />
 
         <!-- Dictation: word-by-word colour feedback -->
@@ -303,9 +337,9 @@
               v-for="(w, i) in comparedWords"
               :key="i"
               :class="['text-sm px-1.5 py-0.5 rounded font-mono transition-colors',
-                w.state === 'correct' ? 'bg-emerald-900 text-emerald-300' :
-                w.state === 'wrong'   ? 'bg-purple-900 text-purple-300' :
-                                        'text-gray-500']"
+                w.state === 'correct' ? 'word-correct' :
+                w.state === 'wrong'   ? 'word-wrong' :
+                                        'word-pending']"
             >{{ w.typed }}</span>
           </div>
           <div v-if="accuracy !== null" class="flex justify-end">
@@ -365,12 +399,12 @@
       <div
         v-if="showTranscript && currentSegment"
         ref="segmentEl"
-        class="bg-slate-900 border border-emerald-800 rounded-lg px-4 py-3 text-sm text-gray-200 leading-relaxed"
+        class="listen-reveal"
         :dir="isRTL(props.lang) ? 'rtl' : 'ltr'"
       >{{ currentSegment.text }}</div>
 
       <!-- Local translation result -->
-      <div v-if="localTranslation" class="bg-slate-900 border border-indigo-900 rounded-lg px-4 py-3 text-sm text-gray-400 leading-relaxed italic">
+      <div v-if="localTranslation" class="listen-translation">
         {{ localTranslation }}
       </div>
 
@@ -426,21 +460,21 @@
           <button
             v-if="segments.length"
             @click="showTranscript = !showTranscript"
-            class="text-xs px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 hover:border-emerald-700 hover:text-emerald-400 transition-all"
+            class="act-btn"
           >{{ showTranscript ? t(lang, 'hideTranscript') : ((mode === 'translation' || (mode === 'loop' && loopStep === 'translation')) ? 'Show original' : t(lang, 'showCorrectText')) }}</button>
 
           <button
             v-if="segments.length && currentSegment && lang !== 'en'"
             @click="translateSegment"
             :disabled="isTranslating || isDownloading"
-            class="text-xs px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 hover:border-indigo-600 hover:text-indigo-400 disabled:opacity-40 transition-all"
+            class="act-btn disabled:opacity-40"
           >{{ isTranslating ? '…' : (localTranslation ? 'Retranslate' : 'Translate') }}</button>
 
           <button
             v-if="selectedStory.audio_url"
             @click="downloadAudio"
             :disabled="downloadingAudio"
-            class="text-xs px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 hover:border-sky-700 hover:text-sky-400 disabled:opacity-40 transition-all"
+            class="act-btn disabled:opacity-40"
             title="Download audio for offline use"
           >{{ downloadingAudio ? '…' : t(lang, 'downloadAudio') }}</button>
         </div>
@@ -449,7 +483,7 @@
           v-if="segments.length > 1"
           @click="nextSegment"
           :disabled="segmentIdx >= segments.length - 1"
-          class="text-xs px-4 py-1.5 rounded-md bg-emerald-700 text-white hover:bg-emerald-600 disabled:opacity-40 transition-all"
+          class="act-btn act-primary disabled:opacity-40"
         >{{ t(lang, 'nextSegment') }}</button>
       </div>
 
@@ -587,6 +621,8 @@ const difficulty          = ref('medium')
 const mode                = ref('dictation') // 'dictation' | 'translation'
 const translateTo         = ref(props.lang === 'en' ? 'es' : 'en')
 const transcriptLoading   = ref(false)
+const speed               = ref(1)
+const volume              = ref(1)
 
 // ── On-device transcription (Whisper via @huggingface/transformers) ───────────
 
@@ -690,7 +726,9 @@ async function loadStory(story, startAt = null) {
     await nextTick()
     setupAnalyser()
     if (audioEl.value) {
-      audioEl.value.currentTime = segments.value[0]?.start ?? 0
+      audioEl.value.currentTime  = segments.value[0]?.start ?? 0
+      audioEl.value.playbackRate = speed.value
+      audioEl.value.volume       = volume.value
       if (audioEl.value.readyState >= 1) onAudioLoaded()
     }
   }
@@ -921,6 +959,46 @@ function fmtTime(secs) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
+// ── Speed / volume / skip ─────────────────────────────────────────────────────
+
+function setSpeed(rate) {
+  speed.value = rate
+  if (audioEl.value) audioEl.value.playbackRate = rate
+}
+
+function applyVolume() {
+  if (audioEl.value) audioEl.value.volume = volume.value
+}
+
+function skipBack() {
+  if (!playerReady.value) return
+  const segStart = segments.value[segmentIdx.value]?.start ?? 0
+  const now      = isYouTubeStory() ? player.getCurrentTime() : (audioEl.value?.currentTime ?? 0)
+  seekTo(Math.max(segStart, now - 15))
+}
+
+function skipFwd() {
+  if (!playerReady.value) return
+  const maxTime = duration.value || (currentSegment.value?.end ?? 0)
+  const now     = isYouTubeStory() ? player.getCurrentTime() : (audioEl.value?.currentTime ?? 0)
+  seekTo(Math.min(maxTime, now + 15))
+}
+
+// VU meter levels derived from analyser bars (0–8 segments each channel)
+const vuLeft = computed(() => {
+  const avg = bars.value.slice(0, 20).reduce((a, b) => a + b, 0) / 20
+  return Math.ceil((avg / 44) * 8)
+})
+const vuRight = computed(() => {
+  const avg = bars.value.slice(20).reduce((a, b) => a + b, 0) / 20
+  return Math.ceil((avg / 44) * 8)
+})
+const tubeGlowIntensity = computed(() => {
+  if (!isPlaying.value) return 0.22
+  const avg = bars.value.reduce((a, b) => a + b, 0) / bars.value.length
+  return 0.45 + (avg / 56) * 0.55
+})
+
 // ── Waveform (Web Audio API analyser with fake-animation fallback) ────────────
 
 const BASE_HEIGHTS = Array.from({ length: 40 }, (_, i) => {
@@ -1120,3 +1198,417 @@ onUnmounted(() => {
   teardown()
 })
 </script>
+
+<style scoped>
+/* ── Mode / difficulty buttons ─────────────────────────────────────────────── */
+.mode-btn {
+  font-size: 0.72rem;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  border: 1px solid rgba(200,169,110,0.18);
+  background: rgba(255,255,255,0.03);
+  color: rgba(200,180,140,0.55);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'EB Garamond', serif;
+}
+.mode-btn:hover { color: rgba(232,216,184,0.85); border-color: rgba(200,169,110,0.4); }
+.mode-on  { background: #2a1c08; color: #f0c860; border-color: #c8a96e; }
+.diff-on  { background: #0d2010; color: #6ee07a; border-color: #3a7a3a; }
+
+/* ── Amplifier chassis ─────────────────────────────────────────────────────── */
+.amp-body {
+  position: relative;
+  background: linear-gradient(170deg, #1e1508 0%, #130e04 100%);
+  border: 1px solid #3a2a14;
+  border-radius: 6px;
+  padding: 14px 16px 12px;
+  box-shadow: 0 4px 28px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,200,80,0.05);
+}
+.amp-screw {
+  position: absolute;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #6b5030, #2a1c08);
+  border: 1px solid #4a3520;
+}
+.amp-screw.tl { top:6px;    left:6px; }
+.amp-screw.tr { top:6px;    right:6px; }
+.amp-screw.bl { bottom:6px; left:6px; }
+.amp-screw.br { bottom:6px; right:6px; }
+
+/* ── Amp face (tube · VU · display · VU · tube) ────────────────────────────── */
+.amp-face {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* Tubes */
+.amp-tube-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.amp-tube {
+  position: relative;
+  width: 26px;
+  height: 50px;
+}
+.tube-glass {
+  width: 100%;
+  height: 80%;
+  border-radius: 13px 13px 5px 5px;
+  background: linear-gradient(180deg,
+    rgba(255,180,50,calc(var(--glow) * 0.13)) 0%,
+    rgba(255,110,15,calc(var(--glow) * 0.28)) 55%,
+    rgba(180,60,5,calc(var(--glow) * 0.18)) 100%);
+  border: 1px solid rgba(255,160,40,calc(var(--glow) * 0.65));
+  box-shadow:
+    0 0 calc(var(--glow) * 14px) calc(var(--glow) * 3px) rgba(255,110,20,calc(var(--glow) * 0.45)),
+    inset 0 0 7px rgba(255,195,70,calc(var(--glow) * 0.18));
+  overflow: hidden;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.tube-plate {
+  position: absolute;
+  left: 28%; right: 28%;
+  top: 14%; bottom: 14%;
+  border: 1px solid rgba(255,160,40,0.35);
+  border-radius: 2px;
+}
+.tube-grid {
+  position: absolute;
+  left: 18%; right: 18%;
+  top: 26%; height: 1px;
+  background: rgba(255,155,35,0.45);
+  box-shadow: 0 6px 0 rgba(255,155,35,0.35), 0 12px 0 rgba(255,155,35,0.25);
+}
+.tube-glow-inner {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(ellipse at 50% 65%,
+    rgba(255,140,25,calc(var(--glow) * 0.55)) 0%,
+    transparent 72%);
+  animation: tube-pulse 2.4s ease-in-out infinite;
+}
+@keyframes tube-pulse {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.65; }
+}
+.tube-pins {
+  display: flex;
+  justify-content: center;
+  gap: 3px;
+  height: 11px;
+  align-items: flex-end;
+}
+.tube-pins span {
+  width: 3px; height: 8px;
+  background: #3a2510;
+  border-radius: 1px;
+}
+.tube-label {
+  font-size: 8.5px;
+  color: #5a4020;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+/* VU meters */
+.amp-vu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+.vu-leds {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+}
+.vu-led {
+  width: 13px; height: 5px;
+  border-radius: 1px;
+  transition: background 0.06s, box-shadow 0.06s;
+}
+.vu-g   { background: #15803d; box-shadow: 0 0 5px rgba(21,128,61,0.75); }
+.vu-y   { background: #a16207; box-shadow: 0 0 5px rgba(161,98,7,0.75); }
+.vu-r   { background: #b91c1c; box-shadow: 0 0 5px rgba(185,28,28,0.75); }
+.vu-off { background: rgba(255,255,255,0.05); }
+.vu-ch  {
+  font-size: 8.5px;
+  color: #7a5a30;
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+/* VFD display */
+.amp-display {
+  flex: 1;
+  min-width: 0;
+  background-color: #080401;
+  border: 1px solid #2a1c08;
+  border-radius: 4px;
+  padding: 7px 10px 6px;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.85);
+}
+.amp-display-art {
+  display: flex;
+  gap: 8px;
+  padding: 6px 10px 6px 6px;
+}
+.art-thumb {
+  width: 46px;
+  height: 46px;
+  border-radius: 3px;
+  object-fit: cover;
+  flex-shrink: 0;
+  opacity: 0.85;
+  border: 1px solid #2a1c08;
+}
+.vfd-body { flex: 1; min-width: 0; }
+.vfd-title {
+  font-size: 11.5px;
+  font-family: 'Courier New', monospace;
+  color: #f59e0b;
+  letter-spacing: 0.025em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 7px rgba(245,158,11,0.55);
+  margin-bottom: 2px;
+  line-height: 1.3;
+}
+.vfd-sub {
+  font-size: 9.5px;
+  font-family: 'Courier New', monospace;
+  color: rgba(245,158,11,0.48);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 5px;
+}
+.vfd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.vfd-time {
+  font-size: 10.5px;
+  font-family: 'Courier New', monospace;
+  color: rgba(245,158,11,0.82);
+  text-shadow: 0 0 4px rgba(245,158,11,0.38);
+  font-variant-numeric: tabular-nums;
+}
+.vfd-seg, .vfd-loading {
+  font-size: 9.5px;
+  font-family: 'Courier New', monospace;
+  color: rgba(245,158,11,0.42);
+}
+.vfd-word {
+  font-size: 10px;
+  font-family: 'Courier New', monospace;
+  color: #6ee07a;
+  text-shadow: 0 0 5px rgba(110,224,122,0.5);
+  margin-left: auto;
+}
+.vfd-err {
+  font-size: 9.5px;
+  font-family: 'Courier New', monospace;
+  color: #f87171;
+  margin-top: 3px;
+}
+
+/* Divider */
+.amp-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #3a2a14 25%, #3a2a14 75%, transparent);
+  margin: 0 -16px 12px;
+}
+
+/* Controls row */
+.amp-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.amp-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.amp-label {
+  font-size: 7.5px;
+  color: #5a4020;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Speed */
+.speed-btns { display: flex; gap: 3px; }
+.speed-btn {
+  font-size: 9.5px;
+  font-family: 'Courier New', monospace;
+  padding: 3px 7px;
+  border-radius: 3px;
+  border: 1px solid #3a2a14;
+  background: #130e04;
+  color: #7a5a30;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.speed-btn:hover { border-color: #c8a96e; color: #c8a96e; }
+.speed-on { border-color: #c8a96e; background: #2a1c08; color: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.25); }
+
+/* Transport */
+.amp-transport {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  justify-content: center;
+}
+.xport-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  border: 1px solid #3a2a14;
+  background: #130e04;
+  color: #7a5a30;
+  cursor: pointer;
+  transition: all 0.15s;
+  line-height: 1;
+}
+.xport-btn:hover:not(:disabled) { border-color: #c8a96e; color: #c8a96e; }
+.xport-btn:disabled { opacity: 0.28; cursor: not-allowed; }
+.xi { font-size: 13px; }
+.xl { font-size: 7.5px; font-family: 'Courier New', monospace; }
+.xport-play {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  border: 2px solid #c8a96e;
+  background: radial-gradient(circle at 40% 38%, #3a2a14, #130e04);
+  color: #f59e0b;
+  font-size: 17px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  box-shadow: 0 0 12px rgba(245,158,11,0.18), inset 0 1px 0 rgba(255,200,80,0.08);
+  flex-shrink: 0;
+}
+.xport-play:hover:not(:disabled) { box-shadow: 0 0 20px rgba(245,158,11,0.45), inset 0 1px 0 rgba(255,200,80,0.14); }
+.xport-play:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Volume */
+.vol-slider {
+  width: 56px;
+  height: 3px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #3a2a14;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 35%, #f59e0b, #9a6a18);
+  border: 1px solid #c8a96e;
+  cursor: pointer;
+  box-shadow: 0 0 4px rgba(245,158,11,0.4);
+}
+.vol-slider::-moz-range-thumb {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 35%, #f59e0b, #9a6a18);
+  border: 1px solid #c8a96e;
+  cursor: pointer;
+}
+
+/* ── Transcript / input text areas ─────────────────────────────────────────── */
+.listen-textarea {
+  width: 100%;
+  background: #0e0a03;
+  border: 1px solid #3a2a14;
+  border-radius: 5px;
+  padding: 10px 12px;
+  font-size: 0.875rem;
+  color: #e8d8b8;
+  outline: none;
+  resize: none;
+  transition: border-color 0.15s;
+  font-family: 'EB Garamond', Georgia, serif;
+  line-height: 1.6;
+}
+.listen-textarea:focus { border-color: #c8a96e; }
+.listen-textarea::placeholder { color: rgba(232,216,184,0.22); }
+
+.listen-reveal {
+  background: #0e0a03;
+  border: 1px solid #4a3820;
+  border-radius: 5px;
+  padding: 12px 14px;
+  font-size: 0.875rem;
+  color: #e8d8b8;
+  line-height: 1.75;
+  font-family: 'EB Garamond', Georgia, serif;
+}
+.listen-translation {
+  background: #0a0d14;
+  border: 1px solid #1e2a3a;
+  border-radius: 5px;
+  padding: 12px 14px;
+  font-size: 0.875rem;
+  color: rgba(200,210,232,0.7);
+  line-height: 1.7;
+  font-style: italic;
+  font-family: 'EB Garamond', Georgia, serif;
+}
+
+/* ── Word feedback chips ────────────────────────────────────────────────────── */
+.word-correct { background: rgba(21,80,38,0.55); color: #6ee07a; }
+.word-wrong   { background: rgba(60,15,70,0.55); color: #c084fc; }
+.word-pending { color: rgba(200,180,140,0.35); }
+
+/* ── Action row buttons ─────────────────────────────────────────────────────── */
+.act-btn {
+  font-size: 0.72rem;
+  padding: 5px 11px;
+  border-radius: 4px;
+  border: 1px solid #3a2a14;
+  background: transparent;
+  color: rgba(200,169,110,0.65);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'EB Garamond', serif;
+}
+.act-btn:hover:not(:disabled) { border-color: #c8a96e; color: #c8a96e; }
+.act-primary { background: #2a1c08; color: #f0c860; border-color: #c8a96e; }
+.act-primary:hover:not(:disabled) { box-shadow: 0 0 8px rgba(245,158,11,0.25); }
+
+/* ── Accuracy / model download lines ───────────────────────────────────────── */
+:deep(.text-gray-500)  { color: rgba(200,180,140,0.45) !important; }
+:deep(.text-gray-600)  { color: rgba(200,180,140,0.3)  !important; }
+</style>

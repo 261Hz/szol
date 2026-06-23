@@ -376,6 +376,7 @@ async function importRss() {
     title:        ep.title,
     lang:         props.lang,
     podcast_name: data.title,
+    image_url:    data.image ?? null,
     audio_url:    ep.audio_url,
     duration_sec: parseDurSec(String(ep.duration_sec ?? '')),
     segments:     [],
