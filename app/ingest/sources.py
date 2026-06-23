@@ -263,14 +263,6 @@ SOURCES = [
         "lang": "he",
         "license": "attribution",
     },
-    {
-        "name": "ynet",
-        "feed_url": "https://www.ynet.co.il/Integration/StoryRss2.xml",
-        "lang": "he",
-        "license": "attribution",
-        "min_words": 60,
-    },
-
     # ── Chinese ─────────────────────────────────────────────────────────────
     {
         "name": "Deutsche Welle 中文",
