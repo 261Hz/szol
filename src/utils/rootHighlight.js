@@ -126,42 +126,22 @@ async function loadLocalRoots(lang) {
   return _localRoots[lang]
 }
 
-// ── Dicta nakdan — called directly from the browser (CORS: access-control-allow-origin: *) ──
-// Real loadbalancer URL found via DevTools on nakdan.dicta.org.il.
-// Payload uses `data` field (not `text`). Response: { data: [{ str, nakdan: { options: [{lex, prefix_len}] } }] }
-
-const DICTA_URL = 'https://nakdan-u1-0.loadbalancer.dicta.org.il/api'
+// ── Dicta via Vercel proxy ────────────────────────────────────────────────────
+// Browser-direct calls trigger CORS preflight that Dicta's loadbalancer rejects.
+// Route through /api/roots-analyze (same-origin) which calls Dicta server-side.
 
 async function dictaHebrewBatch(words) {
-  let res
   try {
-    res = await fetch(DICTA_URL, {
+    const res = await fetch('/api/roots-analyze', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        task: 'nakdan', genre: 'modern', addmorph: true,
-        useTokenization: true, keepmetagim: true,
-        keepqq: false, nodageshdefmem: false, patachma: false,
-        data: words.join(' '),
-      }),
+      body:    JSON.stringify({ words, lang: 'he' }),
     })
+    const data = res.ok ? await res.json() : {}
+    return data.roots ?? {}
   } catch {
     return {}
   }
-  if (!res.ok) return {}
-
-  const json   = await res.json()
-  const items  = Array.isArray(json.data) ? json.data : []
-  const roots  = {}
-  for (const item of items) {
-    const w = (item.str ?? '').replace(/[֑-ׇ]/g, '')
-    if (!w) continue
-    const opt = item.nakdan?.options?.[0]
-    if (!opt) continue
-    const lex = (opt.lex ?? '').replace(/[֑-ׇ]/g, '')
-    if (lex.length >= 2) roots[w] = [...lex]
-  }
-  return roots
 }
 
 // ── Public: batch pre-fetch for a word list ───────────────────────────────────
