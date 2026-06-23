@@ -73,11 +73,7 @@ class _SubscribeIn(BaseModel):
 def subscribe_podcast(payload: _SubscribeIn, db: Session = Depends(get_db)):
     """Parse an RSS feed and ingest its recent episodes into podcast_episodes."""
     import feedparser
-    from ..ingest.podcasts import (
-        _audio_url, _duration_sec, _parse_date, _strip_html,
-        _transcript_url, _fetch_rss_transcript,
-        fetch_ogjre_transcript, ogjre_slug,
-    )
+    from ..ingest.podcasts import _audio_url, _duration_sec, _parse_date, _strip_html
 
     try:
         feed = feedparser.parse(payload.feed_url)
@@ -100,17 +96,6 @@ def subscribe_podcast(payload: _SubscribeIn, db: Session = Depends(get_db)):
             continue
 
         title = _strip_html(entry.get("title", "Untitled"))
-        transcript, segments = None, []
-
-        # 1. ogjre for JRE episodes
-        if ogjre_slug(title):
-            transcript, segments = fetch_ogjre_transcript(title)
-
-        # 2. podcast:transcript RSS tag (SRT / VTT / JSON)
-        if not transcript:
-            tx_url = _transcript_url(entry)
-            if tx_url:
-                transcript, segments = _fetch_rss_transcript(tx_url)
 
         ep = models.PodcastEpisode(
             podcast_name = podcast_name,
@@ -120,8 +105,8 @@ def subscribe_podcast(payload: _SubscribeIn, db: Session = Depends(get_db)):
             duration_sec = _duration_sec(entry),
             description  = _strip_html(entry.get("summary", "") or "")[:1000],
             published_at = _parse_date(entry),
-            transcript   = transcript,
-            segments     = segments or None,
+            transcript   = None,
+            segments     = None,
         )
         db.add(ep)
         added.append({"title": title, "has_transcript": bool(segments)})
