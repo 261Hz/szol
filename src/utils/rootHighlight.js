@@ -99,7 +99,13 @@ async function loadLocalRoots(lang) {
     const res = await fetch(`/${lang}-roots.json`)
     if (!res.ok) { _localRoots[lang] = new Map(); return _localRoots[lang] }
     const obj = await res.json()
-    _localRoots[lang] = new Map(Object.entries(obj))
+    const m = new Map()
+    for (const [k, v] of Object.entries(obj)) {
+      let key = stripDiacritics(k)
+      if (lang === 'ar') key = normalizeAlef(key)
+      if (!m.has(key)) m.set(key, v)
+    }
+    _localRoots[lang] = m
     console.log(`[roots] ${lang} dict loaded: ${_localRoots[lang].size} entries`)
   } catch (e) {
     console.warn(`[roots] ${lang} dict load failed:`, e.message)
