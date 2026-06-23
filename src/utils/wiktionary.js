@@ -1,94 +1,55 @@
-// wiktionary.js: fetch definitions and example sentences from Wiktionary.
-// Uses the target-language Wiktionary (de.wiktionary.org for German, etc.)
-// which contains native-language definitions and authentic usage examples.
+// wiktionary.js — uses the Wiktionary REST definition API
+// Returns { definitions: string[], examples: string[] } or null.
+// The REST endpoint returns structured JSON unlike the extracts API,
+// so no per-language parsing hacks needed.
 
-const WIKT_LANG = {
-  en: 'en', de: 'de', fr: 'fr', es: 'es', it: 'it',
-  pt: 'pt', ru: 'ru', ja: 'ja', zh: 'zh', ar: 'ar',
-  ko: 'ko', nl: 'nl', pl: 'pl', sv: 'sv', he: 'he',
-  el: 'el', hu: 'hu', cs: 'cs', tr: 'tr',
+const WIKT_CODE = {
+  ar: 'ar', arz: 'ar', he: 'he', de: 'de', fr: 'fr', es: 'es',
+  it: 'it', pt: 'pt', ru: 'ru', ja: 'ja', zh: 'zh', ko: 'ko',
+  nl: 'nl', pl: 'pl', sv: 'sv', el: 'el', hu: 'hu', cs: 'cs',
+  tr: 'tr', en: 'en',
 }
 
-// Section header keywords that mark "definitions" and "examples" sections
-// across the major Wiktionary languages.
-const DEF_MARKERS     = /bedeutung|meaning|sens\b|acep|значен|定義|의미/i
-const EXAMPLE_MARKERS = /beispiel|example|exemple|ejemplo|пример|例文|例句|用例|예/i
+function stripHtml(s) {
+  return (s ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+}
 
-export async function searchWiktionary(word, lang) {
-  const code = WIKT_LANG[lang] ?? 'en'
+async function fetchDefinition(word, siteCode) {
   try {
     const r = await fetch(
-      `https://${code}.wiktionary.org/w/api.php?action=query` +
-      `&titles=${encodeURIComponent(word)}` +
-      `&prop=extracts&explaintext=1&exchars=8000` +
-      `&format=json&origin=*`,
+      `https://${siteCode}.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`,
       { signal: AbortSignal.timeout(8000) }
     )
     if (!r.ok) return null
-    const data  = await r.json()
-    const pages = data.query?.pages ?? {}
-    const page  = Object.values(pages)[0]
-    if (!page || 'missing' in page) return null
-    const raw = page.extract?.trim()
-    if (!raw) return null
+    const data = await r.json()
 
-    return parseWiktEntry(raw, word)
+    // Response is keyed by language code. Prefer the site's own language,
+    // then fall back to whatever's available (e.g. en entry on fr.wiktionary).
+    const entries = data[siteCode] ?? Object.values(data)[0] ?? []
+    if (!entries.length) return null
+
+    const definitions = []
+    const examples    = []
+
+    for (const entry of entries.slice(0, 3)) {
+      for (const def of (entry.definitions ?? []).slice(0, 4)) {
+        const clean = stripHtml(def.definition)
+        if (clean.length > 4) definitions.push(clean)
+        for (const ex of (def.examples ?? []).slice(0, 2)) {
+          const cleanEx = stripHtml(ex)
+          if (cleanEx.length > 8) examples.push(cleanEx)
+        }
+      }
+    }
+
+    if (!definitions.length && !examples.length) return null
+    return { definitions: definitions.slice(0, 4), examples: examples.slice(0, 5) }
   } catch {
     return null
   }
 }
 
-function parseWiktEntry(text, word) {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
-
-  const definitions = []
-  const examples    = []
-  let   section     = ''   // 'defs' | 'examples' | ''
-
-  for (const line of lines) {
-    if (/^=/.test(line)) {
-      const heading = line.replace(/^=+|=+$/g, '').trim()
-      if (EXAMPLE_MARKERS.test(heading))    section = 'examples'
-      else if (DEF_MARKERS.test(heading))   section = 'defs'
-      else if (/^={1,2}[^=]/.test(line))   section = ''   // top-level section → reset
-      continue
-    }
-
-    // Items prefixed with [1], [2] … are numbered definitions/examples in most Wiktionary editions
-    if (section === 'defs' && /^\[\d+\]/.test(line)) {
-      const def = line.replace(/^\[\d+\]\s*/, '').trim()
-      if (def.length > 8) definitions.push(def)
-    }
-
-    if (section === 'examples' && /^\[\d+\]/.test(line)) {
-      const ex = line.replace(/^\[\d+\]\s*/, '').trim()
-      if (ex.length > 20 && ex.length < 500) examples.push(ex)
-    }
-  }
-
-  // Fallback: if the parser found nothing, look for any line containing the word stem
-  if (!definitions.length && !examples.length) return null
-
-  // If we have definitions but no examples (common for some editions), try extracting
-  // sentence-like lines from anywhere in the text that contain the word
-  if (!examples.length) {
-    const stem = word.toLowerCase().slice(0, Math.max(4, word.length - 2))
-    for (const line of lines) {
-      if (
-        !line.startsWith('=') &&
-        line.toLowerCase().includes(stem) &&
-        line.length > 30 && line.length < 400 &&
-        /[.!?»"'"]$/.test(line) &&
-        !/^(Synonyme|Antonym|Ober|Unter|Verwandt|Quell|Refer|Lit)/i.test(line)
-      ) {
-        examples.push(line)
-        if (examples.length >= 4) break
-      }
-    }
-  }
-
-  return {
-    definitions: definitions.slice(0, 4),
-    examples:    examples.slice(0, 5),
-  }
+export async function searchWiktionary(word, lang) {
+  const code = WIKT_CODE[lang] ?? 'en'
+  return fetchDefinition(word, code)
 }

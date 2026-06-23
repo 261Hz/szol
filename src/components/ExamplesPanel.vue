@@ -42,13 +42,7 @@
 
     <!-- ── DICT (WIKTIONARY) TAB ── -->
     <div v-else-if="activeTab === 'dict'">
-      <button
-        v-if="!dict.done && !dict.loading"
-        @click="loadDict"
-        class="text-xs underline transition-all"
-        style="color:#8b3a3a;"
-      >Look up in Wiktionary</button>
-      <div v-else-if="dict.loading" class="text-xs" style="color:rgba(31,27,23,0.35); font-style:italic;">Loading…</div>
+      <div v-if="dict.loading" class="text-xs" style="color:rgba(31,27,23,0.35); font-style:italic;">Loading…</div>
       <div v-else-if="dict.data" class="flex flex-col gap-3">
         <div v-if="dict.data.definitions.length" class="flex flex-col gap-1">
           <div class="text-xs uppercase tracking-wide" style="color:rgba(31,27,23,0.4); letter-spacing:0.1em;">Definition</div>
@@ -309,15 +303,15 @@ defineEmits(['tap', 'openAuth', 'openClip'])
 const langLabel = computed(() => LANGS[props.lang]?.name ?? props.lang ?? 'this language')
 
 const tabs = [
-  { id: 'corpus',    label: 'Examples' },
   { id: 'dict',      label: 'Dict' },
+  { id: 'corpus',    label: 'Examples' },
   { id: 'tatoeba',   label: 'Tatoeba' },
   { id: 'wikipedia', label: 'Wikipedia' },
   { id: 'wikiquote', label: 'Wikiquote' },
   { id: 'video',     label: 'Video' },
 ]
 
-const activeTab = ref('corpus')
+const activeTab = ref('dict')
 
 // Each source has its own state object with three fields:
 //   loading = true while the network request is in flight (shows "Loading…")
@@ -337,7 +331,8 @@ watch(() => props.word, () => {
   wiki.value      = { loading: false, results: [], done: false }
   wq.value        = { loading: false, results: [], done: false }
   video.value     = { loading: false, results: [], done: false }
-  activeTab.value = 'corpus'
+  activeTab.value = 'dict'
+  loadDict()
   loadCorpus()
 }, { immediate: true })
 
