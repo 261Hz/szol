@@ -114,21 +114,41 @@
           <span class="item-meta">{{ eps.length }} ep{{ eps.length !== 1 ? 's' : '' }}</span>
         </button>
       </div>
-      <!-- RSS import -->
+      <!-- Search / RSS import -->
       <div class="import-section" style="margin-top:1rem">
         <div class="import-row">
           <input
             v-model="rssUrl"
-            type="url"
-            :placeholder="t(lang, 'podcastRssUrl')"
+            type="text"
+            placeholder="Search or paste RSS URL…"
             @keydown.enter="importRss"
             class="import-input"
           />
-          <button @click="importRss" :disabled="rssLoading" class="import-btn">
+          <span v-if="searchLoading" class="import-spinner" />
+          <button v-if="isUrl(rssUrl)" @click="importRss" :disabled="rssLoading" class="import-btn">
             {{ rssLoading ? '…' : t(lang, 'import') }}
           </button>
         </div>
         <div v-if="rssError" class="import-error">{{ rssError }}</div>
+        <!-- iTunes search results -->
+        <div v-if="searchResults.length" class="search-results">
+          <div
+            v-for="pod in searchResults"
+            :key="pod.feed_url"
+            class="search-row"
+          >
+            <img v-if="pod.artwork" :src="pod.artwork" class="search-art" />
+            <div class="search-info">
+              <div class="search-title">{{ pod.title }}</div>
+              <div class="search-meta">{{ pod.publisher }}<span v-if="pod.episode_count"> · {{ pod.episode_count }} ep</span></div>
+            </div>
+            <button
+              @click="subscribeFromSearch(pod.feed_url, pod.lang)"
+              :disabled="subscribingFeed === pod.feed_url"
+              class="import-btn"
+            >{{ subscribingFeed === pod.feed_url ? '…' : 'Add' }}</button>
+          </div>
+        </div>
       </div>
     </template>
 
@@ -238,7 +258,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { fetchCuratedStories, fetchFeed, fetchFeedArticle, fetchPodcasts, fetchPodcastRss, getAllProgress } from '../utils/api.js'
+import { fetchCuratedStories, fetchFeed, fetchFeedArticle, fetchPodcasts, fetchPodcastRss, searchPodcasts, subscribePodcast, getAllProgress } from '../utils/api.js'
 import { fetchFeaturedArticle, fetchOnThisDay } from '../utils/wikipedia.js'
 import { isRTL } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
@@ -350,13 +370,41 @@ const RSS_KEY     = 'szol_rss_feeds'
 function loadSavedFeeds() {
   try { return JSON.parse(localStorage.getItem(RSS_KEY) || '[]') } catch { return [] }
 }
-const rssUrl      = ref('')
-const rssLoading  = ref(false)
-const rssError    = ref('')
-const rssTitle    = ref('')
-const rssEpisodes = ref(loadSavedFeeds().flatMap(f => f.episodes))
+const rssUrl        = ref('')
+const rssLoading    = ref(false)
+const rssError      = ref('')
+const rssTitle      = ref('')
+const rssEpisodes   = ref(loadSavedFeeds().flatMap(f => f.episodes))
+const searchResults = ref([])
+const searchLoading = ref(false)
+const subscribingFeed = ref(null)
+let   _searchTimer  = null
 // Pre-populate title from first saved feed
 ;(() => { const feeds = loadSavedFeeds(); if (feeds.length) rssTitle.value = feeds[0].title })()
+
+const isUrl = (s) => /^https?:\/\//i.test(s.trim())
+
+watch(rssUrl, (val) => {
+  clearTimeout(_searchTimer)
+  searchResults.value = []
+  rssError.value = ''
+  if (isUrl(val) || val.trim().length < 2) return
+  _searchTimer = setTimeout(async () => {
+    searchLoading.value = true
+    searchResults.value = await searchPodcasts(val.trim())
+    searchLoading.value = false
+  }, 400)
+})
+
+async function subscribeFromSearch(feedUrl, feedLang) {
+  subscribingFeed.value = feedUrl
+  rssError.value = ''
+  await subscribePodcast(feedUrl, feedLang || props.lang)
+  subscribingFeed.value = null
+  searchResults.value = []
+  rssUrl.value = ''
+  await loadPodcasts()
+}
 
 function saveRssFeed(title, episodes) {
   const feeds = loadSavedFeeds().filter(f => f.title !== title)
@@ -375,7 +423,7 @@ function parseDurSec(d) {
 
 async function importRss() {
   const url = rssUrl.value.trim()
-  if (!url || rssLoading.value) return
+  if (!url || rssLoading.value || !isUrl(url)) return
   rssLoading.value = true
   rssError.value   = ''
   const data = await fetchPodcastRss(url)
@@ -714,6 +762,64 @@ watch(() => props.currentUser, loadProgress)
   color: #8b3a3a;
   margin-top: 0.35rem;
   font-style: italic;
+}
+
+.import-spinner {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 1.5px solid rgba(31,27,23,0.2);
+  border-top-color: rgba(31,27,23,0.55);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.search-results {
+  margin-top: 0.625rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(31,27,23,0.06);
+}
+
+.search-art {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 3px;
+  object-fit: cover;
+  flex-shrink: 0;
+  opacity: 0.88;
+}
+
+.search-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-title {
+  font-size: 0.82rem;
+  color: #1f1b17;
+  font-family: 'EB Garamond', serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-meta {
+  font-size: 0.65rem;
+  color: rgba(31,27,23,0.35);
+  font-style: italic;
+  margin-top: 0.1rem;
 }
 
 .import-preview {
