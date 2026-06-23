@@ -396,10 +396,10 @@ watch(rssUrl, (val) => {
   }, 400)
 })
 
-async function subscribeFromSearch(feedUrl, feedLang) {
+async function subscribeFromSearch(feedUrl) {
   subscribingFeed.value = feedUrl
   rssError.value = ''
-  const result = await subscribePodcast(feedUrl, feedLang || props.lang)
+  const result = await subscribePodcast(feedUrl, props.lang)
   subscribingFeed.value = null
   searchResults.value = []
   rssUrl.value = ''
