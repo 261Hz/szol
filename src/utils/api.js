@@ -462,6 +462,22 @@ export async function fetchPodcasts(lang) {
   return await res.json()
 }
 
+export async function searchPodcasts(q) {
+  const res = await fetch(`${API_URL}/podcasts/search?q=${encodeURIComponent(q)}`).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json().catch(() => [])
+}
+
+export async function subscribePodcast(feedUrl, lang, maxEpisodes = 10) {
+  const res = await fetch(`${API_URL}/podcasts/subscribe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ feed_url: feedUrl, lang, max_episodes: maxEpisodes }),
+  }).catch(() => null)
+  if (!res?.ok) return null
+  return await res.json().catch(() => null)
+}
+
 export async function fetchPodcastTranscript(episodeId) {
   const res = await fetch(`${API_URL}/podcasts/${encodeURIComponent(episodeId)}/transcript`, {
     method: 'POST',
