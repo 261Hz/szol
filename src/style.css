@@ -14,7 +14,7 @@
   --color-ink-muted: #8c7a66;
 
   --color-accent-red: #8b3a3a;
-  --color-accent-blue: #3a4f6b;
+  --color-accent-blue: #2c4a82;
   --color-accent-gold: #a88a4a;
 
   --font-serif: "EB Garamond", "Cormorant Garamond", Georgia, serif;
@@ -26,7 +26,7 @@
 }
 
 body {
-  background-color: #e8dcc4;
+  background-color: #d4c7a4;
   font-family: "EB Garamond", "Cormorant Garamond", Georgia, serif;
   color: #1f1b17;
   line-height: 1.75;
@@ -70,7 +70,16 @@ span[class*="cursor-pointer"] {
   touch-action: auto;
 }
 
-/* Semitic root consonant highlight */
+/* Root ruby annotation — appears above words in Roots / Manuscript mode */
+ruby.szol-root rt {
+  font-size: 0.52em;
+  color: #8b3a3a;
+  font-style: italic;
+  font-family: 'EB Garamond', serif;
+  opacity: 0.9;
+}
+
+/* Semitic root consonant highlight (CSS Highlight API — VocabView) */
 ::highlight(szol-root) {
   color: #b45a5a;
   text-decoration: underline;

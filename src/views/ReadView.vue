@@ -68,7 +68,7 @@
             v-if="token.type === 'word' && rootMode !== 'off' && wordRootMap[token.clean]"
             class="szol-root cursor-pointer rounded px-0.5 transition-all"
             :class="savedWords.has(normalize(token.text)) ? 'bg-[rgba(139,58,58,0.13)]' : 'hover:bg-[rgba(31,27,23,0.07)]'"
-            :style="rootMode === 'manuscript' ? 'color:#3a4f6b;' : ''"
+            :style="rootMode === 'manuscript' ? 'color:#2c4a82;' : ''"
             @click="tap(token.text)"
           >{{ token.text }}<rt>{{ wordRootMap[token.clean] }}</rt></ruby>
           <!-- Plain word when no root found or mode is off -->
