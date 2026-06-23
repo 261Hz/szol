@@ -363,7 +363,7 @@
             <button
               @click="runTranslationCheck"
               :disabled="!userInput.trim() || translationChecking"
-              class="text-xs px-4 py-1.5 rounded-md bg-violet-700 text-white hover:bg-violet-600 disabled:opacity-40 transition-all"
+              class="act-btn act-primary disabled:opacity-40"
             >{{ translationChecking ? t(lang, 'checkingEllipsis') : t(lang, 'checkTranslation') }}</button>
           </div>
           <div v-if="translationResult" class="flex flex-col gap-1.5">
@@ -609,7 +609,8 @@ const transcriptLoading   = ref(false)
 const speed               = ref(1)
 const volume              = ref(1)
 const waveformCanvas      = ref(null)
-const waveformData        = ref([])   // 400 amplitude values 0-1 (seeded from metadata)
+const WAVE_BARS           = 400                          // resolution of the amplitude history
+const waveHistory         = ref(new Float32Array(WAVE_BARS)) // real measured peaks 0-1, indexed by position
 const liveWave            = ref([])   // real-time time-domain data –1..1 from analyser
 
 // ── On-device transcription (Whisper via @huggingface/transformers) ───────────
@@ -972,36 +973,15 @@ function skipFwd() {
   seekTo(Math.min(maxTime, now + 15))
 }
 
-// ── Waveform canvas (physics-realistic amplitude overview) ────────────────────
-
-function _seedRng(seed) {
-  let h = 0
-  for (const c of String(seed || '')) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0
-  return () => { h = (Math.imul(1664525, h) + 1013904223) | 0; return (h >>> 0) / 2 ** 32 }
-}
-
-function generateWaveform(seed, count = 400) {
-  const rng = _seedRng(seed)
-  const raw = Array.from({ length: count }, rng)
-  // 3-tap smooth
-  const sm = raw.map((v, i) => (raw[i - 1] ?? v) * 0.25 + v * 0.5 + (raw[i + 1] ?? v) * 0.25)
-  // Speech-like loudness envelope: quiet passages + louder sections
-  return sm.map((v, i) => {
-    const t = i / count
-    const env = 0.22 + 0.78 * (0.5 + 0.5 * Math.sin(t * 21.4 + Math.sin(t * 6.1) * 2.9))
-    return Math.max(0.04, v * env)
-  })
-}
+// ── Waveform canvas — real measured peaks, indexed by playback position ──────
 
 function drawWaveform() {
   const canvas = waveformCanvas.value
   if (!canvas) return
-  const data = waveformData.value
-  if (!data.length) return
 
   const dpr = window.devicePixelRatio || 1
-  const W = canvas.offsetWidth
-  const H = canvas.offsetHeight
+  const W   = canvas.offsetWidth
+  const H   = canvas.offsetHeight
   if (!W || !H) return
 
   const pw = Math.round(W * dpr)
@@ -1012,31 +992,32 @@ function drawWaveform() {
     canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0)
   }
 
-  const ctx = canvas.getContext('2d')
+  const ctx  = canvas.getContext('2d')
   ctx.clearRect(0, 0, W, H)
 
-  const dur    = duration.value > 0 ? duration.value : (currentSegment.value?.end ?? 1)
-  const pos    = Math.min(1, currentTime.value / dur)
-  const playX  = pos * W
-  const cy     = H / 2
-  const barW   = W / data.length
-  const live   = liveWave.value
-  const lStart = live.length ? Math.floor(pos * data.length) - Math.floor(live.length / 2) : -1
+  const dur   = Math.max(1, duration.value || (currentSegment.value?.end ?? 1))
+  const pos   = Math.min(1, currentTime.value / dur)
+  const playX = pos * W
+  const cy    = H / 2
+  const barW  = W / WAVE_BARS
+  const hist  = waveHistory.value
 
-  data.forEach((amp, i) => {
-    const x     = i * barW
-    // Blend in real-time time-domain data near the playhead
-    let   disp  = amp
-    const li    = i - lStart
-    if (li >= 0 && li < live.length) disp = Math.abs(live[li]) * 0.88 + 0.12
+  // Center hairline for full width
+  ctx.fillStyle = 'rgba(31,27,23,0.10)'
+  ctx.fillRect(0, cy - 0.5, W, 1)
 
-    const h     = disp * cy * 0.82
-    ctx.fillStyle = x < playX ? 'rgba(31,27,23,0.42)' : 'rgba(31,27,23,0.16)'
-    ctx.fillRect(x, cy - h, Math.max(1, barW - 0.8), h * 2)
-  })
+  // Real amplitude bars — only drawn where audio has actually been measured
+  for (let i = 0; i < WAVE_BARS; i++) {
+    const amp = hist[i]
+    if (amp < 0.02) continue
+    const x = i * barW
+    const h = amp * cy * 0.85
+    ctx.fillStyle = x < playX ? 'rgba(31,27,23,0.44)' : 'rgba(31,27,23,0.18)'
+    ctx.fillRect(x, cy - h, Math.max(1, barW - 0.5), h * 2)
+  }
 
   // Playhead
-  ctx.fillStyle = 'rgba(31,27,23,0.62)'
+  ctx.fillStyle = 'rgba(31,27,23,0.65)'
   ctx.fillRect(Math.round(playX) - 0.5, 0, 1.5, H)
 }
 
@@ -1060,9 +1041,9 @@ function onWaveDragStart(e) {
   window.addEventListener('mouseup',  up)
 }
 
-// Regenerate waveform when story changes; redraw on time update
-watch(selectedStory, async (story) => {
-  waveformData.value = story ? generateWaveform(story.id ?? story.audio_url ?? story.title ?? '', 400) : []
+// Reset accumulated waveform when story changes
+watch(selectedStory, async () => {
+  waveHistory.value = new Float32Array(WAVE_BARS)
   await nextTick()
   drawWaveform()
 })
@@ -1094,30 +1075,24 @@ const VU_TICKS    = [-20, -10, -6, 0, 3].map(db => ({
   red:   db >= 0,
 }))
 
-// VU meter 0–1 levels from analyser bars
+// VU meter 0–1 levels — bars range 4..56, normalise to that span
 const vuLeft = computed(() => {
   if (!isPlaying.value) return 0
   const avg = bars.value.slice(0, 20).reduce((a, b) => a + b, 0) / 20
-  return Math.min(1, avg / 44)
+  return Math.min(1, Math.max(0, (avg - 4) / 52))
 })
 const vuRight = computed(() => {
   if (!isPlaying.value) return 0
   const avg = bars.value.slice(20).reduce((a, b) => a + b, 0) / 20
-  return Math.min(1, avg / 44)
+  return Math.min(1, Math.max(0, (avg - 4) / 52))
 })
 // Needle angles in degrees from 12 o'clock (clockwise)
 const needleAngleL = computed(() => VU_START + vuLeft.value  * VU_RANGE)
 const needleAngleR = computed(() => VU_START + vuRight.value * VU_RANGE)
 
-// ── Waveform (Web Audio API analyser with fake-animation fallback) ────────────
+// ── Waveform / VU bars (Web Audio API analyser with fallback) ────────────────
 
-const BASE_HEIGHTS = Array.from({ length: 40 }, (_, i) => {
-  const envelope = Math.sin((i / 39) * Math.PI)
-  const detail   = Math.sin(i * 1.7) * 0.25
-  return Math.max(4, Math.round((envelope * 0.6 + detail + 0.5) * 44 + 6))
-})
-
-const bars      = ref([...BASE_HEIGHTS])
+const bars      = ref(Array(40).fill(4))
 let waveTimer   = null
 let _analyser   = null
 let _mediaSrc   = null
@@ -1150,6 +1125,18 @@ function onAudioCorsError() {
   _analyser = null
 }
 
+function _stampWavePeak() {
+  const live   = liveWave.value
+  if (!live.length) return
+  const peak   = Math.max(...live.map(Math.abs))
+  const dur    = Math.max(1, duration.value || (currentSegment.value?.end ?? 1))
+  const barIdx = Math.floor((currentTime.value / dur) * WAVE_BARS)
+  if (barIdx >= 0 && barIdx < WAVE_BARS) {
+    const h = waveHistory.value
+    if (peak > h[barIdx]) { h[barIdx] = peak }
+  }
+}
+
 function startWave() {
   stopWave()
   if (_analyser) {
@@ -1161,35 +1148,23 @@ function startWave() {
     function tick() {
       _analyser.getByteFrequencyData(freqBuf)
       _analyser.getByteTimeDomainData(timeBuf)
-      bars.value = Array.from({ length: 40 }, (_, i) => {
-        const v = freqBuf[Math.floor(i * fStep)]
-        return Math.max(4, Math.round((v / 255) * 52 + 4))
-      })
-      liveWave.value = Array.from({ length: 80 }, (_, i) => {
-        return (timeBuf[Math.floor(i * tStep)] - 128) / 128
-      })
+      bars.value     = Array.from({ length: 40 }, (_, i) => Math.max(4, Math.round((freqBuf[Math.floor(i * fStep)] / 255) * 52 + 4)))
+      liveWave.value = Array.from({ length: 80 }, (_, i) => (timeBuf[Math.floor(i * tStep)] - 128) / 128)
+      _stampWavePeak()
       drawWaveform()
       _rafId = requestAnimationFrame(tick)
     }
     _rafId = requestAnimationFrame(tick)
   } else {
-    // Fake: synthesise plausible speech-like waveform from noise
-    waveTimer = setInterval(() => {
-      bars.value = BASE_HEIGHTS.map(b => Math.max(4, Math.min(56, b + (Math.random() - 0.5) * 28)))
-      const t = currentTime.value
-      liveWave.value = Array.from({ length: 80 }, (_, i) => {
-        const ph = i / 80
-        return (Math.sin(ph * 12.5 + t * 7.3) * 0.35 + (Math.random() - 0.5) * 0.65) * 0.9
-      })
-      drawWaveform()
-    }, 80)
+    // No real analyser (CORS audio) — only redraw for playhead movement, no fake data
+    waveTimer = setInterval(drawWaveform, 80)
   }
 }
 
 function stopWave() {
   cancelAnimationFrame(_rafId); _rafId = null
   clearInterval(waveTimer);     waveTimer = null
-  bars.value     = [...BASE_HEIGHTS]
+  bars.value     = Array(40).fill(4)
   liveWave.value = []
   drawWaveform()
 }
