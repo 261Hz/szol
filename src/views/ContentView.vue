@@ -77,7 +77,7 @@
           :class="isRTL(lang) ? 'text-right text-lg' : ''"
         >
           <template v-for="(tok, i) in tokens" :key="i">
-            <!-- Root mode: character-level segmentation — root consonants stand out, affixes fade -->
+            <!-- Root mode: character-level segmentation -->
             <span
               v-if="tok.type === 'word' && segMap.get(tok)"
               class="cursor-pointer"
@@ -85,20 +85,26 @@
             ><span
                 v-for="(seg, si) in segMap.get(tok)"
                 :key="si"
-                :style="seg.role === 'root'
-                  ? (rootMode === 'manuscript'
+                :style="rootMode === 'manuscript'
+                  ? (seg.role === 'root'
                       ? `color:${rootInkColor(wordRootMap[tok.clean])};`
-                      : 'color:#2a241c;')
-                  : seg.role === 'affix'
-                    ? 'opacity:0.25;'
-                    : ''"
+                      : seg.role === 'affix'
+                        ? `color:${rootInkColor(wordRootMap[tok.clean])}; opacity:0.45;`
+                        : '')
+                  : (seg.role === 'root'
+                      ? 'color:#8b3a3a;'
+                      : '')"
               >{{ seg.ch }}</span></span>
-            <!-- Plain word — no root data or mode off -->
+            <!-- Plain word — no root data, or roots off -->
             <span
               v-else-if="tok.type === 'word'"
               @click="tap(tok.text)"
-              class="cursor-pointer transition-all"
-              :style="savedWords?.has(normalize(tok.text)) ? 'color:#8b3a3a; text-decoration:underline; text-decoration-style:solid; text-underline-offset:2px;' : ''"
+              class="cursor-pointer"
+              :style="savedWords?.has(normalize(tok.text))
+                ? 'color:#8b3a3a; text-decoration:underline; text-underline-offset:2px;'
+                : rootMode === 'manuscript'
+                  ? 'color:#8c7a66;'
+                  : ''"
             >{{ tok.text }}</span>
             <span v-else>{{ tok.text }}</span>
           </template>
