@@ -399,11 +399,12 @@ watch(rssUrl, (val) => {
 async function subscribeFromSearch(feedUrl, feedLang) {
   subscribingFeed.value = feedUrl
   rssError.value = ''
-  await subscribePodcast(feedUrl, feedLang || props.lang)
+  const result = await subscribePodcast(feedUrl, feedLang || props.lang)
   subscribingFeed.value = null
   searchResults.value = []
   rssUrl.value = ''
   await loadPodcasts()
+  if (result?.podcast_name) source.value = result.podcast_name
 }
 
 function saveRssFeed(title, episodes) {
