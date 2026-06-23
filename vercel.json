@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "api/roots-analyze.js": { "maxDuration": 60 }
+  },
   "headers": [
     {
       "source": "/sitemap.xml",
