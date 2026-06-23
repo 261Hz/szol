@@ -25,6 +25,13 @@
 
         <div class="flex items-center gap-2">
           <button
+            v-if="story.audio_url"
+            @click="$emit('open-listen', story)"
+            class="text-xs px-3 py-1.5 transition-all flex items-center gap-1"
+            style="background:#2a2018; color:#e8dcc4; border-radius:2px; font-family:'EB Garamond',serif;"
+            title="Open in audio player"
+          >▶ Listen</button>
+          <button
             v-if="story.franco && hasFranco(lang)"
             @click="francoOn = !francoOn"
             :class="[
@@ -190,7 +197,7 @@ const props = defineProps({
   echoesFor:   { type: Function, default: null },
 })
 
-const emit = defineEmits(['go', 'saveWord', 'openAuth', 'switch-story'])
+const emit = defineEmits(['go', 'saveWord', 'openAuth', 'switch-story', 'open-listen'])
 
 const ROOT_MODES = [
   { key: 'off',        label: 'Text' },

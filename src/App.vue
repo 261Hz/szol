@@ -72,6 +72,7 @@
         @go="activeTab = $event"
         @save-word="addToVocab"
         @switch-story="switchStory"
+        @open-listen="openInListen"
       />
 
       <SpeakView
