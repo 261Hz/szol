@@ -1,6 +1,14 @@
 <template>
   <div class="mt-1 pt-2" style="border-top:1px solid rgba(31,27,23,0.1);">
 
+    <!-- Short definition above tabs (Wiktionary first definition or LLM result) -->
+    <div
+      v-if="shortDef"
+      class="text-sm leading-snug mb-3"
+      :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+      style="color:rgba(31,27,23,0.75); font-family:'EB Garamond',serif; font-size:1rem;"
+    >{{ shortDef }}</div>
+
     <!-- Source tab bar -->
     <div class="flex gap-1 mb-2 flex-wrap">
       <button
@@ -99,6 +107,17 @@
         </div>
       </div>
       <div v-else-if="localDef" class="text-sm leading-snug" :dir="isRTL(lang) ? 'rtl' : 'ltr'">{{ localDef }}</div>
+      <template v-else-if="dict.done && !localDefLoading && lang !== 'en'">
+        <div v-if="!modelsOn" class="flex flex-col gap-2">
+          <div class="text-xs" style="color:rgba(31,27,23,0.35); font-style:italic;">Not in Wiktionary.</div>
+          <button
+            @click="enableAndExplain"
+            class="self-start text-xs px-2.5 py-1 transition-all"
+            style="border:1px solid rgba(31,27,23,0.2); border-radius:2px; color:rgba(31,27,23,0.55);"
+          >Download on-device model for definitions</button>
+        </div>
+        <div v-else class="text-xs" style="color:rgba(31,27,23,0.35); font-style:italic;">Not found.</div>
+      </template>
       <div v-else-if="dict.done && !localDefLoading" class="text-xs" style="color:rgba(31,27,23,0.35); font-style:italic;">Not found.</div>
     </div>
 
@@ -298,6 +317,7 @@ import { searchWikiquote } from '../utils/wikiquote.js'
 import { searchWiktionary } from '../utils/wiktionary.js'
 import { getWordExamples, getVocabClips } from '../utils/api.js'
 import { explain, onExplainerProgress } from '../utils/localExplainer.js'
+import { localModelsEnabled, setLocalModelsEnabled } from '../utils/modelCache.js'
 
 // Props received from the parent (ReadView or VocabView).
 // word       = the cleaned word to look up (no punctuation, e.g. "hola" not "hola,").
@@ -342,6 +362,12 @@ const localDefLoading  = ref(false)
 const localDefPct      = ref(0)
 const localDefLabel    = ref('')
 const localDefDownloading = ref(false)
+const modelsOn         = ref(localModelsEnabled())
+
+const shortDef = computed(() => {
+  if (dict.value.data?.definitions?.length) return dict.value.data.definitions[0]
+  return localDef.value
+})
 
 let pendingFiles = 0, doneFiles = 0
 const removeProgress = onExplainerProgress((info) => {
@@ -400,13 +426,21 @@ async function loadCorpus() {
   corpus.value.done    = true
 }
 
+async function enableAndExplain() {
+  setLocalModelsEnabled(true)
+  modelsOn.value = true
+  localDefLoading.value = true
+  try { localDef.value = await explain(props.word, props.lang) } catch {}
+  localDefLoading.value = false
+}
+
 async function loadDict() {
   if (!props.word || dict.value.loading || dict.value.done) return
   dict.value.loading = true
   dict.value.data    = await searchWiktionary(props.word, props.lang)
   dict.value.loading = false
   dict.value.done    = true
-  if (!dict.value.data && props.lang !== 'en') {
+  if (!dict.value.data && props.lang !== 'en' && localModelsEnabled()) {
     localDefLoading.value = true
     try { localDef.value = await explain(props.word, props.lang) } catch {}
     localDefLoading.value = false

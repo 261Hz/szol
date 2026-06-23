@@ -34,6 +34,38 @@
       </template>
     </div>
 
+    <!-- ── On-device models ── -->
+    <div class="flex flex-col gap-3">
+      <div class="text-sm" style="color:rgba(31,27,23,0.55); font-family:'IM Fell English',serif; letter-spacing:0.04em;">On-device models</div>
+
+      <div class="flex items-start justify-between gap-4 py-3 px-4" style="border:1px solid rgba(31,27,23,0.12); border-radius:3px;">
+        <div class="flex flex-col gap-0.5">
+          <div class="text-sm" style="color:#1f1b17;">Offline definitions</div>
+          <div class="text-xs" style="color:rgba(31,27,23,0.45);">Download a language model once for monolingual definitions when offline. Arabic &amp; Hebrew use a larger model (~900 MB); other languages ~300 MB.</div>
+        </div>
+        <button
+          @click="toggleModels"
+          class="relative flex-shrink-0 w-11 h-6 rounded-full transition-all"
+          :style="modelsEnabled ? 'background:#8b3a3a;' : 'background:rgba(31,27,23,0.18);'"
+        >
+          <span
+            class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-all"
+            :class="modelsEnabled ? 'translate-x-5' : ''"
+          />
+        </button>
+      </div>
+
+      <div v-if="cacheSize" class="flex items-center justify-between px-1">
+        <span class="text-xs" style="color:rgba(31,27,23,0.4);">Downloaded: {{ cacheSize }}</span>
+        <button
+          @click="clearCache"
+          :disabled="clearing"
+          class="text-xs transition-all disabled:opacity-40"
+          style="color:#8b3a3a;"
+        >{{ clearing ? 'Clearing…' : 'Delete all model data' }}</button>
+      </div>
+    </div>
+
     <!-- ── Danger Zone ── -->
     <div v-if="currentUser" class="flex flex-col gap-3 p-4" style="border:1px solid rgba(139,58,58,0.25); border-radius:3px;">
       <div class="text-sm" style="color:#8b3a3a; font-family:'IM Fell English',serif;">{{ t(lang, 'dangerZone') }}</div>
@@ -67,10 +99,11 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { LANGS } from '../data/stories.js'
 import { updateSettings, deleteAccount, logout } from '../utils/api.js'
 import { t } from '../utils/i18n.js'
+import { localModelsEnabled, setLocalModelsEnabled, clearModelCache, modelCacheBytes, fmtBytes } from '../utils/modelCache.js'
 
 const props = defineProps({ currentUser: Object, lang: String })
 const emit  = defineEmits(['openAuth', 'userUpdated', 'logout'])
@@ -80,6 +113,27 @@ const settingsError  = ref('')
 const confirmDelete  = ref(false)
 const deleting       = ref(false)
 const deleteError    = ref('')
+
+const modelsEnabled = ref(localModelsEnabled())
+const cacheSize     = ref('')
+const clearing      = ref(false)
+
+onMounted(async () => {
+  const bytes = await modelCacheBytes()
+  if (bytes > 0) cacheSize.value = fmtBytes(bytes)
+})
+
+function toggleModels() {
+  modelsEnabled.value = !modelsEnabled.value
+  setLocalModelsEnabled(modelsEnabled.value)
+}
+
+async function clearCache() {
+  clearing.value = true
+  await clearModelCache()
+  cacheSize.value = ''
+  clearing.value  = false
+}
 
 const voiceDescHtml = computed(() => {
   const langName = LANGS[props.currentUser?.native_lang]?.name ?? props.currentUser?.native_lang ?? ''
