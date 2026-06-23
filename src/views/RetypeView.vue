@@ -492,18 +492,25 @@ function onKey(e) {
       // Reset word — user must retype it from scratch.
       words.value[wi].forEach(c => c.state = 'untouched')
       currentCharIndex.value = 0
-    } else if (isCJK.value) {
-      // CJK: no spaces between characters — auto-advance immediately
-      if (!isLastWord) {
-        currentWordIndex.value++
-        currentCharIndex.value = 0
-        saveLocalProgress()
-      } else {
-        advanceSentence()
-      }
     } else {
-      // Latin/etc: wait for Space before advancing to next word
-      awaitingSpace.value = true
+      // Word typed correctly
+      if (props.currentUser) {
+        const wordText = words.value[wi].map(c => c.char).join('')
+        trackWord(wordText, props.lang, props.story?.title ?? '')
+      }
+      if (isCJK.value) {
+        // CJK: no spaces between characters — auto-advance immediately
+        if (!isLastWord) {
+          currentWordIndex.value++
+          currentCharIndex.value = 0
+          saveLocalProgress()
+        } else {
+          advanceSentence()
+        }
+      } else {
+        // Latin/etc: wait for Space before advancing to next word
+        awaitingSpace.value = true
+      }
     }
   }
 }

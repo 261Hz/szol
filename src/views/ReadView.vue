@@ -219,6 +219,23 @@ watch(
   { immediate: true }
 )
 
+// Auto-track saved words encountered in this story (passive reading = seen)
+watch(
+  [() => props.story, () => props.currentUser],
+  ([story, user]) => {
+    if (!story || !user || !props.savedWords?.size) return
+    const seen = new Set()
+    for (const raw of story.content.split(/\s+/)) {
+      const w = raw.replace(/[^\p{L}\p{M}]/gu, '')
+      if (w && props.savedWords.has(normalize(w)) && !seen.has(w)) {
+        seen.add(w)
+        trackWord(w, props.lang, story.title ?? '')
+      }
+    }
+  },
+  { immediate: true }
+)
+
 // Build reverse map: root → words in this story (for the root family display)
 const rootFamilyMap = computed(() => {
   const map = {}  // root → [words]
