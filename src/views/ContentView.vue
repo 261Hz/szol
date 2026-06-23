@@ -77,19 +77,28 @@
           :class="isRTL(lang) ? 'text-right text-lg' : ''"
         >
           <template v-for="(tok, i) in tokens" :key="i">
-            <ruby
-              v-if="tok.type === 'word' && rootMode !== 'off' && wordRootMap[tok.clean]"
-              class="szol-root cursor-pointer transition-all"
-              :style="wordStyle(tok)"
+            <!-- Root mode: character-level segmentation — root consonants stand out, affixes fade -->
+            <span
+              v-if="tok.type === 'word' && segMap.get(tok)"
+              class="cursor-pointer"
               @click="tap(tok.text)"
-            >{{ tok.text }}<rt>{{ wordRootMap[tok.clean] }}</rt></ruby>
+            ><span
+                v-for="(seg, si) in segMap.get(tok)"
+                :key="si"
+                :style="seg.role === 'root'
+                  ? (rootMode === 'manuscript'
+                      ? `color:${rootInkColor(wordRootMap[tok.clean])};`
+                      : 'color:#2a241c;')
+                  : seg.role === 'affix'
+                    ? 'opacity:0.25;'
+                    : ''"
+              >{{ seg.ch }}</span></span>
+            <!-- Plain word — no root data or mode off -->
             <span
               v-else-if="tok.type === 'word'"
               @click="tap(tok.text)"
               class="cursor-pointer transition-all"
-              :style="savedWords?.has(normalize(tok.text)) ? 'color:#8b3a3a; text-decoration:underline; text-decoration-style:solid;' : ''"
-              style="text-underline-offset:2px;"
-              onmouseover="if(!this.dataset.saved){this.style.textDecoration='underline dotted';this.style.textDecorationColor='#8b3a3a';}" onmouseout="if(!this.dataset.saved){this.style.textDecoration='';}"
+              :style="savedWords?.has(normalize(tok.text)) ? 'color:#8b3a3a; text-decoration:underline; text-decoration-style:solid; text-underline-offset:2px;' : ''"
             >{{ tok.text }}</span>
             <span v-else>{{ tok.text }}</span>
           </template>
@@ -426,15 +435,33 @@ const rootFamilyMap = computed(() => {
   return map
 })
 
-function wordStyle(tok) {
-  if (props.savedWords?.has(normalize(tok.text))) {
-    return 'color:#8b3a3a; text-decoration:underline; text-decoration-style:solid; text-underline-offset:2px;'
+// Per-token character segmentation: root consonants vs. prefix/suffix/binyan letters.
+// Driven by Dicta's shoresh — root chars appear in order within the word form (Semitic
+// root-and-pattern morphology). Non-letter chars (punctuation attached to word) pass through.
+const segMap = computed(() => {
+  if (rootMode.value === 'off') return new Map()
+  const out = new Map()
+  for (const tok of tokens.value) {
+    if (tok.type !== 'word' || !tok.clean) continue
+    const root = wordRootMap.value[tok.clean]
+    if (!root) continue
+    const rootChars = [...root]
+    const chars     = [...tok.text]
+    const rootIdx   = new Set()
+    let ri = 0
+    for (let i = 0; i < chars.length && ri < rootChars.length; i++) {
+      if (/[\p{L}\p{M}]/u.test(chars[i]) && chars[i] === rootChars[ri]) {
+        rootIdx.add(i); ri++
+      }
+    }
+    if (ri < rootChars.length) continue  // couldn't match all root chars — skip
+    out.set(tok, chars.map((ch, i) => ({
+      ch,
+      role: rootIdx.has(i) ? 'root' : /[\p{L}\p{M}]/u.test(ch) ? 'affix' : 'punct',
+    })))
   }
-  if (rootMode.value === 'manuscript' && wordRootMap.value[tok.clean]) {
-    return `color:${rootInkColor(wordRootMap.value[tok.clean])};`
-  }
-  return ''
-}
+  return out
+})
 
 // ── Read mode: tokens + word tap ─────────────────────────────────────────────
 const tokens = computed(() => {
