@@ -108,16 +108,51 @@ async function fetchRoot(word, lang) {
   return promise
 }
 
+// ── Dicta nakdan — called directly from the browser (CORS is allowed) ────────
+// Sending through Vercel serverless returned 404; calling from browser works
+// because Dicta's own web app is also a browser-side SPA calling this endpoint.
+
+const DICTA_URL = 'https://nakdan.dicta.org.il/api'
+
+async function dictaHebrewBatch(words) {
+  const text = words.join('\n')  // newline-separated keeps words as distinct tokens
+  let res
+  try {
+    res = await fetch(DICTA_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task: 'nakdan', genre: 'modern', addmorph: true, keepqq: false, nodagesh: false, text }),
+    })
+  } catch {
+    return {}  // network error / CORS — degrade silently
+  }
+  if (!res.ok) return {}
+
+  const data   = await res.json()
+  const tokens = Array.isArray(data[0]) ? data.flat() : data
+  const roots  = {}
+  for (const tok of tokens) {
+    // Strip niqqud from response word (nakdan adds vowel marks to output)
+    const w = (tok.word ?? '').replace(/[֑-ׇ]/g, '')
+    if (!w) continue
+    const rawMorph = tok.morph
+    const analysis = Array.isArray(rawMorph) ? rawMorph[0] : rawMorph
+    const raw = analysis?.shoresh ?? null
+    if (!raw || typeof raw !== 'string') continue
+    const chars = [...raw.replace(/[.\-\s]/g, '')]
+    if (chars.length >= 2) roots[w] = chars
+  }
+  return roots
+}
+
 // ── Public: batch pre-fetch for a word list ───────────────────────────────────
 // Returns { word → rootString } for all words that have a known root.
-// Sends ONE batch request to /api/roots-analyze instead of N parallel calls,
-// which previously caused Dicta to time-out / rate-limit the burst.
 
 export async function preFetchRoots(words, lang) {
   if (!['ar', 'he'].includes(lang)) return {}
 
-  const unique = [...new Set(words.filter(Boolean))]
-  const map    = {}
+  const unique   = [...new Set(words.filter(Boolean))]
+  const map      = {}
   const uncached = []
 
   for (const word of unique) {
@@ -132,15 +167,7 @@ export async function preFetchRoots(words, lang) {
   if (!uncached.length) return map
 
   try {
-    const res = await fetch('/api/roots-analyze', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ words: uncached, lang }),
-    })
-    if (!res.ok) return map
-
-    const data  = await res.json()
-    const roots = data.roots ?? {}   // { word: char[] }
+    const roots = lang === 'he' ? await dictaHebrewBatch(uncached) : {}
 
     for (const word of uncached) {
       const chars = roots[word] ?? null
@@ -148,7 +175,7 @@ export async function preFetchRoots(words, lang) {
       if (Array.isArray(chars) && chars.length) map[word] = chars.join('')
     }
   } catch (e) {
-    console.error('[roots] batch fetch error:', e.message)
+    console.error('[roots] batch error:', e.message)
   }
 
   return map
