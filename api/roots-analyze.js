@@ -35,7 +35,9 @@ async function hebrewRootsBatch(words) {
 
   const roots = {}
   for (const tok of tokens) {
-    const w = tok.word
+    // Dicta nakdan adds niqqud to the word field (e.g. "הַלְוָאָה").
+    // Strip Hebrew vowel points / cantillation so the key matches the bare consonantal input.
+    const w = (tok.word ?? '').replace(/[֑-ׇ]/g, '')
     if (!w) continue
     const rawMorph = tok.morph
     const analysis = Array.isArray(rawMorph) ? rawMorph[0] : rawMorph
