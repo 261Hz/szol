@@ -352,6 +352,21 @@
         :dir="isRTL(props.lang) ? 'rtl' : 'ltr'"
       >{{ currentSegment.text }}</div>
 
+      <!-- Local translation result -->
+      <div v-if="localTranslation" class="bg-slate-900 border border-indigo-900 rounded-lg px-4 py-3 text-sm text-gray-400 leading-relaxed italic">
+        {{ localTranslation }}
+      </div>
+
+      <!-- Model download progress -->
+      <div v-if="isDownloading" class="flex flex-col gap-1">
+        <div class="flex items-center justify-between text-xs text-gray-500">
+          <span class="truncate max-w-[70%]">{{ downloadLabel || 'Loading language engine…' }}</span>
+          <span>{{ downloadPct }}%</span>
+        </div>
+        <div class="h-1 bg-gray-800 rounded-full overflow-hidden">
+          <div class="h-full bg-indigo-600 rounded-full transition-all duration-300" :style="{ width: downloadPct + '%' }" />
+        </div>
+      </div>
 
       <!-- Transcript loading indicator -->
       <div v-if="transcriptLoading" class="text-xs text-gray-500 text-center py-1 animate-pulse">
@@ -369,6 +384,13 @@
             @click="showTranscript = !showTranscript"
             class="text-xs px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 hover:border-emerald-700 hover:text-emerald-400 transition-all"
           >{{ showTranscript ? t(lang, 'hideTranscript') : (mode === 'translation' ? 'Show original' : t(lang, 'showCorrectText')) }}</button>
+
+          <button
+            v-if="segments.length && currentSegment && lang !== 'en'"
+            @click="translateSegment"
+            :disabled="isTranslating || isDownloading"
+            class="text-xs px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 hover:border-indigo-600 hover:text-indigo-400 disabled:opacity-40 transition-all"
+          >{{ isTranslating ? '…' : (localTranslation ? 'Retranslate' : 'Translate') }}</button>
 
           <button
             v-if="selectedStory.audio_url"
@@ -402,6 +424,10 @@ import { t } from '../utils/i18n.js'
 import { isRTL } from '../utils/rtl.js'
 import { spokenNumbers } from '../utils/spokenNumbers.js'
 import { rootHighlightOn, applyRoots, clearRoots } from '../utils/rootHighlight.js'
+import { useLocalTranslator } from '../composables/useLocalTranslator.js'
+
+const { translateText, isTranslating, isDownloading, downloadPct, downloadLabel } = useLocalTranslator()
+const localTranslation = ref('')
 
 const props = defineProps({
   story:       Object,
@@ -572,11 +598,12 @@ async function runTranslationCheck() {
 
 async function loadStory(story, startAt = null) {
   teardown()
-  selectedStory.value  = story
-  segments.value       = story.segments ?? []
-  segmentIdx.value     = 0
-  userInput.value      = ''
-  showTranscript.value = false
+  selectedStory.value    = story
+  segments.value         = story.segments ?? []
+  segmentIdx.value       = 0
+  userInput.value        = ''
+  showTranscript.value   = false
+  localTranslation.value = ''
   _pendingStartAt      = startAt
 
   const saved = JSON.parse(localStorage.getItem('szol_listen_progress') || '{}')
@@ -603,12 +630,13 @@ async function loadStory(story, startAt = null) {
 
 function backToList() {
   teardown()
-  selectedStory.value  = null
-  segments.value       = []
-  segmentIdx.value     = 0
-  userInput.value      = ''
-  showTranscript.value = false
-  resumeSegment.value  = null
+  selectedStory.value    = null
+  segments.value         = []
+  segmentIdx.value       = 0
+  userInput.value        = ''
+  showTranscript.value   = false
+  resumeSegment.value    = null
+  localTranslation.value = ''
 }
 
 // ── YouTube player (dictation) ────────────────────────────────────────────────
@@ -760,6 +788,12 @@ function nextSegment() {
   userInput.value         = ''
   showTranscript.value    = false
   translationResult.value = null
+  localTranslation.value  = ''
+}
+
+async function translateSegment() {
+  if (!currentSegment.value?.text) return
+  localTranslation.value = await translateText(currentSegment.value.text, props.lang)
 }
 
 // ── Teardown ──────────────────────────────────────────────────────────────────
