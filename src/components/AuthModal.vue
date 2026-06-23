@@ -1,33 +1,36 @@
 <template>
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
     @click.self="$emit('close')"
   >
-    <div class="bg-gray-950 rounded-2xl shadow-2xl border border-gray-800 w-full max-w-md mx-4 overflow-hidden">
+    <div
+      class="w-full max-w-md mx-4 overflow-hidden"
+      style="background:#ece4ca; border:1px solid rgba(31,27,23,0.15); border-radius:3px; box-shadow:0 8px 40px rgba(31,27,23,0.18);"
+    >
 
       <!-- Brand header -->
-      <div class="px-8 pt-8 pb-6 border-b border-gray-800 flex items-center justify-between">
+      <div class="px-8 pt-8 pb-6 flex items-center justify-between" style="border-bottom:1px solid rgba(31,27,23,0.1);">
         <div>
-          <div class="text-xl font-bold tracking-tight text-gray-100">
-            Sz<span class="text-green-400">ó</span>l
+          <div class="text-xl tracking-tight select-none" style="color:#1f1b17; font-family:'IM Fell English',serif;">
+            Sz<span style="color:#8b3a3a">ó</span>l
           </div>
-          <div class="text-xs text-gray-500 mt-0.5">Language learning through real content</div>
+          <div class="text-xs mt-0.5" style="color:rgba(31,27,23,0.4); font-style:italic; font-family:'EB Garamond',serif;">
+            Language learning through real content
+          </div>
         </div>
-        <button @click="$emit('close')" class="text-gray-600 hover:text-gray-300 transition-all text-xl leading-none">✕</button>
+        <button @click="$emit('close')" class="text-xl leading-none transition-opacity hover:opacity-40" style="color:rgba(31,27,23,0.35);">✕</button>
       </div>
 
       <!-- Tab bar -->
-      <div class="flex border-b border-gray-800">
+      <div class="flex" style="border-bottom:1px solid rgba(31,27,23,0.1);">
         <button
           v-for="tab in ['Login', 'Register']"
           :key="tab"
           @click="switchTab(tab)"
-          :class="[
-            'flex-1 py-3 text-sm font-medium transition-all',
-            activeTab === tab
-              ? 'text-green-400 border-b-2 border-green-400 -mb-px'
-              : 'text-gray-500 hover:text-gray-300'
-          ]"
+          class="flex-1 py-3 text-sm transition-all"
+          :style="activeTab === tab
+            ? 'color:#1f1b17; border-bottom:2px solid #8b3a3a; margin-bottom:-1px; font-family:\'IM Fell English\',serif;'
+            : 'color:rgba(31,27,23,0.38);'"
         >{{ tab }}</button>
       </div>
 
@@ -36,41 +39,49 @@
         <!-- ── Login form ── -->
         <form v-if="activeTab === 'Login'" @submit.prevent="doLogin" class="flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-gray-400">Email</label>
+            <label class="text-xs tracking-wide uppercase" style="color:rgba(31,27,23,0.45);">Email</label>
             <input
               v-model="email" type="email" required autocomplete="email"
               placeholder="you@example.com"
-              class="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-100 placeholder:text-gray-600 outline-none focus:border-green-600 transition-all"
+              class="w-full px-3 py-2.5 text-sm outline-none transition-all"
+              style="background:rgba(31,27,23,0.04); border:1px solid rgba(31,27,23,0.15); border-radius:2px; color:#1f1b17; font-family:'EB Garamond',serif;"
             />
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-gray-400">Password</label>
+            <label class="text-xs tracking-wide uppercase" style="color:rgba(31,27,23,0.45);">Password</label>
             <div class="relative">
               <input
                 v-model="password" :type="showPassword ? 'text' : 'password'"
                 required autocomplete="current-password" placeholder="••••••••"
-                class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 pr-16 text-sm text-gray-100 placeholder:text-gray-600 outline-none focus:border-green-600 transition-all"
+                class="w-full px-3 py-2.5 pr-16 text-sm outline-none transition-all"
+                style="background:rgba(31,27,23,0.04); border:1px solid rgba(31,27,23,0.15); border-radius:2px; color:#1f1b17; font-family:'EB Garamond',serif;"
               />
               <button type="button" @click="showPassword = !showPassword" tabindex="-1"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 hover:text-gray-300 transition-all"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-xs transition-opacity hover:opacity-60"
+                style="color:rgba(31,27,23,0.4);"
               >{{ showPassword ? 'Hide' : 'Show' }}</button>
             </div>
           </div>
 
-          <div v-if="error" class="text-xs text-red-400 leading-snug bg-red-950/50 border border-red-900 rounded-lg px-3 py-2">{{ error }}</div>
+          <div v-if="error" class="text-xs leading-snug px-3 py-2"
+            style="color:#8b3a3a; background:rgba(139,58,58,0.07); border:1px solid rgba(139,58,58,0.2); border-radius:2px;">
+            {{ error }}
+          </div>
           <button v-if="showResend" type="button" :disabled="resending" @click="doResend"
-            class="text-xs text-green-400 hover:text-green-300 underline text-left disabled:opacity-40 transition-all"
+            class="text-xs underline text-left disabled:opacity-40 transition-all"
+            style="color:#8b3a3a;"
           >{{ resending ? 'Sending…' : 'Resend verification email' }}</button>
-          <div v-if="resendSuccess" class="text-xs text-green-400">Verification email sent! Check your inbox.</div>
+          <div v-if="resendSuccess" class="text-xs" style="color:#3a7a3a;">Verification email sent. Check your inbox.</div>
 
           <button type="submit" :disabled="loading"
-            class="w-full py-2.5 rounded-lg bg-green-700 hover:bg-green-600 text-white text-sm font-medium disabled:opacity-40 transition-all"
+            class="w-full py-2.5 text-sm transition-all disabled:opacity-40"
+            style="background:#2a2018; color:#e8dcc4; border-radius:2px; font-family:'IM Fell English',serif; letter-spacing:0.03em;"
           >{{ loading ? 'Logging in…' : 'Log in' }}</button>
 
-          <div class="text-center text-xs text-gray-600">
+          <div class="text-center text-xs" style="color:rgba(31,27,23,0.4);">
             No account?
-            <button type="button" @click="switchTab('Register')" class="text-green-400 hover:text-green-300 transition-all">Create one</button>
+            <button type="button" @click="switchTab('Register')" class="underline transition-all" style="color:#8b3a3a;">Create one</button>
           </div>
         </form>
 
@@ -80,61 +91,73 @@
           <!-- Step indicator -->
           <div class="flex items-center gap-2 mb-1">
             <div v-for="s in 2" :key="s"
-              :class="['h-1 flex-1 rounded-full transition-all', s <= registerStep ? 'bg-green-500' : 'bg-gray-800']"
+              class="h-0.5 flex-1 rounded-full transition-all"
+              :style="s <= registerStep ? 'background:#8b3a3a;' : 'background:rgba(31,27,23,0.12);'"
             />
-            <span class="text-xs text-gray-600 ml-1">{{ registerStep }}/2</span>
+            <span class="text-xs ml-1" style="color:rgba(31,27,23,0.35);">{{ registerStep }}/2</span>
           </div>
 
           <!-- Step 1: Credentials -->
           <template v-if="registerStep === 1">
             <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-medium text-gray-400">Username</label>
+              <label class="text-xs tracking-wide uppercase" style="color:rgba(31,27,23,0.45);">Username</label>
               <div class="relative">
                 <input v-model="username" type="text" required minlength="2" maxlength="40" autocomplete="username"
                   placeholder="your_username"
-                  class="w-full bg-gray-900 border rounded-lg px-3 py-2.5 pr-8 text-sm text-gray-100 placeholder:text-gray-600 outline-none transition-all"
-                  :class="usernameBorderClass"
+                  class="w-full px-3 py-2.5 pr-8 text-sm outline-none transition-all"
+                  :style="[
+                    'background:rgba(31,27,23,0.04); border-radius:2px; color:#1f1b17; font-family:\'EB Garamond\',serif;',
+                    usernameAvailable === false ? 'border:1px solid #8b3a3a;'
+                    : usernameAvailable === true  ? 'border:1px solid #3a7a3a;'
+                    : 'border:1px solid rgba(31,27,23,0.15);'
+                  ].join('')"
                 />
-                <span v-if="checkingUsername" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">…</span>
-                <span v-else-if="usernameAvailable === true"  class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-green-400">✓</span>
-                <span v-else-if="usernameAvailable === false" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-red-400">✗</span>
+                <span v-if="checkingUsername"          class="absolute right-3 top-1/2 -translate-y-1/2 text-xs" style="color:rgba(31,27,23,0.35);">…</span>
+                <span v-else-if="usernameAvailable === true"  class="absolute right-3 top-1/2 -translate-y-1/2 text-xs" style="color:#3a7a3a;">✓</span>
+                <span v-else-if="usernameAvailable === false" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs" style="color:#8b3a3a;">✗</span>
               </div>
-              <p v-if="usernameAvailable === false" class="text-xs text-red-400">Username is already taken.</p>
+              <p v-if="usernameAvailable === false" class="text-xs" style="color:#8b3a3a;">Username is already taken.</p>
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-medium text-gray-400">Email</label>
+              <label class="text-xs tracking-wide uppercase" style="color:rgba(31,27,23,0.45);">Email</label>
               <input v-model="email" type="email" required autocomplete="email"
                 placeholder="you@example.com"
-                class="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-100 placeholder:text-gray-600 outline-none focus:border-green-600 transition-all"
+                class="w-full px-3 py-2.5 text-sm outline-none transition-all"
+                style="background:rgba(31,27,23,0.04); border:1px solid rgba(31,27,23,0.15); border-radius:2px; color:#1f1b17; font-family:'EB Garamond',serif;"
               />
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-medium text-gray-400">Password</label>
+              <label class="text-xs tracking-wide uppercase" style="color:rgba(31,27,23,0.45);">Password</label>
               <div class="relative">
                 <input v-model="password" :type="showPassword ? 'text' : 'password'"
                   required autocomplete="new-password" placeholder="Min 8 characters"
-                  class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 pr-16 text-sm text-gray-100 placeholder:text-gray-600 outline-none focus:border-green-600 transition-all"
+                  class="w-full px-3 py-2.5 pr-16 text-sm outline-none transition-all"
+                  style="background:rgba(31,27,23,0.04); border:1px solid rgba(31,27,23,0.15); border-radius:2px; color:#1f1b17; font-family:'EB Garamond',serif;"
                 />
                 <button type="button" @click="showPassword = !showPassword" tabindex="-1"
-                  class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 hover:text-gray-300 transition-all"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 text-xs transition-opacity hover:opacity-60"
+                  style="color:rgba(31,27,23,0.4);"
                 >{{ showPassword ? 'Hide' : 'Show' }}</button>
               </div>
               <!-- Strength bar -->
-              <div v-if="password" class="flex gap-1 h-1 mt-0.5">
+              <div v-if="password" class="flex gap-1 h-0.5 mt-0.5">
                 <div v-for="i in 4" :key="i" class="flex-1 rounded-full transition-all"
-                  :class="i <= passwordStrength ? strengthColor : 'bg-gray-800'" />
+                  :style="i <= passwordStrength ? strengthColor : 'background:rgba(31,27,23,0.1);'"
+                />
               </div>
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-medium text-gray-400">Confirm password</label>
+              <label class="text-xs tracking-wide uppercase" style="color:rgba(31,27,23,0.45);">Confirm password</label>
               <div class="relative">
                 <input v-model="confirmPassword" :type="showPassword ? 'text' : 'password'"
                   required autocomplete="new-password" placeholder="••••••••"
-                  class="w-full bg-gray-900 rounded-lg px-3 py-2.5 pr-8 text-sm text-gray-100 placeholder:text-gray-600 outline-none transition-all"
-                  :class="confirmPassword && confirmPassword !== password ? 'border border-red-700 focus:border-red-500' : 'border border-gray-700 focus:border-green-600'"
+                  class="w-full px-3 py-2.5 pr-8 text-sm outline-none transition-all"
+                  :style="confirmPassword && confirmPassword !== password
+                    ? 'background:rgba(31,27,23,0.04); border:1px solid #8b3a3a; border-radius:2px; color:#1f1b17; font-family:\'EB Garamond\',serif;'
+                    : 'background:rgba(31,27,23,0.04); border:1px solid rgba(31,27,23,0.15); border-radius:2px; color:#1f1b17; font-family:\'EB Garamond\',serif;'"
                 />
                 <span v-if="confirmPassword" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs"
-                  :class="confirmPassword === password ? 'text-green-400' : 'text-red-400'"
+                  :style="confirmPassword === password ? 'color:#3a7a3a;' : 'color:#8b3a3a;'"
                 >{{ confirmPassword === password ? '✓' : '✗' }}</span>
               </div>
             </div>
@@ -143,53 +166,59 @@
           <!-- Step 2: Languages -->
           <template v-else>
             <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-medium text-gray-400">My native language</label>
+              <label class="text-xs tracking-wide uppercase" style="color:rgba(31,27,23,0.45);">My native language</label>
               <select v-model="nativeLang" required
-                class="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-green-600 transition-all"
-                :class="nativeLang ? 'text-gray-100' : 'text-gray-500'"
+                class="w-full px-3 py-2.5 text-sm outline-none transition-all"
+                style="background:rgba(31,27,23,0.04); border:1px solid rgba(31,27,23,0.15); border-radius:2px; color:#1f1b17; font-family:'EB Garamond',serif;"
               >
-                <option value="">Select language</option>
-                <option v-for="(l, code) in LANGS" :key="code" :value="code">{{ l.name }}</option>
+                <option value="" style="background:#ece4ca; color:#1f1b17;">Select language</option>
+                <option v-for="(l, code) in LANGS" :key="code" :value="code" style="background:#ece4ca; color:#1f1b17;">{{ l.name }}</option>
               </select>
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-medium text-gray-400">Language I'm learning</label>
+              <label class="text-xs tracking-wide uppercase" style="color:rgba(31,27,23,0.45);">Language I'm learning</label>
               <select v-model="targetLang" required
-                class="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-green-600 transition-all"
-                :class="targetLang ? 'text-gray-100' : 'text-gray-500'"
+                class="w-full px-3 py-2.5 text-sm outline-none transition-all"
+                style="background:rgba(31,27,23,0.04); border:1px solid rgba(31,27,23,0.15); border-radius:2px; color:#1f1b17; font-family:'EB Garamond',serif;"
               >
-                <option value="">Select language</option>
-                <option v-for="(l, code) in LANGS" :key="code" :value="code">{{ l.name }}</option>
+                <option value="" style="background:#ece4ca; color:#1f1b17;">Select language</option>
+                <option v-for="(l, code) in LANGS" :key="code" :value="code" style="background:#ece4ca; color:#1f1b17;">{{ l.name }}</option>
               </select>
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-medium text-gray-400">{{ proficiencyPrompt }}</label>
+              <label class="text-xs tracking-wide uppercase" style="color:rgba(31,27,23,0.45);">{{ proficiencyPrompt }}</label>
               <select v-model="proficiency"
-                class="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-100 outline-none focus:border-green-600 transition-all"
+                class="w-full px-3 py-2.5 text-sm outline-none transition-all"
+                style="background:rgba(31,27,23,0.04); border:1px solid rgba(31,27,23,0.15); border-radius:2px; color:#1f1b17; font-family:'EB Garamond',serif;"
               >
-                <option value="">Skip for now</option>
-                <option v-for="lvl in proficiencyOptions" :key="lvl.value" :value="lvl.value">{{ lvl.label }}</option>
+                <option value="" style="background:#ece4ca; color:#1f1b17;">Skip for now</option>
+                <option v-for="lvl in proficiencyOptions" :key="lvl.value" :value="lvl.value" style="background:#ece4ca; color:#1f1b17;">{{ lvl.label }}</option>
               </select>
             </div>
 
-            <!-- Turnstile — explicit render target -->
+            <!-- Turnstile -->
             <div v-if="turnstileSiteKey" ref="turnstileEl" class="flex justify-center" />
           </template>
 
-          <div v-if="error" class="text-xs text-red-400 leading-snug bg-red-950/50 border border-red-900 rounded-lg px-3 py-2">{{ error }}</div>
+          <div v-if="error" class="text-xs leading-snug px-3 py-2"
+            style="color:#8b3a3a; background:rgba(139,58,58,0.07); border:1px solid rgba(139,58,58,0.2); border-radius:2px;">
+            {{ error }}
+          </div>
 
           <div class="flex gap-2">
             <button v-if="registerStep === 2" type="button" @click="registerStep = 1"
-              class="px-4 py-2.5 rounded-lg border border-gray-700 text-gray-400 text-sm hover:border-gray-500 hover:text-gray-200 transition-all"
+              class="px-4 py-2.5 text-sm transition-all"
+              style="border:1px solid rgba(31,27,23,0.15); border-radius:2px; color:rgba(31,27,23,0.5); font-family:'EB Garamond',serif;"
             >Back</button>
             <button type="submit" :disabled="loading || !canSubmitStep"
-              class="flex-1 py-2.5 rounded-lg bg-green-700 hover:bg-green-600 text-white text-sm font-medium disabled:opacity-40 transition-all"
+              class="flex-1 py-2.5 text-sm transition-all disabled:opacity-40"
+              style="background:#2a2018; color:#e8dcc4; border-radius:2px; font-family:'IM Fell English',serif; letter-spacing:0.03em;"
             >{{ loading ? '…' : registerStep === 1 ? 'Continue →' : 'Create account' }}</button>
           </div>
 
-          <div class="text-center text-xs text-gray-600">
+          <div class="text-center text-xs" style="color:rgba(31,27,23,0.4);">
             Already have an account?
-            <button type="button" @click="switchTab('Login')" class="text-green-400 hover:text-green-300 transition-all">Log in</button>
+            <button type="button" @click="switchTab('Login')" class="underline transition-all" style="color:#8b3a3a;">Log in</button>
           </div>
         </form>
 
@@ -232,12 +261,6 @@ const usernameAvailable  = ref(null)   // null=unchecked, true=free, false=taken
 const checkingUsername   = ref(false)
 let   usernameDebounce   = null
 
-const usernameBorderClass = computed(() => {
-  if (usernameAvailable.value === false) return 'border-red-700 focus:border-red-500'
-  if (usernameAvailable.value === true)  return 'border-green-700 focus:border-green-500'
-  return 'border-gray-700 focus:border-green-600'
-})
-
 watch(targetLang, () => { proficiency.value = '' })
 
 watch(username, (val) => {
@@ -257,15 +280,11 @@ watch(username, (val) => {
 })
 
 // ── Turnstile explicit render ─────────────────────────────────────────────────
-// Auto-render won't work because the div mounts after Turnstile has already
-// scanned the DOM. We call turnstile.render() explicitly after step 2 appears.
-
 async function mountTurnstile() {
   if (!turnstileSiteKey) return
   await nextTick()
   if (!turnstileEl.value) return
 
-  // Wait up to 2 s for the Turnstile script to load
   let waited = 0
   while (!window.turnstile && waited < 2000) {
     await new Promise(r => setTimeout(r, 100))
@@ -281,7 +300,7 @@ async function mountTurnstile() {
     sitekey:           turnstileSiteKey,
     callback:          (t) => { turnstileToken.value = t },
     'expired-callback': () => { turnstileToken.value = '' },
-    theme:             'dark',
+    theme:             'light',
   })
 }
 
@@ -332,10 +351,10 @@ const passwordStrength = computed(() => {
 })
 
 const strengthColor = computed(() => {
-  if (passwordStrength.value <= 1) return 'bg-red-400'
-  if (passwordStrength.value === 2) return 'bg-orange-400'
-  if (passwordStrength.value === 3) return 'bg-yellow-400'
-  return 'bg-green-600'
+  if (passwordStrength.value <= 1) return 'background:#8b3a3a;'
+  if (passwordStrength.value === 2) return 'background:#a86a2a;'
+  if (passwordStrength.value === 3) return 'background:#a88a4a;'
+  return 'background:#3a7a3a;'
 })
 
 const canSubmitStep = computed(() => {
