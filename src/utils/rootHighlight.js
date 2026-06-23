@@ -53,7 +53,7 @@ export function rootInkColor(root) {
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
-const CACHE_KEY   = 'szol_root_cache'
+const CACHE_KEY   = 'szol_root_cache_v2'  // v2: browser-direct Dicta; purges old server-404 nulls
 const CACHE_LIMIT = 500
 const _session    = new Map()   // `${lang}:${word}` → char[] | null
 
@@ -171,8 +171,10 @@ export async function preFetchRoots(words, lang) {
 
     for (const word of uncached) {
       const chars = roots[word] ?? null
-      cacheSet(word, lang, chars)
-      if (Array.isArray(chars) && chars.length) map[word] = chars.join('')
+      if (chars) {
+        cacheSet(word, lang, chars)   // only cache positive hits — nulls get retried next visit
+        map[word] = chars.join('')
+      }
     }
   } catch (e) {
     console.error('[roots] batch error:', e.message)
