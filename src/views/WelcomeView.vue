@@ -11,7 +11,7 @@
 
     <!-- Paper map surface -->
     <div class="map-paper w-full max-w-lg">
-      <div class="map-paper-label">Choose a language</div>
+      <div class="map-paper-label" :dir="ui.rtl ? 'rtl' : 'ltr'">{{ ui.choose }}</div>
       <div class="map-regions">
         <div v-for="region in REGIONS" :key="region.name" class="map-region">
           <div class="map-region-name">{{ region.name }}</div>
@@ -93,22 +93,38 @@ const REGIONS = computed(() =>
 )
 
 const UI = {
-  en:  { start: 'Get started →',   signIn: 'Sign in / Create account',          rtl: false },
-  es:  { start: 'Comenzar →',      signIn: 'Iniciar sesión / Crear cuenta',      rtl: false },
-  fr:  { start: 'Commencer →',     signIn: 'Se connecter / Créer un compte',     rtl: false },
-  de:  { start: 'Loslegen →',      signIn: 'Anmelden / Konto erstellen',         rtl: false },
-  it:  { start: 'Inizia →',        signIn: 'Accedi / Crea account',              rtl: false },
-  ru:  { start: 'Начать →',        signIn: 'Войти / Создать аккаунт',            rtl: false },
-  he:  { start: '← התחל',         signIn: 'התחבר / צור חשבון',                  rtl: true  },
-  ar:  { start: '← ابدأ',          signIn: 'تسجيل الدخول / إنشاء حساب',          rtl: true  },
-  arz: { start: '← ابدأ',          signIn: 'دخول / عمل حساب',                    rtl: true  },
-  ja:  { start: 'はじめる →',      signIn: 'ログイン / アカウント作成',           rtl: false },
-  zh:  { start: '开始 →',          signIn: '登录 / 创建账户',                     rtl: false },
-  hu:  { start: 'Kezdjük →',       signIn: 'Bejelentkezés / Fiók létrehozása',   rtl: false },
-  el:  { start: 'Ξεκίνα →',       signIn: 'Σύνδεση / Δημιουργία λογαριασμού',  rtl: false },
+  en:  { choose: 'Choose a language',     start: 'Get started →',   signIn: 'Sign in / Create account',          rtl: false },
+  es:  { choose: 'Elige un idioma',       start: 'Comenzar →',      signIn: 'Iniciar sesión / Crear cuenta',      rtl: false },
+  fr:  { choose: 'Choisissez une langue', start: 'Commencer →',     signIn: 'Se connecter / Créer un compte',     rtl: false },
+  de:  { choose: 'Wähle eine Sprache',    start: 'Loslegen →',      signIn: 'Anmelden / Konto erstellen',         rtl: false },
+  it:  { choose: 'Scegli una lingua',     start: 'Inizia →',        signIn: 'Accedi / Crea account',              rtl: false },
+  ru:  { choose: 'Выберите язык',         start: 'Начать →',        signIn: 'Войти / Создать аккаунт',            rtl: false },
+  he:  { choose: 'בחר שפה',              start: '← התחל',          signIn: 'התחבר / צור חשבון',                  rtl: true  },
+  ar:  { choose: 'اختر لغة',             start: '← ابدأ',          signIn: 'تسجيل الدخول / إنشاء حساب',          rtl: true  },
+  arz: { choose: 'اختار لغة',            start: '← ابدأ',          signIn: 'دخول / عمل حساب',                    rtl: true  },
+  ja:  { choose: '言語を選んでください',  start: 'はじめる →',      signIn: 'ログイン / アカウント作成',           rtl: false },
+  zh:  { choose: '选择语言',              start: '开始 →',          signIn: '登录 / 创建账户',                     rtl: false },
+  hu:  { choose: 'Válassz nyelvet',       start: 'Kezdjük →',       signIn: 'Bejelentkezés / Fiók létrehozása',   rtl: false },
+  el:  { choose: 'Επίλεξε γλώσσα',       start: 'Ξεκίνα →',       signIn: 'Σύνδεση / Δημιουργία λογαριασμού',  rtl: false },
+  id:  { choose: 'Pilih bahasa',          start: 'Mulai →',         signIn: 'Masuk / Buat akun',                  rtl: false },
+  pt:  { choose: 'Escolha um idioma',     start: 'Começar →',       signIn: 'Entrar / Criar conta',               rtl: false },
+  nl:  { choose: 'Kies een taal',         start: 'Beginnen →',      signIn: 'Inloggen / Account aanmaken',        rtl: false },
+  tr:  { choose: 'Dil seçin',             start: 'Başla →',         signIn: 'Giriş yap / Hesap oluştur',          rtl: false },
+  ko:  { choose: '언어를 선택하세요',     start: '시작하기 →',      signIn: '로그인 / 계정 만들기',               rtl: false },
+  pl:  { choose: 'Wybierz język',         start: 'Zaczynamy →',     signIn: 'Zaloguj / Utwórz konto',             rtl: false },
+  sv:  { choose: 'Välj ett språk',        start: 'Kom igång →',     signIn: 'Logga in / Skapa konto',             rtl: false },
+  uk:  { choose: 'Оберіть мову',          start: 'Почати →',        signIn: 'Увійти / Створити акаунт',           rtl: false },
+  vi:  { choose: 'Chọn ngôn ngữ',         start: 'Bắt đầu →',      signIn: 'Đăng nhập / Tạo tài khoản',          rtl: false },
+  ro:  { choose: 'Alegeți o limbă',       start: 'Începe →',        signIn: 'Conectare / Creare cont',            rtl: false },
+  cs:  { choose: 'Vyberte jazyk',         start: 'Začít →',         signIn: 'Přihlásit / Vytvořit účet',          rtl: false },
 }
 
-const ui = computed(() => UI[selected.value] ?? UI.en)
+// Detect device language once; fall back to English if unsupported.
+const deviceCode = (navigator?.language ?? 'en').split('-')[0].toLowerCase()
+const initLang   = (deviceCode in UI) ? deviceCode : 'en'
+
+// Before selection show device language; after selection show the chosen study language.
+const ui = computed(() => UI[selected.value ?? initLang] ?? UI.en)
 </script>
 
 <style scoped>
