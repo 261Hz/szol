@@ -50,6 +50,7 @@
         @load="loadStory"
         @stories-loaded="storyPool = $event"
         @go="activeTab = $event"
+        @open-listen="openInListen"
       />
 
       <RetypeView
