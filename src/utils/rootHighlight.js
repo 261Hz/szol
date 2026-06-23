@@ -167,7 +167,13 @@ export async function preFetchRoots(words, lang) {
   if (!uncached.length) return map
 
   try {
-    const roots = lang === 'he' ? await dictaHebrewBatch(uncached) : {}
+    const res = await fetch('/api/roots-analyze', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ words: uncached, lang }),
+    })
+    const data  = res.ok ? await res.json() : {}
+    const roots = data.roots ?? {}
 
     for (const word of uncached) {
       const chars = roots[word] ?? null
