@@ -368,6 +368,7 @@ class PodcastEpisodeResponse(BaseModel):
     lang:           str
     title:          str
     audio_url:      str
+    source_type:    str                 = "podcast"
     duration_sec:   Optional[int]       = None
     description:    Optional[str]       = None
     published_at:   Optional[datetime]  = None
@@ -380,5 +381,6 @@ class PodcastEpisodeResponse(BaseModel):
     @classmethod
     def from_orm(cls, obj):
         data = {c.key: getattr(obj, c.key) for c in obj.__table__.columns}
-        data["has_transcript"] = bool(obj.segments)  # only true when timestamped segments exist
+        data["has_transcript"] = bool(obj.segments)
+        data["source_type"]    = "podcast"
         return cls(**data)

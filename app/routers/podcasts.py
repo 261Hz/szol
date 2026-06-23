@@ -1,15 +1,19 @@
 """
 Podcast endpoints.
 
+GET  /podcasts/search?q=        search iTunes for podcasts
+POST /podcasts/subscribe        add a podcast feed and ingest episodes
 GET  /podcasts/?lang=           list episodes for a language
 POST /podcasts/{id}/transcript  fetch transcript via ogjre.com (fast, free)
 """
 
 import logging
 import re
+import urllib.parse
 from typing import List
 from uuid import UUID
 
+import requests as _requests
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -31,6 +35,104 @@ def list_episodes(lang: str, db: Session = Depends(get_db)):
         .all()
     )
     return [schemas.PodcastEpisodeResponse.from_orm(r) for r in rows]
+
+
+@router.get("/search")
+def search_podcasts(q: str):
+    """Proxy iTunes podcast search — avoids CORS on the frontend."""
+    url = f"https://itunes.apple.com/search?term={urllib.parse.quote(q)}&entity=podcast&limit=12"
+    try:
+        r = _requests.get(url, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"iTunes search failed: {e}")
+    results = []
+    for p in data.get("results", []):
+        feed = p.get("feedUrl")
+        if not feed:
+            continue
+        results.append({
+            "title":         p.get("collectionName", ""),
+            "feed_url":      feed,
+            "artwork":       p.get("artworkUrl600", ""),
+            "publisher":     p.get("artistName", ""),
+            "episode_count": p.get("trackCount", 0),
+            "lang":          (p.get("country") or "").lower(),
+        })
+    return results
+
+
+class _SubscribeIn(BaseModel):
+    feed_url:     str
+    lang:         str
+    max_episodes: int = 10
+
+
+@router.post("/subscribe")
+def subscribe_podcast(payload: _SubscribeIn, db: Session = Depends(get_db)):
+    """Parse an RSS feed and ingest its recent episodes into podcast_episodes."""
+    import feedparser
+    from ..ingest.podcasts import (
+        _audio_url, _duration_sec, _parse_date, _strip_html,
+        _transcript_url, _fetch_rss_transcript,
+        fetch_ogjre_transcript, ogjre_slug,
+    )
+
+    try:
+        feed = feedparser.parse(payload.feed_url)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Could not parse feed: {e}")
+
+    if not feed.entries:
+        raise HTTPException(status_code=422, detail="Feed is empty or invalid")
+
+    podcast_name = (feed.feed.get("title") or "Unknown Podcast").strip()
+    added, skipped = [], 0
+
+    for entry in feed.entries[: payload.max_episodes]:
+        audio = _audio_url(entry)
+        if not audio:
+            continue
+
+        if db.query(models.PodcastEpisode).filter_by(audio_url=audio).first():
+            skipped += 1
+            continue
+
+        title = _strip_html(entry.get("title", "Untitled"))
+        transcript, segments = None, []
+
+        # 1. ogjre for JRE episodes
+        if ogjre_slug(title):
+            transcript, segments = fetch_ogjre_transcript(title)
+
+        # 2. podcast:transcript RSS tag (SRT / VTT / JSON)
+        if not transcript:
+            tx_url = _transcript_url(entry)
+            if tx_url:
+                transcript, segments = _fetch_rss_transcript(tx_url)
+
+        ep = models.PodcastEpisode(
+            podcast_name = podcast_name,
+            lang         = payload.lang,
+            title        = title,
+            audio_url    = audio,
+            duration_sec = _duration_sec(entry),
+            description  = _strip_html(entry.get("summary", "") or "")[:1000],
+            published_at = _parse_date(entry),
+            transcript   = transcript,
+            segments     = segments or None,
+        )
+        db.add(ep)
+        added.append({"title": title, "has_transcript": bool(segments)})
+
+    db.commit()
+    return {
+        "podcast_name":    podcast_name,
+        "episodes_added":  len(added),
+        "episodes_skipped": skipped,
+        "episodes":        added,
+    }
 
 
 def _lex_slug_from_audio(audio_url: str) -> str | None:

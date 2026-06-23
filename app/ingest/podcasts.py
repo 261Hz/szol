@@ -245,15 +245,71 @@ def _fetch_lex_transcript(slug: str) -> tuple[str | None, list[dict]]:
         return None, []
 
 
-def _fetch_rss_transcript(url: str) -> str | None:
+def _parse_transcript_segments(text: str, content_type: str) -> list[dict]:
+    """Parse SRT / VTT / JSON transcript content into [{start, end, text}] segments."""
+    ct = content_type.lower()
+
+    if "json" in ct:
+        import json as _json
+        try:
+            data = _json.loads(text)
+            segs = data.get("segments") or data.get("words") or []
+            result = []
+            for s in segs:
+                body = (s.get("text") or s.get("body") or "").strip()
+                start = float(s.get("start") or s.get("startTime") or s.get("start_time") or 0)
+                end   = float(s.get("end")   or s.get("endTime")   or s.get("end_time")   or start + 2)
+                if body:
+                    result.append({"start": start, "end": end, "text": body})
+            return result
+        except Exception:
+            return []
+
+    # SRT / VTT — identical block structure
+    def _ts(raw: str) -> float:
+        raw = raw.strip().split()[0].replace(",", ".")
+        parts = raw.split(":")
+        try:
+            if len(parts) == 3:
+                return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+            if len(parts) == 2:
+                return int(parts[0]) * 60 + float(parts[1])
+            return float(parts[0])
+        except (ValueError, IndexError):
+            return 0.0
+
+    result = []
+    for block in re.split(r"\n\n+", text.strip()):
+        lines = [l.strip() for l in block.splitlines() if l.strip()]
+        time_line = next((l for l in lines if "-->" in l), None)
+        if not time_line:
+            continue
+        halves = time_line.split("-->")
+        start = _ts(halves[0])
+        end   = _ts(halves[1]) if len(halves) > 1 else start + 2
+        body  = " ".join(
+            l for l in lines
+            if "-->" not in l and not l.isdigit() and l.upper() not in ("WEBVTT", "NOTE")
+        ).strip()
+        if body:
+            result.append({"start": start, "end": end, "text": body})
+    return result
+
+
+def _fetch_rss_transcript(url: str) -> tuple[str | None, list[dict]]:
+    """Fetch a podcast:transcript URL; return (plain_text, segments)."""
     try:
         r = requests.get(url, headers=_HEADERS, timeout=_TIMEOUT)
         r.raise_for_status()
         ct = r.headers.get("content-type", "").lower()
-        return _parse_transcript_body(r.text, ct)
+        segs = _parse_transcript_segments(r.text, ct)
+        if segs:
+            return " ".join(s["text"] for s in segs), segs
+        text = _parse_transcript_body(r.text, ct)
+        return text or None, []
     except Exception as e:
         logger.warning("RSS transcript fetch failed %s: %s", url, e)
-        return None
+        return None, []
 
 
 def _ts_to_secs(ts: str) -> float:
@@ -383,7 +439,12 @@ def ingest_podcasts(db, dry_run: bool = False) -> int:
             if not transcript:
                 tx_url = _transcript_url(entry)
                 if tx_url:
-                    transcript = _fetch_rss_transcript(tx_url)
+                    transcript, rss_segs = _fetch_rss_transcript(tx_url)
+                    if rss_segs and not segments:
+                        segments = rss_segs
+                        logger.info("    ✓ RSS transcript (%d segs): %s", len(rss_segs), title)
+                    elif transcript:
+                        logger.info("    ✓ RSS transcript (text only): %s", title)
             if not segments and use_chapters:
                 guid_el = entry.get("id") or ""
                 ch_segs = psc_chapters.get(guid_el)
