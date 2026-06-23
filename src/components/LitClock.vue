@@ -64,51 +64,60 @@ onUnmounted(() => {
 <style scoped>
 .litclock {
   position: fixed;
-  bottom: 1rem;
-  right: 1rem;
-  z-index: 20;
-  max-width: 200px;
-  text-align: right;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  max-width: 380px;
+  width: max-content;
+  text-align: center;
   cursor: pointer;
-  padding: 0.4rem 0.5rem;
-  border-radius: 4px;
+  padding: 0.35rem 1rem 0.3rem;
+  border-radius: 0 0 6px 6px;
+  background: rgba(212,199,164,0.82);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(31,27,23,0.1);
+  border-top: none;
   transition: background 0.2s;
   user-select: none;
 }
 
 .litclock:hover {
-  background: rgba(245,235,220,0.04);
+  background: rgba(212,199,164,0.96);
 }
 
 .litclock-text {
-  font-size: 0.6rem;
-  line-height: 1.55;
+  font-size: 0.65rem;
+  line-height: 1.5;
   font-style: italic;
-  color: rgba(245,235,220,0.35);
+  font-family: 'EB Garamond', serif;
+  color: rgba(31,27,23,0.38);
   transition: color 0.2s;
 }
 
 .litclock:hover .litclock-text,
 .litclock--expanded .litclock-text {
-  color: rgba(245,235,220,0.55);
+  color: rgba(31,27,23,0.58);
 }
 
 .litclock-time {
   font-style: normal;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.02em;
-  color: rgba(245,235,220,0.85);
+  color: rgba(31,27,23,0.78);
 }
 
 .litclock:hover .litclock-time,
 .litclock--expanded .litclock-time {
-  color: rgba(245,235,220,1);
+  color: #1f1b17;
 }
 
 .litclock-credit {
-  font-size: 0.55rem;
-  color: rgba(245,235,220,0.3);
-  margin-top: 0.3rem;
+  font-size: 0.58rem;
+  color: rgba(31,27,23,0.32);
+  margin-top: 0.25rem;
   font-style: normal;
+  font-family: 'EB Garamond', serif;
+  letter-spacing: 0.02em;
 }
 </style>

@@ -345,11 +345,24 @@ const podcastLoading  = ref(false)
 const podcastEpisodes = ref([])
 
 // RSS-imported feed (user-provided URL, not in backend)
+// Persisted to localStorage so episodes survive navigation
+const RSS_KEY     = 'szol_rss_feeds'
+function loadSavedFeeds() {
+  try { return JSON.parse(localStorage.getItem(RSS_KEY) || '[]') } catch { return [] }
+}
 const rssUrl      = ref('')
 const rssLoading  = ref(false)
 const rssError    = ref('')
 const rssTitle    = ref('')
-const rssEpisodes = ref([])
+const rssEpisodes = ref(loadSavedFeeds().flatMap(f => f.episodes))
+// Pre-populate title from first saved feed
+;(() => { const feeds = loadSavedFeeds(); if (feeds.length) rssTitle.value = feeds[0].title })()
+
+function saveRssFeed(title, episodes) {
+  const feeds = loadSavedFeeds().filter(f => f.title !== title)
+  feeds.unshift({ title, episodes })
+  localStorage.setItem(RSS_KEY, JSON.stringify(feeds.slice(0, 5)))
+}
 
 function parseDurSec(d) {
   if (!d) return null
@@ -372,7 +385,7 @@ async function importRss() {
     return
   }
   rssTitle.value    = data.title
-  rssEpisodes.value = data.episodes.map(ep => ({
+  const mapped = data.episodes.map(ep => ({
     id:           ep.id ?? ep.audio_url,
     title:        ep.title,
     lang:         props.lang,
@@ -383,25 +396,23 @@ async function importRss() {
     segments:     [],
     source_type:  'podcast',
   }))
+  rssEpisodes.value = [...rssEpisodes.value.filter(e => e.podcast_name !== data.title), ...mapped]
+  saveRssFeed(data.title, mapped)
   source.value = data.title
 }
 
 const podcastShows = computed(() => {
   const map = new Map()
-  for (const ep of podcastEpisodes.value) {
+  for (const ep of [...podcastEpisodes.value, ...rssEpisodes.value]) {
     const n = ep.podcast_name ?? 'Unknown'
     if (!map.has(n)) map.set(n, [])
     map.get(n).push(ep)
-  }
-  if (rssEpisodes.value.length && rssTitle.value) {
-    map.set(rssTitle.value, rssEpisodes.value)
   }
   return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
 })
 
 const episodesByShow = computed(() => {
-  if (source.value === rssTitle.value && rssEpisodes.value.length) return rssEpisodes.value
-  return podcastEpisodes.value.filter(ep => ep.podcast_name === source.value)
+  return [...podcastEpisodes.value, ...rssEpisodes.value].filter(ep => ep.podcast_name === source.value)
 })
 
 async function loadPodcasts() {
