@@ -226,7 +226,7 @@ function enterAndOpenAuth(lang) { _setLang(lang); showAuth.value = true }
 function changeLang(code) {
   if (currentStory.value && currentStory.value.lang !== code) {
     currentStory.value = null
-    activeTab.value    = 'library'
+    activeTab.value    = 'browse'
   }
   _setLang(code)
 }
