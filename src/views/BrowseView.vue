@@ -248,7 +248,7 @@ const props = defineProps({
   words:       { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['load', 'stories-loaded', 'go'])
+const emit = defineEmits(['load', 'stories-loaded', 'go', 'open-listen'])
 
 // ── Nav state ──────────────────────────────────────────────────
 const level  = ref(null)
@@ -409,7 +409,7 @@ async function loadPodcasts() {
 }
 
 function listenEpisode(ep) {
-  emit('load', {
+  emit('open-listen', {
     id: ep.id, title: ep.title, lang: ep.lang, author: ep.podcast_name,
     source: ep.podcast_name, audio_url: ep.audio_url, segments: ep.segments || [], content: null,
     source_type: ep.source_type,
