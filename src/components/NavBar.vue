@@ -46,14 +46,6 @@
         </select>
 
         <button
-          v-if="lang === 'he' || lang === 'ar'"
-          @click="rootHighlightOn = !rootHighlightOn"
-          class="text-xs px-2 py-0.5 border-b transition-all"
-          :style="rootHighlightOn ? 'color:#8b3a3a; border-color:#8b3a3a;' : 'color:rgba(31,27,23,0.35); border-color:rgba(31,27,23,0.15);'"
-          title="Toggle root highlighting"
-        >√ Root</button>
-
-        <button
           @click="$emit('tab', 'settings')"
           class="p-1.5 transition-all"
           :style="active === 'settings' ? 'color:#1f1b17;' : 'color:rgba(31,27,23,0.4);'"
@@ -118,7 +110,6 @@ import { computed, ref } from 'vue'
 import { LANGS } from '../data/stories.js'
 import { t }     from '../utils/i18n.js'
 import { useVoiceList, pickVoice } from '../utils/voices.js'
-import { rootHighlightOn } from '../utils/rootHighlight.js'
 
 const props = defineProps({
   active:      String,

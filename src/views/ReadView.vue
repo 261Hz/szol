@@ -1,18 +1,13 @@
-<!-- ReadView.vue: shows a story with clickable words. -->
-<!-- Tapping a word speaks it aloud (TTS), shows the sentence it came from, and lets you save it. -->
 <template>
-  <!-- Outermost container stacks elements vertically with a gap between them. -->
   <div class="flex flex-col gap-6">
 
-    <!-- Shown when no story is loaded yet (user hasn't picked one from the Library). -->
     <div v-if="!story" class="text-sm text-center py-12" style="color:rgba(31,27,23,0.35); font-style:italic; font-family:'EB Garamond',serif;">
       {{ t(lang, 'noStory') }}
     </div>
 
-    <!-- Main story view -- shown only when a story is loaded. -->
     <div v-else class="flex flex-col gap-4">
 
-      <!-- Story header: title, language/author info, and action buttons. -->
+      <!-- Story header -->
       <div class="flex items-center justify-between">
         <div>
           <div class="font-semibold text-lg" :dir="isRTL(lang) ? 'rtl' : 'ltr'">
@@ -28,8 +23,7 @@
           </div>
         </div>
 
-        <div class="flex gap-2">
-          <!-- Franco toggle: only shown for Egyptian Arabic stories that have franco text. -->
+        <div class="flex items-center gap-2">
           <button
             v-if="story.franco && hasFranco(lang)"
             @click="francoOn = !francoOn"
@@ -48,68 +42,98 @@
         </div>
       </div>
 
-      <!-- Story text: displayed as clickable individual words. -->
+      <!-- Root mode switcher — Hebrew and Arabic only -->
+      <div v-if="lang === 'ar' || lang === 'he'" class="flex gap-0.5 -mt-2">
+        <button
+          v-for="m in ROOT_MODES"
+          :key="m.key"
+          @click="rootMode = m.key"
+          class="text-xs px-2 py-0.5 rounded-full transition-all"
+          :style="rootMode === m.key
+            ? 'background:#2a2018; color:#e8dcc4;'
+            : 'color:rgba(31,27,23,0.38);'"
+        >{{ m.label }}</button>
+      </div>
+
+      <!-- Story text -->
       <div
         ref="storyEl"
         class="leading-loose text-base"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right text-lg' : ''"
       >
-        <span v-for="(token, i) in tokens" :key="i">
-          <span
-            v-if="token.type === 'word'"
+        <template v-for="(token, i) in tokens" :key="i">
+          <!-- Ruby annotation in Roots or Manuscript mode -->
+          <ruby
+            v-if="token.type === 'word' && rootMode !== 'off' && wordRootMap[token.clean]"
+            class="szol-root cursor-pointer rounded px-0.5 transition-all"
+            :class="savedWords.has(normalize(token.text)) ? 'bg-[rgba(139,58,58,0.13)]' : 'hover:bg-[rgba(31,27,23,0.07)]'"
+            :style="rootMode === 'manuscript' ? `color:${rootInkColor(wordRootMap[token.clean])};` : ''"
             @click="tap(token.text)"
-            :class="[
-              'cursor-pointer rounded px-0.5 transition-all hover:bg-[rgba(31,27,23,0.07)]',
-              savedWords.has(normalize(token.text)) ? 'bg-[rgba(139,58,58,0.13)] text-[#8b3a3a]' : ''
-            ]"
+          >{{ token.text }}<rt>{{ wordRootMap[token.clean] }}</rt></ruby>
+          <!-- Plain word when no root found or mode is off -->
+          <span
+            v-else-if="token.type === 'word'"
+            @click="tap(token.text)"
+            :class="['cursor-pointer rounded px-0.5 transition-all hover:bg-[rgba(31,27,23,0.07)]', savedWords.has(normalize(token.text)) ? 'bg-[rgba(139,58,58,0.13)] text-[#8b3a3a]' : '']"
           >{{ token.text }}</span>
           <span v-else>{{ token.text }}</span>
-        </span>
+        </template>
       </div>
 
-      <!-- Franco transliteration line -->
+      <!-- Franco transliteration -->
       <div
         v-if="francoOn && story.franco"
-        class="text-sm pt-3 break-words" style="color:rgba(31,27,23,0.4); border-top:1px solid rgba(31,27,23,0.1);"
+        class="text-sm pt-3 break-words"
+        style="color:rgba(31,27,23,0.4); border-top:1px solid rgba(31,27,23,0.1);"
         dir="ltr"
       >{{ story.franco }}</div>
 
-      <!-- Word panel: appears below the story when a word has been tapped. -->
+      <!-- Word panel -->
       <div
         v-if="tapped"
-        class="p-4 flex flex-col gap-2" style="background:rgba(31,27,23,0.04); border:1px solid rgba(31,27,23,0.12); border-radius:3px;"
+        class="p-4 flex flex-col gap-2"
+        style="background:rgba(31,27,23,0.04); border:1px solid rgba(31,27,23,0.12); border-radius:3px;"
       >
-        <!-- Top row: the tapped word (large) + Save button. -->
         <div class="flex items-start justify-between">
-          <div class="text-xl font-semibold" :dir="isRTL(lang) ? 'rtl' : 'ltr'">{{ tapped.word }}</div>
+          <div>
+            <div class="text-xl font-semibold" :dir="isRTL(lang) ? 'rtl' : 'ltr'">{{ tapped.word }}</div>
+            <!-- Root family (shown when we know the root) -->
+            <div v-if="tapped.root" class="text-xs mt-0.5 flex items-center gap-1.5" style="font-family:'EB Garamond',serif;">
+              <span style="color:#8b3a3a; font-style:italic;">√ {{ tapped.root }}</span>
+              <span v-if="tapped.rootFamily.length > 1" style="color:rgba(31,27,23,0.3);">·</span>
+              <span v-for="(w, wi) in tapped.rootFamily.slice(0, 4)" :key="wi"
+                class="text-xs cursor-pointer hover:underline transition-all"
+                style="color:rgba(31,27,23,0.5);"
+                @click="tap(w)"
+              >{{ w }}</span>
+            </div>
+          </div>
           <button
             @click="saveWord"
             :disabled="savedWords.has(normalize(tapped.word))"
-            class="text-xs px-3 py-1.5 disabled:opacity-40 transition-all"
+            class="text-xs px-3 py-1.5 disabled:opacity-40 transition-all flex-shrink-0"
             style="background:#2a2018; color:#e8dcc4; border-radius:2px; font-family:'EB Garamond',serif;"
           >{{ savedWords.has(normalize(tapped.word)) ? t(lang, 'saved') : t(lang, 'save') }}</button>
         </div>
 
-        <!-- Frequency rank badge -->
         <div v-if="tapped.frequencyRank != null" class="flex items-center gap-1.5">
           <span
             class="text-xs font-medium"
             :style="tapped.frequencyRank <= 500 ? 'color:#3a7a3a;' : tapped.frequencyRank <= 2000 ? 'color:#a88a4a;' : 'color:rgba(31,27,23,0.4);'"
           >#{{ tapped.frequencyRank.toLocaleString() }}</span>
           <span class="text-xs" style="color:rgba(31,27,23,0.3);">
-            {{ tapped.frequencyRank <= 500 ? 'very common word' : tapped.frequencyRank <= 2000 ? 'common word' : 'less common word' }}
+            {{ tapped.frequencyRank <= 500 ? 'very common' : tapped.frequencyRank <= 2000 ? 'common' : 'less common' }}
           </span>
         </div>
 
-        <!-- Context sentence -->
         <div
           v-if="tapped.sentence"
-          class="text-sm italic" style="color:rgba(31,27,23,0.5); font-family:'EB Garamond',serif;"
+          class="text-sm italic"
+          style="color:rgba(31,27,23,0.5); font-family:'EB Garamond',serif;"
           :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         >{{ tapped.sentence }}</div>
 
-        <!-- No-voice warning -->
         <div v-if="!langHasVoice" class="text-xs text-amber-600 flex items-center gap-1">
           No {{ LANGS[lang]?.name }} voice installed.
           <a href="ms-settings:regionlanguage" class="underline hover:text-amber-800">Install in Windows Settings</a>
@@ -117,13 +141,6 @@
           <button @click="$emit('go', 'settings')" class="underline hover:text-amber-800">pick a voice</button>.
         </div>
 
-        <!-- Examples panel: Tatoeba / Wikipedia / Wikiquote tabs. -->
-        <!-- :word="tapped.word"  = passes the currently tapped word as the search term. -->
-        <!-- :savedWords          = the Set of saved words so already-saved ones highlight green. -->
-        <!-- @tap                 = ExamplesPanel emits { word, sentence } when the user clicks -->
-        <!--                        a word inside an example. We forward it to tap() so the word -->
-        <!--                        gets spoken and the word panel updates to the clicked word. -->
-        <!-- ({ word: w, sentence }) = destructuring rename: avoids shadowing the outer 'word'. -->
         <ExamplesPanel
           :word="tapped.word"
           :lang="lang"
@@ -134,7 +151,7 @@
         />
       </div>
 
-      <!-- Cross-link strip: related stories by collection overlap -->
+      <!-- Related stories -->
       <div v-if="relatedStories.length" class="flex flex-col gap-2 pt-3" style="border-top:1px solid rgba(31,27,23,0.09);">
         <div class="text-xs uppercase tracking-widest" style="color:rgba(31,27,23,0.3); letter-spacing:0.14em; font-family:'EB Garamond',serif;">Also in your collection</div>
         <div class="flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -158,7 +175,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { LANGS } from '../data/stories.js'
 import { isRTL, hasFranco } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
@@ -166,26 +183,62 @@ import { normalize } from '../utils/scoring.js'
 import { useVoiceList, voicesForLang, pickVoice } from '../utils/voices.js'
 import { trackWord, getWordFrequency } from '../utils/api.js'
 import ExamplesPanel from '../components/ExamplesPanel.vue'
-import { rootHighlightOn, applyRoots, clearRoots } from '../utils/rootHighlight.js'
+import { rootMode, preFetchRoots, rootInkColor } from '../utils/rootHighlight.js'
 
 const props = defineProps({
   story:       Object,
   lang:        String,
-  savedWords:  Object,   // Set of normalized words for the active language
-  currentUser: Object,   // null if logged out
+  savedWords:  Object,
+  currentUser: Object,
   storyPool:   { type: Array, default: () => [] },
   echoesFor:   { type: Function, default: null },
 })
 
 const emit = defineEmits(['go', 'saveWord', 'openAuth', 'switch-story'])
 
-// Use echo index when available; fall back to ad-hoc overlap scan.
+const ROOT_MODES = [
+  { key: 'off',        label: 'Text' },
+  { key: 'roots',      label: 'Roots' },
+  { key: 'manuscript', label: 'Manuscript' },
+]
+
+// ── Root annotation ───────────────────────────────────────────────────────────
+
+const wordRootMap = ref({})   // { cleanWord: rootString }
+
+watch(
+  [() => props.story, () => props.lang, rootMode],
+  async ([story, lang, mode]) => {
+    if (mode === 'off' || !story || !['ar', 'he'].includes(lang)) {
+      wordRootMap.value = {}
+      return
+    }
+    const words = [...new Set(
+      story.content.split(/\s+/)
+        .map(w => w.replace(/[^\p{L}\p{M}]/gu, ''))
+        .filter(Boolean)
+    )]
+    wordRootMap.value = await preFetchRoots(words, lang)
+  },
+  { immediate: true }
+)
+
+// Build reverse map: root → words in this story (for the root family display)
+const rootFamilyMap = computed(() => {
+  const map = {}  // root → [words]
+  for (const [word, root] of Object.entries(wordRootMap.value)) {
+    if (!map[root]) map[root] = []
+    if (!map[root].includes(word)) map[root].push(word)
+  }
+  return map
+})
+
+// ── Related stories ───────────────────────────────────────────────────────────
+
 const relatedStories = computed(() => {
   if (!props.story) return []
-
   if (props.echoesFor) {
-    const echoes = props.echoesFor(props.story)
-    // Group by exposureId, pick the strongest match per story
+    const echoes  = props.echoesFor(props.story)
     const byStory = {}
     for (const ev of echoes) {
       if (!byStory[ev.exposureId] || ev.triggers.length > byStory[ev.exposureId].score) {
@@ -195,8 +248,6 @@ const relatedStories = computed(() => {
     }
     return Object.values(byStory).sort((a, b) => b.score - a.score).slice(0, 5)
   }
-
-  // fallback: inline scan when echo index not yet available
   if (!props.storyPool?.length || !props.savedWords?.size) return []
   return props.storyPool
     .filter(s => s.id !== props.story?.id && s.lang === props.lang)
@@ -224,16 +275,11 @@ const knownInText = computed(() => {
   return seen.size
 })
 
+// ── Story rendering ───────────────────────────────────────────────────────────
+
 const francoOn = ref(false)
 const tapped   = ref(null)
 const storyEl  = ref(null)
-
-function refreshRoots() {
-  nextTick(() => applyRoots(storyEl.value, props.lang))
-}
-watch(() => props.story, refreshRoots)
-watch(() => props.lang,  () => { clearRoots(); refreshRoots() })
-watch(rootHighlightOn, v => v ? refreshRoots() : clearRoots())
 
 const voices = useVoiceList()
 
@@ -244,9 +290,10 @@ const langHasVoice = computed(() => {
 
 const tokens = computed(() => {
   if (!props.story) return []
-  return props.story.content.split(/(\s+)/).map(t => ({
-    type: /^\s+$/.test(t) ? 'space' : 'word',
-    text: t,
+  return props.story.content.split(/(\s+)/).map(raw => ({
+    type:  /^\s+$/.test(raw) ? 'space' : 'word',
+    text:  raw,
+    clean: raw.replace(/[^\p{L}\p{M}]/gu, ''),  // punctuation-stripped, for root lookup
   }))
 })
 
@@ -263,16 +310,16 @@ function tap(word, contextSentence) {
   speechSynthesis.resume()
   speechSynthesis.speak(utt)
 
-
-  if (props.currentUser) {
-    trackWord(clean, props.lang, props.story?.title ?? '')
-  }
+  if (props.currentUser) trackWord(clean, props.lang, props.story?.title ?? '')
 
   const sentence = contextSentence
     ?? props.story?.content.split(/(?<=[.!?؟।。！？])\s*/).find(s => s.includes(word))
     ?? ''
 
-  tapped.value = { word: clean, sentence, frequencyRank: null }
+  const root       = wordRootMap.value[clean] ?? null
+  const rootFamily = root ? (rootFamilyMap.value[root] ?? []) : []
+
+  tapped.value = { word: clean, sentence, frequencyRank: null, root, rootFamily }
   getWordFrequency(clean, props.lang).then(data => {
     if (tapped.value?.word === clean) tapped.value.frequencyRank = data?.frequency_rank ?? null
   })
