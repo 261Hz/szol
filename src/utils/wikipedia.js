@@ -146,7 +146,7 @@ export async function searchWikipedia(word, lang) {
     return { title: s.title, extract: sentences.slice(0, 3).join('').trim() }
   }
 
-  async function summaryForTitle(title) {
+  async function summaryForTitle(title, strict = false) {
     try {
       const r = await fetch(
         `https://${code}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`
@@ -154,13 +154,14 @@ export async function searchWikipedia(word, lang) {
       if (!r.ok) return null
       const s = await r.json()
       if (s.type === 'disambiguation') return null
-      // Reject if the returned article title is unrelated to the searched word.
-      // The REST summary endpoint follows redirects, so "comer" could silently redirect
-      // to an article about an Italian city. We require the final title to share
-      // a prefix with the searched word (case/accent-insensitive).
-      const wNorm = word.toLowerCase().normalize('NFC')
-      const tNorm = (s.title ?? '').toLowerCase().normalize('NFC')
-      if (!tNorm.startsWith(wNorm) && !wNorm.startsWith(tNorm)) return null
+      if (strict) {
+        // Only for opensearch fallback: reject if title is clearly unrelated
+        // (e.g. "comer" → Italian city). Check that the searched word appears
+        // somewhere in the returned title or vice-versa.
+        const wNorm = word.toLowerCase().normalize('NFC')
+        const tNorm = (s.title ?? '').toLowerCase().normalize('NFC')
+        if (!tNorm.includes(wNorm) && !wNorm.includes(tNorm)) return null
+      }
       return parseSummary(s)
     } catch {
       return null
@@ -194,7 +195,7 @@ export async function searchWikipedia(word, lang) {
 
     if (!titles.length) return []
 
-    const results = await Promise.all(titles.slice(0, 2).map(summaryForTitle))
+    const results = await Promise.all(titles.slice(0, 2).map(t => summaryForTitle(t, true)))
     return results.filter(Boolean)
   } catch {
     return []
