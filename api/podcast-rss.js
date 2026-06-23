@@ -58,7 +58,7 @@ export default async function handler(req, res) {
   while ((m = itemRe.exec(rssText)) !== null) {
     const item    = m[1]
     const title   = textNode(item, 'title') ?? ''
-    const encTag  = item.match(/<enclosure([^/]*)\/?>/i)?.[1] ?? ''
+    const encTag  = item.match(/<enclosure([^>]*?)\/?\s*>/i)?.[1] ?? ''
     const audioUrl = attr(encTag, 'url')
     if (!audioUrl) continue
     const type = attr(encTag, 'type') ?? ''
