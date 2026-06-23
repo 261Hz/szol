@@ -18,11 +18,11 @@
   />
 
   <!-- Clip viewer: opened from Vocab → Video tab -->
-  <div v-if="activeClip" class="flex flex-col gap-2 mb-4 bg-slate-900 border border-blue-800 rounded-xl p-3">
+  <div v-if="activeClip" class="flex flex-col gap-2 mb-4 bg-stone-900 border border-stone-700 rounded-xl p-3">
 
     <!-- Header: title + test toggle + close -->
     <div class="flex items-center justify-between">
-      <span class="text-xs text-blue-400 font-medium">{{ t(lang, 'videoClip') }}</span>
+      <span class="text-xs text-stone-400 font-medium">{{ t(lang, 'videoClip') }}</span>
       <div class="flex items-center gap-3">
         <button
           @click="toggleTest"
@@ -48,12 +48,12 @@
     <!-- Normal view: transcript + report -->
     <template v-if="!testMode">
       <div class="flex items-start justify-between gap-2 px-1">
-        <p v-if="activeClip.context" class="text-sm text-gray-300 leading-snug flex-1">{{ activeClip.context }}</p>
+        <p v-if="activeClip.context" class="text-sm text-stone-300 leading-snug flex-1">{{ activeClip.context }}</p>
         <div class="flex-shrink-0 flex flex-col items-end gap-1">
           <button
             v-if="!clipReportSent"
             @click="clipReportOpen = !clipReportOpen; clipReportNote = ''"
-            class="text-xs text-gray-600 hover:text-red-400 transition-all"
+            class="text-xs text-stone-600 hover:text-red-400 transition-all"
             title="Report a transcript error"
           >⚑ report</button>
           <span v-if="clipReportSent" class="text-xs text-green-500">Reported ✓</span>
@@ -62,7 +62,7 @@
               v-model="clipReportNote"
               type="text"
               placeholder="What's wrong?"
-              class="text-xs bg-gray-800 border border-gray-700 rounded px-2 py-0.5 text-gray-300 placeholder-gray-600 w-40 focus:outline-none focus:border-red-700"
+              class="text-xs bg-stone-800 border border-stone-700 rounded px-2 py-0.5 text-stone-300 placeholder-stone-600 w-40 focus:outline-none focus:border-red-700"
               @keydown.enter="submitClipReport"
               @keydown.escape="clipReportOpen = false"
             />
@@ -80,7 +80,7 @@
           v-model="testInput"
           :placeholder="t(lang, 'typeWhatYouHear')"
           rows="2"
-          class="w-full text-sm bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:border-emerald-700"
+          class="w-full text-sm bg-stone-800 border border-stone-700 rounded-lg px-3 py-2 text-stone-200 placeholder-stone-600 resize-none focus:outline-none focus:border-emerald-700"
           @keydown.meta.enter.prevent="checkAnswer"
           @keydown.ctrl.enter.prevent="checkAnswer"
         />
@@ -90,7 +90,7 @@
             :disabled="!testInput.trim()"
             class="text-xs px-3 py-1 rounded-md bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white transition-all"
           >{{ t(lang, 'check') }}</button>
-          <span class="text-xs text-gray-600">Ctrl/Cmd+Enter</span>
+          <span class="text-xs text-stone-600">Ctrl/Cmd+Enter</span>
         </div>
       </template>
 
@@ -100,12 +100,12 @@
           <span :class="testResult.pct >= 80 ? 'text-green-400' : testResult.pct >= 50 ? 'text-yellow-400' : 'text-red-400'" class="font-medium">
             {{ testResult.correct }}/{{ testResult.total }} {{ t(lang, 'words') }}
           </span>
-          <button @click="testResult = null; testInput = ''" class="text-gray-600 hover:text-blue-400 transition-all">{{ t(lang, 'tryAgain') }}</button>
+          <button @click="testResult = null; testInput = ''" class="text-stone-500 hover:text-stone-300 transition-all">{{ t(lang, 'tryAgain') }}</button>
         </div>
         <!-- Word-by-word colouring -->
         <p class="text-sm leading-relaxed">
           <template v-for="(s, i) in testResult.scored" :key="i">
-            <span :class="s.ok ? 'bg-green-800 text-green-200 rounded px-0.5' : 'bg-purple-900 text-purple-200 rounded px-0.5'">{{ s.w }}</span>
+            <span :class="s.ok ? 'bg-green-800 text-green-200 rounded px-0.5' : 'bg-rose-900 text-rose-200 rounded px-0.5'">{{ s.w }}</span>
             <span> </span>
           </template>
         </p>
@@ -113,9 +113,9 @@
         <button
           v-if="!clipShowTranscript"
           @click="clipShowTranscript = true"
-          class="text-xs text-blue-400 hover:text-blue-300 transition-all self-start"
+          class="text-xs text-stone-400 hover:text-stone-200 transition-all self-start"
         >{{ t(lang, 'revealTranscript') }}</button>
-        <p v-if="clipShowTranscript" class="text-xs text-gray-400 leading-snug border-t border-gray-700 pt-2">{{ activeClip.context }}</p>
+        <p v-if="clipShowTranscript" class="text-xs text-stone-400 leading-snug border-t border-stone-700 pt-2">{{ activeClip.context }}</p>
       </template>
     </template>
 
@@ -137,14 +137,14 @@
           v-for="story in stories"
           :key="story.id"
           @click="loadStory(story)"
-          class="w-full text-left bg-slate-900 border border-gray-700 hover:border-emerald-700 rounded-lg px-4 py-3 transition-all"
+          class="w-full text-left bg-stone-900 border border-stone-700 hover:border-emerald-700 rounded-lg px-4 py-3 transition-all"
         >
-          <div class="font-medium text-sm text-gray-100 leading-snug">{{ story.title }}</div>
-          <div class="text-xs text-gray-500 mt-0.5 flex gap-2 flex-wrap">
+          <div class="font-medium text-sm text-stone-100 leading-snug">{{ story.title }}</div>
+          <div class="text-xs text-stone-500 mt-0.5 flex gap-2 flex-wrap">
             <span v-if="story.author">{{ story.author }}</span>
-            <span v-if="story.source" class="text-gray-600">{{ story.source }}</span>
+            <span v-if="story.source" class="text-stone-600">{{ story.source }}</span>
             <span>{{ story.segments.length }} {{ t(lang, 'segment') }}</span>
-            <span v-if="story.is_autogenerated" class="text-yellow-600">{{ t(lang, 'autoCaptions') }}</span>
+            <span v-if="story.is_autogenerated" class="text-amber-600">{{ t(lang, 'autoCaptions') }}</span>
           </div>
         </button>
       </div>
@@ -328,9 +328,9 @@
             >{{ w.typed }}</span>
           </div>
           <div v-if="accuracy !== null" class="flex justify-end">
-            <span class="text-xs text-gray-500">
+            <span class="text-xs text-stone-500">
               {{ t(lang, 'accuracy') }}: <span class="text-emerald-400 font-medium">{{ accuracy }}%</span>
-              <span class="ml-1 text-gray-600">({{ correctCount }}/{{ segmentWords.length }} {{ t(lang, 'words') }})</span>
+              <span class="ml-1 text-stone-600">({{ correctCount }}/{{ segmentWords.length }} {{ t(lang, 'words') }})</span>
             </span>
           </div>
           <div v-if="mode === 'loop' && userInput.trim()" class="flex justify-end mt-1">
@@ -344,21 +344,21 @@
         <!-- Translation mode or loop translation step -->
         <template v-else-if="mode === 'translation' || (mode === 'loop' && loopStep === 'translation')">
           <!-- Loop mode: locked dictation result summary -->
-          <div v-if="mode === 'loop' && loopDictationSaved" class="flex items-center gap-2 text-xs border border-gray-800 rounded-lg px-3 py-2 bg-slate-900">
-            <span class="text-gray-500">{{ t(lang, 'dictation') }}</span>
-            <span :class="loopDictationSaved.accuracy >= 80 ? 'text-emerald-400' : loopDictationSaved.accuracy >= 50 ? 'text-yellow-400' : 'text-red-400'" class="font-medium">{{ loopDictationSaved.accuracy }}%</span>
-            <span class="text-gray-600">({{ loopDictationSaved.correct }}/{{ loopDictationSaved.total }} {{ t(lang, 'words') }})</span>
+          <div v-if="mode === 'loop' && loopDictationSaved" class="flex items-center gap-2 text-xs border border-stone-700 rounded-lg px-3 py-2 bg-stone-800">
+            <span class="text-stone-400">{{ t(lang, 'dictation') }}</span>
+            <span :class="loopDictationSaved.accuracy >= 80 ? 'text-emerald-400' : loopDictationSaved.accuracy >= 50 ? 'text-amber-400' : 'text-red-400'" class="font-medium">{{ loopDictationSaved.accuracy }}%</span>
+            <span class="text-stone-500">({{ loopDictationSaved.correct }}/{{ loopDictationSaved.total }} {{ t(lang, 'words') }})</span>
           </div>
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-xs text-gray-500">{{ t(lang, 'translateTo') }}:</span>
+            <span class="text-xs text-stone-400">{{ t(lang, 'translateTo') }}:</span>
             <select
               v-model="translateTo"
-              class="text-xs bg-slate-800 border border-gray-700 rounded px-2 py-1 text-gray-200 outline-none"
+              class="text-xs bg-stone-800 border border-stone-600 rounded px-2 py-1 text-stone-200 outline-none"
             >
               <option v-for="opt in TRANSLATE_TO_OPTIONS" :key="opt.code" :value="opt.code">{{ opt.label }}</option>
             </select>
           </div>
-          <div v-if="sameLang" class="text-xs text-yellow-400">{{ t(lang, 'sameLangWarning') }}</div>
+          <div v-if="sameLang" class="text-xs text-amber-400">{{ t(lang, 'sameLangWarning') }}</div>
           <div v-else class="flex items-center gap-2">
             <button
               @click="runTranslationCheck"
@@ -371,10 +371,10 @@
               <span
                 :class="['text-sm font-bold px-2.5 py-0.5 rounded-full',
                   translationResult.score >= 80 ? 'bg-emerald-900 text-emerald-300' :
-                  translationResult.score >= 55 ? 'bg-yellow-900 text-yellow-300' :
+                  translationResult.score >= 55 ? 'bg-amber-900 text-amber-300' :
                                                    'bg-red-900 text-red-300']"
               >{{ translationResult.score }}%</span>
-              <span class="text-xs text-gray-400 leading-snug">{{ translationResult.feedback }}</span>
+              <span class="text-xs text-stone-400 leading-snug">{{ translationResult.feedback }}</span>
             </div>
           </div>
         </template>
@@ -395,17 +395,17 @@
 
       <!-- Model download progress -->
       <div v-if="isDownloading" class="flex flex-col gap-1">
-        <div class="flex items-center justify-between text-xs text-gray-500">
+        <div class="flex items-center justify-between text-xs text-stone-500">
           <span class="truncate max-w-[70%]">{{ downloadLabel || 'Loading language engine…' }}</span>
           <span>{{ downloadPct }}%</span>
         </div>
-        <div class="h-1 bg-gray-800 rounded-full overflow-hidden">
-          <div class="h-full bg-indigo-600 rounded-full transition-all duration-300" :style="{ width: downloadPct + '%' }" />
+        <div class="h-1 bg-stone-800 rounded-full overflow-hidden">
+          <div class="h-full bg-emerald-700 rounded-full transition-all duration-300" :style="{ width: downloadPct + '%' }" />
         </div>
       </div>
 
       <!-- Transcript loading indicator -->
-      <div v-if="transcriptLoading" class="text-xs text-gray-500 text-center py-1 animate-pulse">
+      <div v-if="transcriptLoading" class="text-xs text-stone-500 text-center py-1 animate-pulse">
         Loading transcript…
       </div>
 
