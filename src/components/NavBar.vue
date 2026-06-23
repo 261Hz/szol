@@ -1,5 +1,5 @@
 <template>
-  <nav class="sticky top-0 z-40" style="background: rgba(232,220,196,0.97); border-bottom: 1px solid rgba(31,27,23,0.09); backdrop-filter: blur(2px);">
+  <nav class="sticky top-0 z-40" style="background: rgba(212,199,164,0.97); border-bottom: 1px solid rgba(31,27,23,0.12); backdrop-filter: blur(2px);">
 
     <!-- Top row: brand + language selector + controls -->
     <div class="flex items-center justify-between px-4 py-2">
@@ -14,7 +14,7 @@
           <div
             v-if="showTooltip"
             class="absolute top-full left-0 mt-1.5 z-50 px-4 py-3 shadow-xl min-w-[180px]"
-            style="background:#e8dcc4; border:1px solid rgba(31,27,23,0.12); border-radius:2px;"
+            style="background:#d4c7a4; border:1px solid rgba(31,27,23,0.12); border-radius:2px;"
           >
             <div class="flex items-baseline gap-2 mb-1">
               <span class="text-base font-semibold" style="color:#1f1b17; font-family:'IM Fell English',serif;">Szól</span>
@@ -42,7 +42,7 @@
           class="text-sm bg-transparent border-0 border-b px-1 py-0.5 max-w-28"
           style="border-color:rgba(31,27,23,0.18); color:rgba(31,27,23,0.6); font-family:'EB Garamond',serif;"
         >
-          <option v-for="(l, code) in LANGS" :key="code" :value="code" style="background:#e8dcc4;">{{ l.name }}</option>
+          <option v-for="(l, code) in LANGS" :key="code" :value="code" style="background:#d4c7a4;">{{ l.name }}</option>
         </select>
 
         <button
