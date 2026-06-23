@@ -193,12 +193,17 @@
               mode === 'dictation' ? 'bg-sky-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-white']"
           >Dictation</button>
           <button
+            @click="mode = 'loop'; translationResult = null; showTranscript = false; loopStep = 'dictation'; loopDictationSaved = null"
+            :class="['text-xs px-3 py-1.5 rounded-full transition-all',
+              mode === 'loop' ? 'bg-teal-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-white']"
+          >Listen + Translate</button>
+          <button
             @click="mode = 'translation'; translationResult = null; showTranscript = false"
             :class="['text-xs px-3 py-1.5 rounded-full transition-all',
               mode === 'translation' ? 'bg-violet-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-white']"
           >Translation</button>
         </div>
-        <div v-if="mode === 'dictation'" class="flex gap-1.5">
+        <div v-if="mode === 'dictation' || (mode === 'loop' && loopStep === 'dictation')" class="flex gap-1.5">
           <button
             v-for="d in ['easy', 'medium', 'hard']"
             :key="d"
@@ -286,13 +291,13 @@
         <textarea
           v-model="userInput"
           rows="3"
-          :placeholder="mode === 'translation' ? `Type your ${TRANSLATE_TO_OPTIONS.find(o => o.code === translateTo)?.label ?? ''} translation…` : t(lang, 'typeWhatYouHear')"
-          @keydown.space="mode === 'dictation' ? playWordTick() : undefined"
+          :placeholder="(mode === 'translation' || (mode === 'loop' && loopStep === 'translation')) ? `Type your ${TRANSLATE_TO_OPTIONS.find(o => o.code === translateTo)?.label ?? ''} translation…` : t(lang, 'typeWhatYouHear')"
+          @keydown.space="(mode === 'dictation' || (mode === 'loop' && loopStep === 'dictation')) ? playWordTick() : undefined"
           class="w-full bg-slate-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-100 outline-none focus:border-emerald-600 resize-none placeholder:text-gray-600 transition-all"
         />
 
         <!-- Dictation: word-by-word colour feedback -->
-        <template v-if="mode === 'dictation'">
+        <template v-if="mode === 'dictation' || (mode === 'loop' && loopStep === 'dictation')">
           <div v-if="comparedWords.length" class="flex flex-wrap gap-1.5 px-1">
             <span
               v-for="(w, i) in comparedWords"
@@ -309,10 +314,22 @@
               <span class="ml-1 text-gray-600">({{ correctCount }}/{{ segmentWords.length }} {{ t(lang, 'words') }})</span>
             </span>
           </div>
+          <div v-if="mode === 'loop' && userInput.trim()" class="flex justify-end mt-1">
+            <button
+              @click="advanceToTranslation"
+              class="text-xs px-4 py-1.5 rounded-md bg-teal-700 text-white hover:bg-teal-600 transition-all"
+            >Translate it →</button>
+          </div>
         </template>
 
-        <!-- Translation: check button + result -->
-        <template v-else>
+        <!-- Translation mode or loop translation step -->
+        <template v-else-if="mode === 'translation' || (mode === 'loop' && loopStep === 'translation')">
+          <!-- Loop mode: locked dictation result summary -->
+          <div v-if="mode === 'loop' && loopDictationSaved" class="flex items-center gap-2 text-xs border border-gray-800 rounded-lg px-3 py-2 bg-slate-900">
+            <span class="text-gray-500">Dictation</span>
+            <span :class="loopDictationSaved.accuracy >= 80 ? 'text-emerald-400' : loopDictationSaved.accuracy >= 50 ? 'text-yellow-400' : 'text-red-400'" class="font-medium">{{ loopDictationSaved.accuracy }}%</span>
+            <span class="text-gray-600">({{ loopDictationSaved.correct }}/{{ loopDictationSaved.total }} {{ t(lang, 'words') }})</span>
+          </div>
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-xs text-gray-500">Translate to:</span>
             <select
@@ -383,7 +400,7 @@
             v-if="segments.length"
             @click="showTranscript = !showTranscript"
             class="text-xs px-3 py-1.5 rounded-md border border-gray-700 text-gray-400 hover:border-emerald-700 hover:text-emerald-400 transition-all"
-          >{{ showTranscript ? t(lang, 'hideTranscript') : (mode === 'translation' ? 'Show original' : t(lang, 'showCorrectText')) }}</button>
+          >{{ showTranscript ? t(lang, 'hideTranscript') : ((mode === 'translation' || (mode === 'loop' && loopStep === 'translation')) ? 'Show original' : t(lang, 'showCorrectText')) }}</button>
 
           <button
             v-if="segments.length && currentSegment && lang !== 'en'"
@@ -567,6 +584,9 @@ async function tryFetchTranscript(storyId, title, podcastName) {
 const translationResult   = ref(null) // { score, feedback }
 const translationChecking = ref(false)
 
+const loopStep           = ref('dictation') // 'dictation' | 'translation'
+const loopDictationSaved = ref(null)         // { accuracy, correct, total } snapshot
+
 const TRANSLATE_TO_OPTIONS = [
   { code: 'en', label: 'English' },
   { code: 'es', label: 'Spanish' },
@@ -594,6 +614,15 @@ async function runTranslationCheck() {
   )
   translationResult.value   = result
   translationChecking.value = false
+}
+
+function advanceToTranslation() {
+  loopDictationSaved.value = accuracy.value !== null
+    ? { accuracy: accuracy.value, correct: correctCount.value, total: segmentWords.value.length }
+    : null
+  userInput.value         = ''
+  translationResult.value = null
+  loopStep.value          = 'translation'
 }
 
 async function loadStory(story, startAt = null) {
@@ -630,13 +659,15 @@ async function loadStory(story, startAt = null) {
 
 function backToList() {
   teardown()
-  selectedStory.value    = null
-  segments.value         = []
-  segmentIdx.value       = 0
-  userInput.value        = ''
-  showTranscript.value   = false
-  resumeSegment.value    = null
-  localTranslation.value = ''
+  selectedStory.value      = null
+  segments.value           = []
+  segmentIdx.value         = 0
+  userInput.value          = ''
+  showTranscript.value     = false
+  resumeSegment.value      = null
+  localTranslation.value   = ''
+  loopStep.value           = 'dictation'
+  loopDictationSaved.value = null
 }
 
 // ── YouTube player (dictation) ────────────────────────────────────────────────
@@ -785,10 +816,12 @@ function nextSegment() {
   if (isYouTubeStory()) player.pauseVideo()
   else if (audioEl.value) audioEl.value.pause()
   segmentIdx.value++
-  userInput.value         = ''
-  showTranscript.value    = false
-  translationResult.value = null
-  localTranslation.value  = ''
+  userInput.value          = ''
+  showTranscript.value     = false
+  translationResult.value  = null
+  localTranslation.value   = ''
+  loopStep.value           = 'dictation'
+  loopDictationSaved.value = null
 }
 
 async function translateSegment() {
