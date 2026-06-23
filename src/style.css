@@ -87,6 +87,16 @@ ruby.szol-num rt {
   font-weight: normal;
 }
 
+/* Root gloss — manuscript mode annotation above each word */
+ruby.szol-root { ruby-align: center; }
+ruby.szol-root rt {
+  font-size: 0.58em;
+  font-style: italic;
+  letter-spacing: 0.05em;
+  opacity: 0.65;   /* inherits word color — muted in roots mode, colored in manuscript mode */
+  font-family: 'EB Garamond', Georgia, serif;
+}
+
 /* Minimal scrollbar */
 ::-webkit-scrollbar {
   width: 4px;

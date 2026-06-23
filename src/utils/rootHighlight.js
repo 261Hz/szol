@@ -1,33 +1,61 @@
 /**
- * Semitic root highlighting — Hebrew and Arabic.
+ * Semitic root annotation — Hebrew and Arabic.
  *
  * Lookup order:
- *   1. In-memory session cache (Map)  — free, instant
- *   2. Small localStorage cache (~500 entries LRU) — free, persists session
- *   3. Backend /roots/analyze endpoint — proxies real morphology APIs
- *      (Dicta for Hebrew, CAMeL Tools for Arabic)
- *   4. No highlight (graceful degradation, no error shown)
+ *   1. In-memory session cache (Map)  — instant
+ *   2. localStorage cache (~500 entries LRU) — persists session
+ *   3. Backend /roots/analyze endpoint — proxies Dicta (Hebrew) and CAMeL Tools (Arabic)
+ *   4. Null (graceful degradation)
  *
- * DB storage: zero. Roots cached only in memory + localStorage.
- * No DOM mutation — uses CSS Custom Highlight API.
+ * rootMode drives the visual layer:
+ *   'off'        — plain text, no annotation
+ *   'roots'      — ruby text: root sits above each word as a medieval gloss
+ *   'manuscript' — roots mode + each root family gets a consistent ink color
  */
 
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 
-// ── Global toggle ─────────────────────────────────────────────────────────────
+// ── Mode ──────────────────────────────────────────────────────────────────────
 
-export const rootHighlightOn = ref(localStorage.getItem('szol_roots') === '1')
+function loadMode() {
+  const s = localStorage.getItem('szol_roots')
+  if (s === '1') return 'roots'  // migrate old boolean
+  if (['off', 'roots', 'manuscript'].includes(s)) return s
+  return 'off'
+}
 
-watch(rootHighlightOn, v => {
-  localStorage.setItem('szol_roots', v ? '1' : '0')
-  if (!v) clearRoots()
-})
+export const rootMode = ref(loadMode())
+
+// Backward-compat alias (VocabView still uses this)
+export const rootHighlightOn = computed(() => rootMode.value !== 'off')
+
+watch(rootMode, v => localStorage.setItem('szol_roots', v))
+
+// ── Manuscript ink palette ────────────────────────────────────────────────────
+
+const PALETTE = [
+  '#8b3a3a',  // burgundy
+  '#2d5a7b',  // deep blue
+  '#4a6b3a',  // forest
+  '#7a4a2a',  // amber
+  '#5a3a7a',  // purple
+  '#3a6a5a',  // teal
+  '#7a5a2a',  // gold
+  '#6a2a5a',  // plum
+]
+
+export function rootInkColor(root) {
+  if (!root) return '#1f1b17'
+  let h = 0
+  for (const ch of root) h = (h * 31 + ch.codePointAt(0)) | 0
+  return PALETTE[Math.abs(h) % PALETTE.length]
+}
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
-const CACHE_KEY    = 'szol_root_cache'
-const CACHE_LIMIT  = 500
-const _session     = new Map()   // word:lang → [root chars] | null
+const CACHE_KEY   = 'szol_root_cache'
+const CACHE_LIMIT = 500
+const _session    = new Map()   // `${lang}:${word}` → char[] | null
 
 function _loadLocal() {
   try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '{}') } catch { return {} }
@@ -49,14 +77,14 @@ function cacheSet(word, lang, root) {
   _session.set(key, root)
   const store = _loadLocal()
   const keys  = Object.keys(store)
-  if (keys.length >= CACHE_LIMIT) delete store[keys[0]]  // LRU evict oldest
+  if (keys.length >= CACHE_LIMIT) delete store[keys[0]]
   store[key] = root
   _saveLocal(store)
 }
 
 // ── API lookup ────────────────────────────────────────────────────────────────
 
-const _inflight = new Map()  // deduplicate concurrent requests
+const _inflight = new Map()
 
 async function fetchRoot(word, lang) {
   const key = `${lang}:${word}`
@@ -69,7 +97,7 @@ async function fetchRoot(word, lang) {
   })
     .then(r => r.ok ? r.json() : null)
     .then(data => {
-      const root = data?.root ?? null   // expected: ["כ","ת","ב"] or null
+      const root = data?.root ?? null   // e.g. ["כ","ת","ב"] or null
       cacheSet(word, lang, root)
       _inflight.delete(key)
       return root
@@ -80,22 +108,43 @@ async function fetchRoot(word, lang) {
   return promise
 }
 
-// ── Root character range finder ───────────────────────────────────────────────
+// ── Public: batch pre-fetch for a word list ───────────────────────────────────
+// Returns { word → rootString } for all words that have a known root.
 
-const HE_VOWEL = /[ְ-ׇ]/
-const AR_VOWEL = /[ً-ٰٟ]/
+export async function preFetchRoots(words, lang) {
+  if (!['ar', 'he'].includes(lang)) return {}
+  const map = {}
+  await Promise.all(
+    words.filter(Boolean).map(async word => {
+      let root = cacheGet(word, lang)
+      if (root === undefined) root = await fetchRoot(word, lang)
+      if (Array.isArray(root) && root.length) map[word] = root.join('')
+    })
+  )
+  return map
+}
+
+// ── CSS Custom Highlight API (root consonant highlighting) ────────────────────
+// Used in VocabView for consonant-level marking within words.
+
+const HIGHLIGHT_KEY = 'szol-root'
+const WORD_RE_HE    = /[א-תװ-״יִ-פֿ]+/g
+const WORD_RE_AR    = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]+/g
+const HE_VOWEL      = /[ְ-ׇ]/
+const AR_VOWEL      = /[ً-ٰٟ]/
+
+export function clearRoots() {
+  CSS.highlights?.delete(HIGHLIGHT_KEY)
+}
 
 function stripVowels(text, lang) {
   return lang === 'he' ? text.replace(/[ְ-ׇ]/g, '')
-       : lang === 'ar' ? text.replace(/[ً-ٰٟ]/g, '')
+       : lang === 'ar' ? text.replace(/[ً-ٰٟ]/g, '')
        : text
 }
 
 function buildIndexMap(word, lang) {
-  // stripped-char-index → original-char-index
-  const isVowel = lang === 'he'
-    ? c => HE_VOWEL.test(c)
-    : c => AR_VOWEL.test(c)
+  const isVowel = lang === 'he' ? c => HE_VOWEL.test(c) : c => AR_VOWEL.test(c)
   const map = []
   for (let i = 0; i < word.length; i++) {
     if (!isVowel(word[i])) map.push(i)
@@ -112,25 +161,12 @@ function findRootRanges(word, rootChars, lang) {
     if (stripped[si] === rootChars[ri]) {
       const origStart = idxMap[si]
       let origEnd = origStart + 1
-      // include any immediately following combining diacritics
-      while (origEnd < word.length && (HE_VOWEL.test(word[origEnd]) || AR_VOWEL.test(word[origEnd]))) {
-        origEnd++
-      }
+      while (origEnd < word.length && (HE_VOWEL.test(word[origEnd]) || AR_VOWEL.test(word[origEnd]))) origEnd++
       ranges.push({ start: origStart, end: origEnd })
       ri++
     }
   }
   return ri === rootChars.length ? ranges : null
-}
-
-// ── CSS Custom Highlight API ──────────────────────────────────────────────────
-
-const HIGHLIGHT_KEY = 'szol-root'
-const WORD_RE_HE    = /[א-תװ-״יִ-פֿ]+/g
-const WORD_RE_AR    = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]+/g
-
-export function clearRoots() {
-  CSS.highlights?.delete(HIGHLIGHT_KEY)
 }
 
 export async function applyRoots(containerEl, lang) {
@@ -139,12 +175,11 @@ export async function applyRoots(containerEl, lang) {
   if (!containerEl) return
   if (lang !== 'he' && lang !== 'ar') return
 
-  const wordRe = lang === 'he' ? WORD_RE_HE : WORD_RE_AR
+  const wordRe    = lang === 'he' ? WORD_RE_HE : WORD_RE_AR
   const allRanges = []
 
-  // Collect all words across all text nodes first
-  const walker = document.createTreeWalker(containerEl, NodeFilter.SHOW_TEXT)
-  const pending = []   // { node, word, wordOffset }
+  const walker  = document.createTreeWalker(containerEl, NodeFilter.SHOW_TEXT)
+  const pending = []
   let node
   while ((node = walker.nextNode())) {
     const text = node.textContent
@@ -153,7 +188,6 @@ export async function applyRoots(containerEl, lang) {
     while ((m = wordRe.exec(text)) !== null) {
       const cached = cacheGet(m[0], lang)
       if (cached !== undefined) {
-        // Already know the answer — build range directly
         if (cached) {
           const ranges = findRootRanges(m[0], cached, lang)
           if (ranges) for (const { start, end } of ranges) {
@@ -169,17 +203,12 @@ export async function applyRoots(containerEl, lang) {
     }
   }
 
-  // Apply what we have immediately
-  if (allRanges.length) {
-    CSS.highlights.set(HIGHLIGHT_KEY, new Highlight(...allRanges))
-  }
+  if (allRanges.length) CSS.highlights.set(HIGHLIGHT_KEY, new Highlight(...allRanges))
 
-  // Fetch unknowns in parallel then update
   if (pending.length) {
     const unique = [...new Set(pending.map(p => p.word))]
     await Promise.all(unique.map(w => fetchRoot(w, lang)))
 
-    // Rebuild full range list after API results arrive
     const finalRanges = [...allRanges]
     for (const { node, word, wordOffset } of pending) {
       const root = cacheGet(word, lang)
@@ -193,8 +222,6 @@ export async function applyRoots(containerEl, lang) {
         finalRanges.push(r)
       }
     }
-    if (finalRanges.length) {
-      CSS.highlights.set(HIGHLIGHT_KEY, new Highlight(...finalRanges))
-    }
+    if (finalRanges.length) CSS.highlights.set(HIGHLIGHT_KEY, new Highlight(...finalRanges))
   }
 }
