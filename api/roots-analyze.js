@@ -21,9 +21,16 @@ const CAMEL_URL = process.env.CAMEL_API_URL  // optional self-hosted CAMeL endpo
 // Returns { word → char[] } for words that have a known root.
 async function hebrewRootsBatch(words) {
   const text = words.join(' ')
+  // Dicta returns 404 for requests without browser-like headers.
+  // Spoofing Origin/Referer as their own site makes the server treat this as a first-party call.
   const res = await fetch(DICTA_URL, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Origin':  'https://nakdan.dicta.org.il',
+      'Referer': 'https://nakdan.dicta.org.il/',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+    },
     body: JSON.stringify({ task: 'nakdan', genre: 'modern', addmorph: true, keepqq: false, nodagesh: false, text }),
   })
   if (!res.ok) { console.error('[roots-batch] Dicta', res.status); return {} }
