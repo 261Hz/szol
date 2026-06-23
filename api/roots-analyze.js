@@ -33,16 +33,18 @@ async function hebrewRoot(word) {
   if (!res.ok) return null
   const data = await res.json()
 
-  // Dicta nakdan returns [[word0, word1, ...], [sentence2...]]
-  // (outer array = sentences, inner array = word tokens)
-  const sentence = Array.isArray(data) ? data[0] : null
-  const word0    = Array.isArray(sentence) ? sentence[0] : sentence
-  const morph0   = word0?.morph?.[0]
+  // Dicta nakdan returns [[word0, word1, ...], ...] (sentences → words)
+  // but may also return [word0, ...] flat depending on API version.
+  const first = Array.isArray(data) ? data[0] : null
+  const word0 = Array.isArray(first) ? first[0] : first   // unwrap sentence wrapper if present
+  // morph can be an array of analyses OR a single analysis object
+  const rawMorph = word0?.morph
+  const analysis = Array.isArray(rawMorph) ? rawMorph[0] : rawMorph
 
-  // Prefer shoresh (root letters), fall back to lex (lemma)
-  const raw = morph0?.shoresh ?? morph0?.lex ?? null
+  const raw = analysis?.shoresh ?? analysis?.lex ?? null
+  console.log(`[roots-he] "${word}" → shoresh="${analysis?.shoresh}" lex="${analysis?.lex?.slice?.(0,12)}"`)
+
   if (!raw || typeof raw !== 'string') return null
-  // Strip dots/dashes used as separators: "כ.ת.ב" → ["כ","ת","ב"]
   const chars = [...raw.replace(/[.\-\s]/g, '')]
   return chars.length ? chars : null
 }
