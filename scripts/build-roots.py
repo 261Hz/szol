@@ -23,6 +23,8 @@ import urllib.request
 from pathlib import Path
 from xml.etree.ElementTree import iterparse
 
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
 # ── Sources ───────────────────────────────────────────────────────────────────
 
 DUMPS = {
@@ -31,12 +33,17 @@ DUMPS = {
 }
 
 # Template patterns that encode root consonants
-# Hebrew: {{שורש|כ|ת|ב}}  or  {{שורש|כ.ת.ב}}
-# Arabic: {{جذر|ك.ت.ب}}  or  {{جذر|ك|ت|ب}}
+# Hebrew: {{שורש|כדר}} (compact) or {{שורש|כ|ת|ב}} (pipe-separated)
+# Arabic: {{جذر321|ر|و|ي}} (pipe-sep) or {{ش خ ص}} (template-name-is-root)
 ROOT_RE = {
     'he': re.compile(r'\{\{שורש\|([^}]+)\}\}', re.UNICODE),
-    'ar': re.compile(r'\{\{(?:جذر|جذر اشتقاق)\|([^}]+)\}\}', re.UNICODE),
+    'ar': re.compile(r'\{\{جذر321?\|([^}]+)\}\}', re.UNICODE),
 }
+
+# Arabic fallback: template name IS the root, e.g. {{ش خ ص}}
+AR_NAME_ROOT_RE = re.compile(
+    r'\{\{([؀-ۿ](?:\s[؀-ۿ]){1,4})\}\}', re.UNICODE
+)
 
 # Hebrew niqqud + cantillation marks to strip from page titles
 NIQQUD_RE = re.compile(r'[֑-ׇ]')
@@ -44,14 +51,21 @@ NIQQUD_RE = re.compile(r'[֑-ׇ]')
 
 def parse_root_chars(raw: str) -> list[str] | None:
     """
-    Parse '|'-separated or '.'-separated Wiktionary root template args
-    into a list of single consonant characters.
-    e.g. 'כ|ת|ב' → ['כ','ת','ב']
-         'ك.ت.ب' → ['ك','ت','ب']
+    Parse root template content into individual consonants.
+
+    Handles three formats:
+      Compact:        'כדר'    → ['כ','ד','ר']   (Hebrew Wiktionary standard)
+      Pipe-separated: 'כ|ת|ב' → ['כ','ת','ב']
+      Dot-separated:  'ك.ت.ب' → ['ك','ت','ب']
     """
-    chars = [c.strip() for c in re.split(r'[|.\s]+', raw) if c.strip()]
-    # Keep only entries that are a single letter (some templates have extra params)
-    chars = [c for c in chars if len(c) == 1]
+    parts = [c.strip() for c in re.split(r'[|.\s]+', raw) if c.strip()]
+    chars: list[str] = []
+    for p in parts:
+        if len(p) == 1:
+            chars.append(p)
+        elif 2 <= len(p) <= 5 and all(c.isalpha() for c in p):
+            # Compact form: root written as unseparated string
+            chars.extend(list(p))
     return chars if 2 <= len(chars) <= 5 else None
 
 
@@ -88,14 +102,21 @@ def extract_roots(dump_path: Path, lang: str) -> dict[str, list[str]]:
                 text_buf = elem.text or ''
             elif tag.endswith('}page') and event == 'end':
                 if title_buf and text_buf:
+                    chars = None
                     m = root_re.search(text_buf)
                     if m:
                         chars = parse_root_chars(m.group(1))
-                        if chars:
-                            roots[title_buf] = chars
-                            count += 1
-                            if count % 1000 == 0:
-                                print(f'    … {count} roots found', flush=True)
+                    elif lang == 'ar':
+                        m2 = AR_NAME_ROOT_RE.search(text_buf)
+                        if m2:
+                            chars = m2.group(1).split()
+                            if not (2 <= len(chars) <= 5):
+                                chars = None
+                    if chars:
+                        roots[title_buf] = chars
+                        count += 1
+                        if count % 1000 == 0:
+                            print(f'    … {count} roots found', flush=True)
                 title_buf = text_buf = None
                 elem.clear()
 
