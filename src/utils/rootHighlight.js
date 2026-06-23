@@ -106,6 +106,31 @@ async function loadLocalRoots(lang) {
   return _localRoots[lang]
 }
 
+// Strip diacritics so words match their dictionary headwords.
+// Hebrew niqqud: U+05B0–U+05C7. Arabic harakat: U+064B–U+065F + U+0670 (superscript alef).
+function stripDiacritics(w) {
+  return w.replace(/[ְ-ׇً-ٰٟ]/g, '')
+}
+
+// Prefix-stripped fallback: try removing common attached prefixes before giving up.
+// Arabic: ال (def. article), و/ب/ل/ف/ك (particles). Hebrew: ה/ו/ב/ל/כ/מ/ש.
+const PREFIXES = {
+  ar: ['وال', 'بال', 'لل', 'ال', 'و', 'ب', 'ل', 'ف', 'ك'],
+  he: ['וה', 'וב', 'ול', 'וכ', 'ומ', 'וש', 'ה', 'ו', 'ב', 'ל', 'כ', 'מ', 'ש'],
+}
+
+function dictLookup(word, lang, dict) {
+  const clean = stripDiacritics(word)
+  if (dict.has(clean)) return dict.get(clean)
+  for (const pre of (PREFIXES[lang] ?? [])) {
+    if (clean.startsWith(pre) && clean.length > pre.length + 2) {
+      const stem = clean.slice(pre.length)
+      if (dict.has(stem)) return dict.get(stem)
+    }
+  }
+  return null
+}
+
 // ── Dicta via Vercel proxy ────────────────────────────────────────────────────
 // Browser-direct calls trigger CORS preflight that Dicta's loadbalancer rejects.
 // Route through /api/roots-analyze (same-origin) which calls Dicta server-side.
@@ -145,11 +170,11 @@ export async function preFetchRoots(words, lang) {
 
   if (!uncached.length) return map
 
-  // 1. Check local dictionary (public/he-roots.json etc.) — instant, no network
+  // 1. Check local dictionary — with diacritic stripping and prefix-stripped fallback
   const localDict = await loadLocalRoots(lang)
   const stillUncached = []
   for (const word of uncached) {
-    const chars = localDict.get(word) ?? null
+    const chars = dictLookup(word, lang, localDict)
     if (chars) {
       cacheSet(word, lang, chars)
       map[word] = chars.join('')

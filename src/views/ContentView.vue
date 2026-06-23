@@ -418,7 +418,7 @@ watch(
     }
     const words = [...new Set(
       story.content.split(/\s+/)
-        .map(w => w.replace(/[^\p{L}\p{M}]/gu, '').replace(/[֑-ׇ]/g, ''))
+        .map(w => w.replace(/[^\p{L}\p{M}]/gu, '').replace(/[ְ-ׇً-ٰٟ]/g, ''))
         .filter(Boolean)
     )]
     wordRootMap.value = await preFetchRoots(words, lang)
@@ -469,7 +469,7 @@ const tokens = computed(() => {
   return props.story.content.split(/(\s+)/).map(tok => ({
     type:  /^\s+$/.test(tok) ? 'space' : 'word',
     text:  tok,
-    clean: tok.replace(/[^\p{L}\p{M}]/gu, '').replace(/[֑-ׇ]/g, ''),
+    clean: tok.replace(/[^\p{L}\p{M}]/gu, '').replace(/[ְ-ׇً-ٰٟ]/g, ''),
   }))
 })
 
