@@ -3,8 +3,9 @@
 // The REST endpoint returns structured JSON unlike the extracts API,
 // so no per-language parsing hacks needed.
 
+// ar/he Wiktionary REST endpoint returns 501 — omitted intentionally
 const WIKT_CODE = {
-  ar: 'ar', arz: 'ar', he: 'he', de: 'de', fr: 'fr', es: 'es',
+  arz: 'ar', de: 'de', fr: 'fr', es: 'es',
   it: 'it', pt: 'pt', ru: 'ru', ja: 'ja', zh: 'zh', ko: 'ko',
   nl: 'nl', pl: 'pl', sv: 'sv', el: 'el', hu: 'hu', cs: 'cs',
   tr: 'tr', en: 'en',
