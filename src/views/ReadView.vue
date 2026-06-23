@@ -16,7 +16,7 @@
           <div class="text-xs mt-0.5" style="color:rgba(31,27,23,0.4); font-family:'EB Garamond',serif;">
             {{ LANGS[lang]?.name }}
             <span v-if="story.author"> · {{ story.author }}</span>
-            <span v-if="story.source"> · {{ story.source }}</span>
+            <span v-if="story.source && story.source !== story.author"> · {{ story.source }}</span>
           </div>
           <div v-if="knownInText > 0" class="text-xs mt-0.5" style="color:#3a7a3a;">
             {{ knownInText }} {{ knownInText === 1 ? 'word' : 'words' }} from your collection
