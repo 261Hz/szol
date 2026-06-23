@@ -32,14 +32,19 @@ async function hebrewRoot(word) {
   })
   if (!res.ok) return null
   const data = await res.json()
-  // Response: array of word objects. Each word has `morph` array of analyses.
-  // morph[0].lex contains the lemma/root string.
-  const word0  = Array.isArray(data) ? data[0] : null
-  const morph0 = word0?.morph?.[0]
-  // Dicta returns shoresh as e.g. "כ.ת.ב" or "כתב"
+
+  // Dicta nakdan returns [[word0, word1, ...], [sentence2...]]
+  // (outer array = sentences, inner array = word tokens)
+  const sentence = Array.isArray(data) ? data[0] : null
+  const word0    = Array.isArray(sentence) ? sentence[0] : sentence
+  const morph0   = word0?.morph?.[0]
+
+  // Prefer shoresh (root letters), fall back to lex (lemma)
   const raw = morph0?.shoresh ?? morph0?.lex ?? null
   if (!raw || typeof raw !== 'string') return null
-  return [...raw.replace(/[.\-\s]/g, '')]
+  // Strip dots/dashes used as separators: "כ.ת.ב" → ["כ","ת","ב"]
+  const chars = [...raw.replace(/[.\-\s]/g, '')]
+  return chars.length ? chars : null
 }
 
 async function arabicRoot(word) {
