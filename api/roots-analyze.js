@@ -17,36 +17,41 @@
 const DICTA_URL = 'https://nakdan.dicta.org.il/api'
 const CAMEL_URL = process.env.CAMEL_API_URL  // optional self-hosted CAMeL endpoint
 
-async function hebrewRoot(word) {
+// Batch: send all words as one text string, parse every token's shoresh.
+// Returns { word → char[] } for words that have a known root.
+async function hebrewRootsBatch(words) {
+  const text = words.join(' ')
   const res = await fetch(DICTA_URL, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      task:      'nakdan',
-      genre:     'modern',
-      addmorph:  true,
-      keepqq:    false,
-      nodagesh:  false,
-      text:      word,
-    }),
+    body: JSON.stringify({ task: 'nakdan', genre: 'modern', addmorph: true, keepqq: false, nodagesh: false, text }),
   })
-  if (!res.ok) return null
+  if (!res.ok) { console.error('[roots-batch] Dicta', res.status); return {} }
+
   const data = await res.json()
+  // data is [[token, ...], ...] (sentences → tokens) — flatten to one list
+  const tokens = Array.isArray(data[0]) ? data.flat() : data
+  console.log('[roots-batch] tokens:', tokens.length, 'sample:', JSON.stringify(tokens[0]).slice(0, 120))
 
-  // Dicta nakdan returns [[word0, word1, ...], ...] (sentences → words)
-  // but may also return [word0, ...] flat depending on API version.
-  const first = Array.isArray(data) ? data[0] : null
-  const word0 = Array.isArray(first) ? first[0] : first   // unwrap sentence wrapper if present
-  // morph can be an array of analyses OR a single analysis object
-  const rawMorph = word0?.morph
-  const analysis = Array.isArray(rawMorph) ? rawMorph[0] : rawMorph
+  const roots = {}
+  for (const tok of tokens) {
+    const w = tok.word
+    if (!w) continue
+    const rawMorph = tok.morph
+    const analysis = Array.isArray(rawMorph) ? rawMorph[0] : rawMorph
+    const raw = analysis?.shoresh ?? null   // only shoresh; lex is a vocalized lemma, not the root
+    if (!raw || typeof raw !== 'string') continue
+    const chars = [...raw.replace(/[.\-\s]/g, '')]
+    if (chars.length >= 2) roots[w] = chars
+  }
+  console.log('[roots-batch] roots found:', Object.keys(roots).length, '/', tokens.length)
+  return roots
+}
 
-  const raw = analysis?.shoresh ?? analysis?.lex ?? null
-  console.log(`[roots-he] "${word}" → shoresh="${analysis?.shoresh}" lex="${analysis?.lex?.slice?.(0,12)}"`)
-
-  if (!raw || typeof raw !== 'string') return null
-  const chars = [...raw.replace(/[.\-\s]/g, '')]
-  return chars.length ? chars : null
+// Keep single-word path for backward compat (VocabView applyRoots)
+async function hebrewRoot(word) {
+  const batch = await hebrewRootsBatch([word])
+  return batch[word] ?? null
 }
 
 async function arabicRoot(word) {
@@ -66,15 +71,21 @@ async function arabicRoot(word) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { word, lang } = req.body ?? {}
-  if (!word || !lang) return res.status(400).json({ root: null })
+  const body = req.body ?? {}
+  const { lang } = body
 
   try {
-    let root = null
-    if (lang === 'he') root = await hebrewRoot(word)
-    if (lang === 'ar') root = await arabicRoot(word)
+    // Batch mode: { words: string[], lang }
+    if (Array.isArray(body.words)) {
+      const roots = lang === 'he' ? await hebrewRootsBatch(body.words) : {}
+      return res.status(200).json({ roots })
+    }
+
+    // Single-word mode (backward compat): { word, lang }
+    const root = lang === 'he' ? await hebrewRoot(body.word ?? '') : null
     return res.status(200).json({ root })
-  } catch {
-    return res.status(200).json({ root: null })  // graceful degradation
+  } catch (e) {
+    console.error('[roots] handler error:', e.message)
+    return res.status(200).json({ root: null, roots: {} })
   }
 }
