@@ -1,64 +1,56 @@
 export const config = { runtime: 'edge' }
 
-const DICTA_URL = 'https://nakdan.dicta.org.il/api'
+// Real Dicta loadbalancer URL — found via browser DevTools on nakdan.dicta.org.il
+// Payload uses `data` field; response: { data: [{ str, nakdan: { options: [{lex, prefix_len}] } }] }
+const DICTA_URL = 'https://nakdan-u1-0.loadbalancer.dicta.org.il/api'
 
 function stripNiqqud(s) { return s.replace(/[֑-ׇ]/g, '') }
 
 async function hebrewRootsBatch(words) {
-  const text = words.join(' ')
   let res
-
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      res = await fetch(DICTA_URL, {
-        method:  'POST',
-        headers: {
-          'Content-Type':    'application/json',
-          'Accept':          'application/json, text/plain, */*',
-          'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8',
-          'Origin':          'https://nakdan.dicta.org.il',
-          'Referer':         'https://nakdan.dicta.org.il/',
-          'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        },
-        body: JSON.stringify({ task: 'nakdan', genre: 'modern', addmorph: true, keepqq: false, nodagesh: false, text }),
-      })
-      if (res.ok) break
-      const errBody = await res.text().catch(() => '')
-      console.log('[roots-dicta] attempt', attempt, 'status', res.status, errBody.slice(0, 200))
-    } catch (err) {
-      console.log('[roots-dicta] attempt', attempt, 'error:', err.message)
-    }
+  try {
+    res = await fetch(DICTA_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        task: 'nakdan', genre: 'modern', addmorph: true,
+        useTokenization: true, keepmetagim: true,
+        keepqq: false, nodageshdefmem: false, patachma: false,
+        data: words.join(' '),
+      }),
+    })
+  } catch (err) {
+    console.error('[roots-dicta] fetch error:', err.message)
+    return {}
   }
 
-  if (!res?.ok) { console.error('[roots-dicta] all attempts failed'); return {} }
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    console.error('[roots-dicta] HTTP', res.status, body.slice(0, 200))
+    return {}
+  }
 
-  const data   = await res.json()
-  const tokens = Array.isArray(data[0]) ? data.flat() : data
-  console.log('[roots-dicta] tokens:', tokens.length, '| sample:', JSON.stringify(tokens[0]).slice(0, 200))
+  const json  = await res.json()
+  const items = Array.isArray(json.data) ? json.data : []
+  console.log('[roots-dicta] items:', items.length, '| sample:', JSON.stringify(items[0]).slice(0, 200))
 
   const wordSet = new Set(words)
   const roots   = {}
-
-  for (const tok of tokens) {
-    const w = stripNiqqud(tok.word ?? '')
+  for (const item of items) {
+    const w = stripNiqqud(item.str ?? '')
     if (!w || !wordSet.has(w)) continue
-    const rawMorph = tok.morph
-    const analysis = Array.isArray(rawMorph) ? rawMorph[0] : rawMorph
-    const raw      = analysis?.shoresh ?? null
-    if (!raw || typeof raw !== 'string') continue
-    const chars = [...raw.replace(/[.\-\s]/g, '')]
-    if (chars.length >= 2) roots[w] = chars
+    const opt = item.nakdan?.options?.[0]
+    if (!opt) continue
+    const lex = stripNiqqud(opt.lex ?? '')
+    if (lex.length >= 2) roots[w] = [...lex]
   }
 
-  console.log('[roots-dicta] roots found:', Object.keys(roots).length, '/', tokens.length)
+  console.log('[roots-dicta] roots found:', Object.keys(roots).length, '/', items.length)
   return roots
 }
 
-const json = (data, status = 200) =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
+const json = (data) =>
+  new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } })
 
 export default async function handler(req) {
   if (req.method !== 'POST') return new Response(null, { status: 405 })

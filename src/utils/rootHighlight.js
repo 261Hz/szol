@@ -53,7 +53,7 @@ export function rootInkColor(root) {
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 
-const CACHE_KEY   = 'szol_root_cache_v2'  // v2: browser-direct Dicta; purges old server-404 nulls
+const CACHE_KEY   = 'szol_root_cache_v3'  // v3: correct loadbalancer URL + new response format
 const CACHE_LIMIT = 500
 const _session    = new Map()   // `${lang}:${word}` → char[] | null
 
@@ -108,39 +108,40 @@ async function fetchRoot(word, lang) {
   return promise
 }
 
-// ── Dicta nakdan — called directly from the browser (CORS is allowed) ────────
-// Sending through Vercel serverless returned 404; calling from browser works
-// because Dicta's own web app is also a browser-side SPA calling this endpoint.
+// ── Dicta nakdan — called directly from the browser (CORS: access-control-allow-origin: *) ──
+// Real loadbalancer URL found via DevTools on nakdan.dicta.org.il.
+// Payload uses `data` field (not `text`). Response: { data: [{ str, nakdan: { options: [{lex, prefix_len}] } }] }
 
-const DICTA_URL = 'https://nakdan.dicta.org.il/api'
+const DICTA_URL = 'https://nakdan-u1-0.loadbalancer.dicta.org.il/api'
 
 async function dictaHebrewBatch(words) {
-  const text = words.join('\n')  // newline-separated keeps words as distinct tokens
   let res
   try {
     res = await fetch(DICTA_URL, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task: 'nakdan', genre: 'modern', addmorph: true, keepqq: false, nodagesh: false, text }),
+      body: JSON.stringify({
+        task: 'nakdan', genre: 'modern', addmorph: true,
+        useTokenization: true, keepmetagim: true,
+        keepqq: false, nodageshdefmem: false, patachma: false,
+        data: words.join(' '),
+      }),
     })
   } catch {
-    return {}  // network error / CORS — degrade silently
+    return {}
   }
   if (!res.ok) return {}
 
-  const data   = await res.json()
-  const tokens = Array.isArray(data[0]) ? data.flat() : data
+  const json   = await res.json()
+  const items  = Array.isArray(json.data) ? json.data : []
   const roots  = {}
-  for (const tok of tokens) {
-    // Strip niqqud from response word (nakdan adds vowel marks to output)
-    const w = (tok.word ?? '').replace(/[֑-ׇ]/g, '')
+  for (const item of items) {
+    const w = (item.str ?? '').replace(/[֑-ׇ]/g, '')
     if (!w) continue
-    const rawMorph = tok.morph
-    const analysis = Array.isArray(rawMorph) ? rawMorph[0] : rawMorph
-    const raw = analysis?.shoresh ?? null
-    if (!raw || typeof raw !== 'string') continue
-    const chars = [...raw.replace(/[.\-\s]/g, '')]
-    if (chars.length >= 2) roots[w] = chars
+    const opt = item.nakdan?.options?.[0]
+    if (!opt) continue
+    const lex = (opt.lex ?? '').replace(/[֑-ׇ]/g, '')
+    if (lex.length >= 2) roots[w] = [...lex]
   }
   return roots
 }
@@ -167,18 +168,11 @@ export async function preFetchRoots(words, lang) {
   if (!uncached.length) return map
 
   try {
-    const res = await fetch('/api/roots-analyze', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ words: uncached, lang }),
-    })
-    const data  = res.ok ? await res.json() : {}
-    const roots = data.roots ?? {}
-
+    const roots = lang === 'he' ? await dictaHebrewBatch(uncached) : {}
     for (const word of uncached) {
       const chars = roots[word] ?? null
       if (chars) {
-        cacheSet(word, lang, chars)   // only cache positive hits — nulls get retried next visit
+        cacheSet(word, lang, chars)
         map[word] = chars.join('')
       }
     }
