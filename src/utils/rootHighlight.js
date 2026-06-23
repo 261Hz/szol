@@ -110,17 +110,47 @@ async function fetchRoot(word, lang) {
 
 // ── Public: batch pre-fetch for a word list ───────────────────────────────────
 // Returns { word → rootString } for all words that have a known root.
+// Sends ONE batch request to /api/roots-analyze instead of N parallel calls,
+// which previously caused Dicta to time-out / rate-limit the burst.
 
 export async function preFetchRoots(words, lang) {
   if (!['ar', 'he'].includes(lang)) return {}
-  const map = {}
-  await Promise.all(
-    words.filter(Boolean).map(async word => {
-      let root = cacheGet(word, lang)
-      if (root === undefined) root = await fetchRoot(word, lang)
-      if (Array.isArray(root) && root.length) map[word] = root.join('')
+
+  const unique = [...new Set(words.filter(Boolean))]
+  const map    = {}
+  const uncached = []
+
+  for (const word of unique) {
+    const cached = cacheGet(word, lang)
+    if (cached !== undefined) {
+      if (Array.isArray(cached) && cached.length) map[word] = cached.join('')
+    } else {
+      uncached.push(word)
+    }
+  }
+
+  if (!uncached.length) return map
+
+  try {
+    const res = await fetch('/api/roots-analyze', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ words: uncached, lang }),
     })
-  )
+    if (!res.ok) return map
+
+    const data  = await res.json()
+    const roots = data.roots ?? {}   // { word: char[] }
+
+    for (const word of uncached) {
+      const chars = roots[word] ?? null
+      cacheSet(word, lang, chars)
+      if (Array.isArray(chars) && chars.length) map[word] = chars.join('')
+    }
+  } catch (e) {
+    console.error('[roots] batch fetch error:', e.message)
+  }
+
   return map
 }
 
