@@ -24,7 +24,7 @@
               class="map-lang"
               :class="{ 'map-lang--active': selected === code }"
               :dir="LANGS[code]?.rtl ? 'rtl' : 'ltr'"
-            >{{ LANGS[code].name }}<span v-if="learners[code]" class="map-lang-count">{{ learners[code] }}</span></button>
+            >{{ LANGS[code].name }}<span v-if="learners[code]" class="map-lang-count">{{ fmtCount(learners[code]) }}</span></button>
           </div>
         </div>
       </div>
@@ -72,12 +72,25 @@ onMounted(async () => {
   learners.value = await fetchLearnerCounts()
 })
 
-const REGIONS = [
+function fmtCount(n) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace('.0', '') + 'M'
+  if (n >= 1_000)     return (n / 1_000).toFixed(1).replace('.0', '') + 'K'
+  return String(n)
+}
+
+const REGIONS_BASE = [
   { name: 'Western Europe', langs: ['en', 'fr', 'de', 'es', 'it', 'el'] },
   { name: 'Central & East', langs: ['hu', 'ru'] },
   { name: 'Middle East',    langs: ['ar', 'arz', 'he'] },
   { name: 'East Asia',      langs: ['ja', 'zh'] },
 ]
+
+const REGIONS = computed(() =>
+  REGIONS_BASE.map(r => ({
+    ...r,
+    langs: [...r.langs].sort((a, b) => (learners.value[b] ?? 0) - (learners.value[a] ?? 0)),
+  }))
+)
 
 const UI = {
   en:  { start: 'Get started →',   signIn: 'Sign in / Create account',          rtl: false },
