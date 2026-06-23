@@ -1,82 +1,69 @@
-// Hebrew morphological analysis via DictaBERT-Joint (HuggingFace Inference API).
-// Returns per-word stem characters for prefix/root/suffix highlighting.
-// Requires HF_TOKEN env var (free at huggingface.co/settings/tokens).
+// Hebrew morphological analysis via Dicta nakdan API (proxied through Vercel).
+// Dicta returns 404 without browser-like headers; spoofing their own Origin works.
+// Retries up to 3× because Vercel may route to a region Dicta blocks on first try.
 
-const HF_URL = 'https://api-inference.huggingface.co/models/dicta-il/dictabert-joint'
+const DICTA_URL = 'https://nakdan.dicta.org.il/api'
 
 function stripNiqqud(s) { return s.replace(/[֑-ׇ]/g, '') }
 
+async function dictaFetch(text) {
+  const res = await fetch(DICTA_URL, {
+    method:  'POST',
+    headers: {
+      'Content-Type':    'application/json',
+      'Accept':          'application/json, text/plain, */*',
+      'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8',
+      'Origin':          'https://nakdan.dicta.org.il',
+      'Referer':         'https://nakdan.dicta.org.il/',
+      'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+    },
+    body: JSON.stringify({ task: 'nakdan', genre: 'modern', addmorph: true, keepqq: false, nodagesh: false, text }),
+  })
+  return res
+}
+
 async function hebrewRootsBatch(words) {
-  const hfToken = process.env.HF_TOKEN
-  if (!hfToken) { console.error('[roots-hf] HF_TOKEN not set'); return {} }
-
   const text = words.join(' ')
+
   let res
-  try {
-    res = await fetch(HF_URL, {
-      method:  'POST',
-      headers: {
-        'Authorization': `Bearer ${hfToken}`,
-        'Content-Type':  'application/json',
-      },
-      body: JSON.stringify({ inputs: text }),
-    })
-  } catch (err) {
-    console.error('[roots-hf] network error:', err.message,
-      '| cause:', err.cause?.code ?? '', err.cause?.message ?? '')
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      res = await dictaFetch(text)
+      if (res.ok) break
+      console.log('[roots-dicta] attempt', attempt, 'status', res.status)
+      if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt))
+    } catch (err) {
+      console.error('[roots-dicta] attempt', attempt, 'error:', err.message, err.cause?.code ?? '')
+      if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt))
+    }
+  }
+
+  if (!res?.ok) {
+    console.error('[roots-dicta] all attempts failed')
     return {}
   }
 
-  if (res.status === 503) {
-    const body = await res.json().catch(() => ({}))
-    console.log('[roots-hf] model loading, estimated', body.estimated_time, 's')
-    return {}
-  }
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    console.error('[roots-hf] HTTP', res.status, body.slice(0, 300))
-    return {}
-  }
-
-  const data = await res.json()
-
-  if (!Array.isArray(data)) {
-    console.log('[roots-hf] unexpected shape:', JSON.stringify(data).slice(0, 300))
-    return {}
-  }
-
-  // Model may return [[sentence tokens], ...] or flat [token, ...]
+  const data   = await res.json()
   const tokens = Array.isArray(data[0]) ? data.flat() : data
-  console.log('[roots-hf] tokens:', tokens.length, '| sample:', JSON.stringify(tokens[0]).slice(0, 300))
+  console.log('[roots-dicta] tokens:', tokens.length, '| sample:', JSON.stringify(tokens[0]).slice(0, 200))
 
   const wordSet = new Set(words)
   const roots   = {}
 
   for (const tok of tokens) {
-    const w = stripNiqqud(tok.token ?? tok.word ?? '')
+    const w = stripNiqqud(tok.word ?? '')
     if (!w || !wordSet.has(w)) continue
 
-    const seg   = tok.seg   ?? []
-    const morph = tok.morph ?? {}
+    const rawMorph = tok.morph
+    const analysis = Array.isArray(rawMorph) ? rawMorph[0] : rawMorph
+    const raw      = analysis?.shoresh ?? null
+    if (!raw || typeof raw !== 'string') continue
 
-    // Number of leading prefix segments and trailing suffix segment
-    const nPre   = Array.isArray(morph.prefixes) ? morph.prefixes.length : 0
-    const hasSuf = !!morph.suffix
-    const nSuf   = hasSuf && seg.length > nPre ? 1 : 0
-
-    if (seg.length >= 1) {
-      const prefixLen = seg.slice(0, nPre).reduce((s, p) => s + p.length, 0)
-      const suffixLen = nSuf ? seg[seg.length - 1].length : 0
-      const stem      = [...w].slice(prefixLen, w.length - suffixLen || undefined)
-      if (stem.length >= 1) { roots[w] = stem; continue }
-    }
-
-    // Fallback: lex (lemma) chars — client segMap will do sequential matching
-    const lex = stripNiqqud(tok.lex ?? '')
-    if (lex.length >= 2) roots[w] = [...lex]
+    const chars = [...raw.replace(/[.\-\s]/g, '')]
+    if (chars.length >= 2) roots[w] = chars
   }
 
-  console.log('[roots-hf] roots found:', Object.keys(roots).length, '/', tokens.length)
+  console.log('[roots-dicta] roots found:', Object.keys(roots).length, '/', tokens.length)
   return roots
 }
 
