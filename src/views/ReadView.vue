@@ -151,22 +151,18 @@
         />
       </div>
 
-      <!-- Related stories -->
-      <div v-if="relatedStories.length" class="flex flex-col gap-2 pt-3" style="border-top:1px solid rgba(31,27,23,0.09);">
-        <div class="text-xs uppercase tracking-widest" style="color:rgba(31,27,23,0.3); letter-spacing:0.14em; font-family:'EB Garamond',serif;">Also in your collection</div>
-        <div class="flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <button
-            v-for="s in relatedStories"
-            :key="s.id"
-            @click="$emit('switch-story', s)"
-            class="flex-shrink-0 text-left p-2.5 transition-all"
-            style="border:1px solid rgba(31,27,23,0.1); border-radius:2px; max-width:150px;"
-            onmouseover="this.style.borderColor='rgba(31,27,23,0.28)'"
-            onmouseout="this.style.borderColor='rgba(31,27,23,0.1)'"
-          >
-            <div class="text-xs font-medium leading-snug line-clamp-2" style="color:#1f1b17;" :dir="isRTL(s.lang) ? 'rtl' : 'ltr'">{{ s.title.replace(/_/g, ' ') }}</div>
-            <div class="text-[10px] mt-1" style="color:#3a7a3a;">{{ s.score }} known</div>
-          </button>
+      <!-- Known words in this text -->
+      <div v-if="knownWordsInText.length" class="flex flex-col gap-2 pt-3" style="border-top:1px solid rgba(31,27,23,0.09);">
+        <div class="text-xs uppercase tracking-widest" style="color:rgba(31,27,23,0.3); letter-spacing:0.14em; font-family:'EB Garamond',serif;">Your words in this text</div>
+        <div class="flex flex-wrap gap-1.5">
+          <span
+            v-for="w in knownWordsInText"
+            :key="w"
+            @click="tap(w)"
+            class="cursor-pointer text-sm px-2 py-0.5 transition-all"
+            style="background:rgba(139,58,58,0.09); color:#8b3a3a; border-radius:2px; font-family:'EB Garamond',serif;"
+            :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+          >{{ w }}</span>
         </div>
       </div>
 
@@ -233,47 +229,17 @@ const rootFamilyMap = computed(() => {
   return map
 })
 
-// ── Related stories ───────────────────────────────────────────────────────────
-
-const relatedStories = computed(() => {
-  if (!props.story) return []
-  if (props.echoesFor) {
-    const echoes  = props.echoesFor(props.story)
-    const byStory = {}
-    for (const ev of echoes) {
-      if (!byStory[ev.exposureId] || ev.triggers.length > byStory[ev.exposureId].score) {
-        const s = props.storyPool.find(s => s.id === ev.exposureId)
-        if (s) byStory[ev.exposureId] = { ...s, score: ev.triggers.length }
-      }
-    }
-    return Object.values(byStory).sort((a, b) => b.score - a.score).slice(0, 5)
-  }
-  if (!props.storyPool?.length || !props.savedWords?.size) return []
-  return props.storyPool
-    .filter(s => s.id !== props.story?.id && s.lang === props.lang)
-    .map(s => {
-      const text = s.content ?? s.text ?? ''
-      const seen = new Set()
-      for (const raw of text.split(/\s+/)) {
-        const n = normalize(raw)
-        if (n && props.savedWords.has(n)) seen.add(n)
-      }
-      return { ...s, score: seen.size }
-    })
-    .filter(s => s.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5)
-})
-
-const knownInText = computed(() => {
-  if (!props.story?.content || !props.savedWords?.size) return 0
+const knownWordsInText = computed(() => {
+  if (!props.story?.content || !props.savedWords?.size) return []
   const seen = new Set()
   for (const raw of props.story.content.split(/\s+/)) {
     const n = normalize(raw)
-    if (n && props.savedWords.has(n)) seen.add(n)
+    if (n && props.savedWords.has(n)) seen.add(raw.replace(/[^\p{L}\p{M}]/gu, ''))
   }
-  return seen.size
+  return [...seen].filter(Boolean)
 })
+
+const knownInText = computed(() => knownWordsInText.value.length)
 
 // ── Story rendering ───────────────────────────────────────────────────────────
 
