@@ -1,5 +1,5 @@
 <template>
-  <nav class="sticky top-0 z-40" style="background: rgba(20,17,14,0.97); border-bottom: 1px solid rgba(245,235,220,0.08); backdrop-filter: blur(2px);">
+  <nav class="sticky top-0 z-40" style="background: rgba(232,220,196,0.97); border-bottom: 1px solid rgba(31,27,23,0.09); backdrop-filter: blur(2px);">
 
     <!-- Top row: brand + language selector + controls -->
     <div class="flex items-center justify-between px-4 py-2">
@@ -8,26 +8,26 @@
         <button
           @click="tapLogo"
           class="select-none hover:opacity-70 transition-opacity"
-          style="color:rgba(245,235,220,0.92); font-family:'IM Fell English',serif; font-size:1.35rem;"
+          style="color:#1f1b17; font-family:'IM Fell English',serif; font-size:1.35rem;"
         >Sz<span style="color:#b45a5a">ó</span>l</button>
         <Transition name="tooltip">
           <div
             v-if="showTooltip"
             class="absolute top-full left-0 mt-1.5 z-50 px-4 py-3 shadow-xl min-w-[180px]"
-            style="background:#1f1a15; border:1px solid rgba(245,235,220,0.1); border-radius:2px;"
+            style="background:#e8dcc4; border:1px solid rgba(31,27,23,0.12); border-radius:2px;"
           >
             <div class="flex items-baseline gap-2 mb-1">
-              <span class="text-base font-semibold" style="color:rgba(245,235,220,0.92); font-family:'IM Fell English',serif;">Szól</span>
-              <span class="text-xs font-mono" style="color:rgba(245,235,220,0.35);">[soːl]</span>
+              <span class="text-base font-semibold" style="color:#1f1b17; font-family:'IM Fell English',serif;">Szól</span>
+              <span class="text-xs font-mono" style="color:rgba(31,27,23,0.35);">[soːl]</span>
             </div>
-            <div class="text-xs mb-2" style="color:rgba(245,235,220,0.65);">{{ tooltipInfo.label }}</div>
-            <div class="text-xs mb-1" style="color:rgba(245,235,220,0.35);">{{ tooltipInfo.intro }}</div>
+            <div class="text-xs mb-2" style="color:rgba(31,27,23,0.65);">{{ tooltipInfo.label }}</div>
+            <div class="text-xs mb-1" style="color:rgba(31,27,23,0.35);">{{ tooltipInfo.intro }}</div>
             <ul class="space-y-0.5">
               <li
                 v-for="m in tooltipInfo.meanings"
                 :key="m"
                 class="text-sm flex items-center gap-1.5"
-                style="color:rgba(245,235,220,0.85);"
+                style="color:#1f1b17;"
               ><span style="color:#b45a5a;">•</span>{{ m }}</li>
             </ul>
           </div>
@@ -40,23 +40,23 @@
           aria-label="Language"
           @change="$emit('lang', $event.target.value)"
           class="text-sm bg-transparent border-0 border-b px-1 py-0.5 max-w-28"
-          style="border-color:rgba(245,235,220,0.2); color:rgba(245,235,220,0.65); font-family:'EB Garamond',serif;"
+          style="border-color:rgba(31,27,23,0.18); color:rgba(31,27,23,0.6); font-family:'EB Garamond',serif;"
         >
-          <option v-for="(l, code) in LANGS" :key="code" :value="code" style="background:#1f1a15;">{{ l.name }}</option>
+          <option v-for="(l, code) in LANGS" :key="code" :value="code" style="background:#e8dcc4;">{{ l.name }}</option>
         </select>
 
         <button
           v-if="lang === 'he' || lang === 'ar'"
           @click="rootHighlightOn = !rootHighlightOn"
           class="text-xs px-2 py-0.5 border-b transition-all"
-          :style="rootHighlightOn ? 'color:#b45a5a; border-color:#b45a5a;' : 'color:rgba(245,235,220,0.35); border-color:rgba(245,235,220,0.15);'"
+          :style="rootHighlightOn ? 'color:#8b3a3a; border-color:#8b3a3a;' : 'color:rgba(31,27,23,0.35); border-color:rgba(31,27,23,0.15);'"
           title="Toggle root highlighting"
         >√ Root</button>
 
         <button
           @click="$emit('tab', 'settings')"
           class="p-1.5 transition-all"
-          :style="active === 'settings' ? 'color:rgba(245,235,220,0.92);' : 'color:rgba(245,235,220,0.45);'"
+          :style="active === 'settings' ? 'color:#1f1b17;' : 'color:rgba(31,27,23,0.4);'"
           title="Settings"
         >
           <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -67,7 +67,7 @@
         <div v-if="!currentUser">
           <button @click="$emit('auth')"
             class="p-1.5 transition-all"
-            style="color:#5a4a3b;"
+            style="color:rgba(31,27,23,0.45);"
             title="Login / Register">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -75,10 +75,10 @@
           </button>
         </div>
         <div v-else class="flex items-center gap-1.5">
-          <span class="text-xs max-w-20 truncate hidden sm:inline" style="color:#5a4a3b;">{{ currentUser.username }}</span>
+          <span class="text-xs max-w-20 truncate hidden sm:inline" style="color:rgba(31,27,23,0.5);">{{ currentUser.username }}</span>
           <button @click="$emit('logout')"
-            class="text-xs transition-all" style="color:#8c7a66;" title="Logout" aria-label="Logout"
-            onmouseover="this.style.color='#8b3a3a'" onmouseout="this.style.color='#8c7a66'"
+            class="text-xs transition-all" style="color:rgba(31,27,23,0.35);" title="Logout" aria-label="Logout"
+            onmouseover="this.style.color='#8b3a3a'" onmouseout="this.style.color='rgba(31,27,23,0.35)'"
           >✕</button>
         </div>
       </div>
@@ -91,7 +91,7 @@
         :key="tab.key"
         @click="$emit('tab', tab.key)"
         class="relative flex-shrink-0 flex flex-col items-center gap-0.5 px-2.5 py-1 transition-all"
-        :style="active === tab.key ? 'color:rgba(245,235,220,0.92);' : 'color:rgba(245,235,220,0.28);'"
+        :style="active === tab.key ? 'color:#1f1b17;' : 'color:rgba(31,27,23,0.3);'"
         :title="tab.label"
       >
         <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -174,13 +174,13 @@ function tapLogo() {
 const ICONS = {
   browse: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z',
   read:   'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
-  saved:  'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z',
+  vocab:  'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z',
 }
 
 const tabs = computed(() => [
   { key: 'browse', label: 'Browse' },
   { key: 'read',   label: 'Read' },
-  { key: 'saved',  label: 'Saved' },
+  { key: 'vocab',  label: 'Vocab' },
 ])
 </script>
 

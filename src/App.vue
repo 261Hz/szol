@@ -7,10 +7,10 @@
       <div
         v-if="appLoading"
         class="fixed inset-0 z-[100] flex flex-col items-center justify-center"
-        style="background:#14110e;"
+        style="background:#e8dcc4;"
       >
         <div class="flex flex-col items-center gap-4">
-          <div class="text-4xl font-bold tracking-tight select-none" style="color:rgba(245,235,220,0.92); font-family:'IM Fell English',serif;">
+          <div class="text-4xl font-bold tracking-tight select-none" style="color:#1f1b17; font-family:'IM Fell English',serif;">
             Sz<span style="color:#8b3a3a">ó</span>l
           </div>
           <div class="flex gap-1.5">
@@ -46,8 +46,10 @@
         v-if="activeTab === 'browse'"
         :lang="activeLang"
         :current-user="currentUser"
+        :words="vocabBank"
         @load="loadStory"
         @stories-loaded="storyPool = $event"
+        @go="activeTab = $event"
       />
 
       <RetypeView
@@ -156,7 +158,7 @@
       @logged-in="handleLogin"
     />
 
-    <LitClock />
+    <LitClock v-if="activeLang === 'en'" />
 
     </template>
   </div>

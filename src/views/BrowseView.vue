@@ -1,108 +1,231 @@
 <template>
-  <div class="pb-12">
+  <div class="browse-root">
 
-    <!-- Continue reading -->
-    <section v-if="inProgress.length" class="mb-10">
-      <div class="row-label">Continue</div>
-      <div class="card-row">
-        <button
-          v-for="p in inProgress"
-          :key="p.story_id"
-          @click="resume(p)"
-          class="content-card"
-        >
-          <div class="card-stripe" :style="{ background: langColor(p.lang) }" />
-          <div class="card-title">{{ p.story_title || p.story_id }}</div>
-          <div class="card-meta">{{ p.tab }} · §{{ p.sentence_index }}</div>
+    <!-- ════════════════════════════════════
+         LANDING — Continue + Drawers
+    ════════════════════════════════════ -->
+    <template v-if="!level">
+
+      <!-- Continue / Vocab summary -->
+      <div v-if="inProgress.length || vocabCount > 0" class="continue-block">
+
+        <div v-if="inProgress.length" class="continue-item" @click="resume(inProgress[0])">
+          <span class="ci-label">Continue</span>
+          <span class="ci-title">{{ inProgress[0].story_title || 'Untitled' }}</span>
+          <span class="ci-meta">§{{ inProgress[0].sentence_index }}</span>
+        </div>
+
+        <div v-if="vocabCount > 0" class="vocab-row">
+          <span class="vocab-text">{{ vocabCount }} word{{ vocabCount !== 1 ? 's' : '' }} saved</span>
+          <button @click="$emit('go', 'vocab')" class="vocab-review-btn">Review →</button>
+        </div>
+
+      </div>
+
+      <!-- Archive drawers -->
+      <div class="drawer-list">
+        <button @click="pick('podcasts')" class="drawer-row">
+          <span class="drawer-label">Podcasts</span>
+          <span class="drawer-arrow">→</span>
+        </button>
+        <button @click="pick('stories')" class="drawer-row">
+          <span class="drawer-label">Stories</span>
+          <span class="drawer-arrow">→</span>
+        </button>
+        <button @click="pick('articles')" class="drawer-row">
+          <span class="drawer-label">Articles</span>
+          <span class="drawer-arrow">→</span>
+        </button>
+        <button @click="pick('history')" class="drawer-row">
+          <span class="drawer-label">History</span>
+          <span class="drawer-arrow">→</span>
         </button>
       </div>
-    </section>
 
-    <!-- Stories -->
-    <section class="mb-10">
-      <div class="row-label">Stories</div>
-      <div v-if="storiesLoading" class="empty-msg">Loading…</div>
-      <div v-else-if="!stories.length" class="empty-msg">No stories yet for this language.</div>
-      <div v-else class="card-row">
+      <!-- Import URL — at the very bottom, minimal -->
+      <div class="import-section">
+        <button v-if="!showImport" @click="showImport = true" class="import-toggle">
+          or paste a URL to import
+        </button>
+        <div v-else>
+          <div class="import-row">
+            <input
+              v-model="importUrl"
+              type="url"
+              placeholder="https://…"
+              @keydown.enter="fetchArticle"
+              class="import-input"
+              autofocus
+            />
+            <button @click="fetchArticle" :disabled="importLoading" class="import-btn">
+              {{ importLoading ? '…' : 'Fetch' }}
+            </button>
+            <button @click="showImport = false; importPreview = null; importError = ''" class="import-cancel">×</button>
+          </div>
+          <div v-if="importError" class="import-error">{{ importError }}</div>
+          <div v-if="importPreview" class="import-preview">
+            <div class="ip-title">{{ importPreview.title }}</div>
+            <div class="ip-excerpt">{{ importPreview.text.slice(0, 200) }}…</div>
+            <div class="ip-actions">
+              <button @click="confirmImport" class="ip-confirm">Save &amp; read</button>
+              <button @click="importPreview = null" class="ip-discard">Discard</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </template>
+
+
+    <!-- ════════════════════════════════════
+         PODCASTS — show list
+    ════════════════════════════════════ -->
+    <template v-else-if="level === 'podcasts' && !source">
+      <div class="nav-bar">
+        <button @click="back" class="back-link">← Archive</button>
+        <span class="nav-title">Podcasts</span>
+      </div>
+      <div v-if="podcastLoading" class="status-text">Loading…</div>
+      <div v-else-if="!podcastShows.length" class="status-text">No podcasts yet for this language.</div>
+      <div v-else class="item-list">
+        <button
+          v-for="[show, eps] in podcastShows"
+          :key="show"
+          @click="source = show"
+          class="item-row"
+        >
+          <span class="item-title">{{ show }}</span>
+          <span class="item-meta">{{ eps.length }} ep{{ eps.length !== 1 ? 's' : '' }}</span>
+        </button>
+      </div>
+    </template>
+
+    <!-- PODCASTS — episodes -->
+    <template v-else-if="level === 'podcasts' && source">
+      <div class="nav-bar">
+        <button @click="source = null" class="back-link">← Podcasts</button>
+        <span class="nav-title">{{ source }}</span>
+      </div>
+      <div class="item-list">
+        <button
+          v-for="ep in episodesByShow"
+          :key="ep.id"
+          @click="listenEpisode(ep)"
+          class="item-row"
+        >
+          <div>
+            <div class="item-title">{{ ep.title }}</div>
+            <div v-if="ep.duration_sec" class="item-sub">{{ Math.round(ep.duration_sec / 60) }} min</div>
+          </div>
+        </button>
+      </div>
+    </template>
+
+
+    <!-- ════════════════════════════════════
+         STORIES
+    ════════════════════════════════════ -->
+    <template v-else-if="level === 'stories'">
+      <div class="nav-bar">
+        <button @click="back" class="back-link">← Archive</button>
+        <span class="nav-title">Stories</span>
+      </div>
+      <div v-if="storiesLoading" class="status-text">Loading…</div>
+      <div v-else-if="!stories.length" class="status-text">No stories yet for this language.</div>
+      <div v-else class="item-list">
         <button
           v-for="story in stories"
           :key="story.id"
           @click="$emit('load', story)"
-          class="content-card"
+          class="item-row"
         >
-          <div class="card-stripe" :style="{ background: langColor(lang) }" />
-          <div class="card-title" :dir="isRTL(story.lang) ? 'rtl' : 'ltr'">{{ story.title }}</div>
-          <div class="card-meta">{{ story.author || 'curated' }}</div>
+          <div>
+            <div class="item-title" :dir="isRTL(story.lang) ? 'rtl' : 'ltr'">{{ story.title }}</div>
+            <div v-if="story.author" class="item-sub">{{ story.author }}</div>
+          </div>
         </button>
       </div>
-    </section>
+    </template>
 
-    <!-- Articles -->
-    <section class="mb-10">
-      <div class="row-label">Articles</div>
-      <div v-if="feedLoading && !feedItems.length" class="empty-msg">Loading…</div>
-      <div v-else-if="!feedItems.length" class="empty-msg">No articles for this language yet.</div>
-      <div v-else class="card-row">
+
+    <!-- ════════════════════════════════════
+         ARTICLES — source list
+    ════════════════════════════════════ -->
+    <template v-else-if="level === 'articles' && !source">
+      <div class="nav-bar">
+        <button @click="back" class="back-link">← Archive</button>
+        <span class="nav-title">Articles</span>
+      </div>
+      <div v-if="feedLoading" class="status-text">Loading…</div>
+      <div v-else-if="!feedSources.length" class="status-text">No articles yet for this language.</div>
+      <div v-else class="item-list">
         <button
-          v-for="item in feedItems"
+          v-for="src in feedSources"
+          :key="src"
+          @click="source = src"
+          class="item-row"
+        >
+          <span class="item-title">{{ src }}</span>
+          <span class="item-meta">{{ feedBySource[src].length }}</span>
+        </button>
+      </div>
+    </template>
+
+    <!-- ARTICLES — items in source -->
+    <template v-else-if="level === 'articles' && source">
+      <div class="nav-bar">
+        <button @click="source = null" class="back-link">← Articles</button>
+        <span class="nav-title">{{ source }}</span>
+      </div>
+      <div class="item-list">
+        <button
+          v-for="item in feedBySource[source]"
           :key="item.id"
           @click="openFeed(item)"
-          class="content-card"
+          class="item-row"
           :class="{ 'opacity-40 cursor-wait': fetchingId === item.id }"
         >
-          <div class="card-stripe" style="background:#3a4f6b;" />
-          <div class="card-title">{{ item.title }}</div>
-          <div class="card-meta">{{ item.source_name }}</div>
+          <div class="item-title">{{ item.title }}</div>
         </button>
       </div>
-    </section>
+    </template>
 
-    <!-- Podcasts -->
-    <section class="mb-10">
-      <div class="row-label">Podcasts</div>
-      <div v-if="podcastLoading && !podcastShows.length" class="empty-msg">Loading…</div>
-      <div v-else-if="!podcastShows.length" class="empty-msg">No podcasts for this language yet.</div>
-      <div v-else class="card-row">
-        <button
-          v-for="[show, eps] in podcastShows"
-          :key="show"
-          @click="listenEpisode(eps[0])"
-          class="content-card"
-        >
-          <div class="card-stripe" style="background:#a88a4a;" />
-          <div class="card-title">{{ show }}</div>
-          <div class="card-meta">{{ eps.length }} episode{{ eps.length !== 1 ? 's' : '' }}</div>
-        </button>
-      </div>
-    </section>
 
-    <!-- Import URL — minimal, tucked at bottom -->
-    <section class="mt-6 pt-6" style="border-top: 1px solid rgba(245,235,220,0.06);">
-      <div class="row-label">Import URL</div>
-      <div class="flex gap-2">
-        <input
-          v-model="importUrl"
-          type="url"
-          placeholder="https://…"
-          @keydown.enter="fetchArticle"
-          class="import-input"
-        />
-        <button
-          @click="fetchArticle"
-          :disabled="importLoading"
-          class="import-btn"
-        >{{ importLoading ? '…' : 'Fetch' }}</button>
+    <!-- ════════════════════════════════════
+         HISTORY
+    ════════════════════════════════════ -->
+    <template v-else-if="level === 'history'">
+      <div class="nav-bar">
+        <button @click="back" class="back-link">← Archive</button>
+        <span class="nav-title">History</span>
       </div>
-      <div v-if="importError" class="text-xs mt-1" style="color:#b45a5a;">{{ importError }}</div>
-      <div v-if="importPreview" class="mt-3 p-3 rounded" style="background:rgba(245,235,220,0.04); border:1px solid rgba(245,235,220,0.08);">
-        <div class="text-sm mb-2" style="color:rgba(245,235,220,0.82); font-family:'EB Garamond',serif;">{{ importPreview.title }}</div>
-        <div class="text-xs mb-3" style="color:rgba(245,235,220,0.4);">{{ importPreview.text.slice(0, 200) }}…</div>
-        <div class="flex gap-2">
-          <button @click="confirmImport" class="import-btn">Save as story</button>
-          <button @click="importPreview = null; importError = ''" class="cancel-btn">Discard</button>
+      <div v-if="historyLoading" class="status-text">Loading…</div>
+      <template v-else>
+
+        <div v-if="todayArticle" class="history-block">
+          <div class="history-label">Featured today</div>
+          <div class="history-title">{{ todayArticle.title }}</div>
+          <div class="history-body">{{ todayArticle.extract?.slice(0, 380) }}…</div>
+          <button @click="importToday" class="history-btn">Read →</button>
         </div>
-      </div>
-    </section>
+
+        <div v-if="onThisDay.length" class="history-block">
+          <div class="history-label">On this day</div>
+          <div class="otd-list">
+            <div v-for="(ev, i) in onThisDay.slice(0, 10)" :key="i" class="otd-row">
+              <span class="otd-year">{{ ev.year }}</span>
+              <span class="otd-text">{{ ev.text }}</span>
+            </div>
+          </div>
+          <button @click="importOnThisDay" class="history-btn" style="margin-top:1rem;">Import as story →</button>
+        </div>
+
+        <div v-if="!todayArticle && !onThisDay.length" class="status-text">
+          No content for this language today.
+        </div>
+
+      </template>
+    </template>
 
   </div>
 </template>
@@ -110,76 +233,38 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { fetchCuratedStories, fetchFeed, fetchFeedArticle, fetchPodcasts, getAllProgress } from '../utils/api.js'
+import { fetchFeaturedArticle, fetchOnThisDay } from '../utils/wikipedia.js'
 import { isRTL } from '../utils/rtl.js'
 
 const props = defineProps({
   lang:        String,
   currentUser: Object,
+  words:       { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['load', 'stories-loaded'])
+const emit = defineEmits(['load', 'stories-loaded', 'go'])
 
-const LANG_COLORS = {
-  en: '#3a5a8b', es: '#8b3a3a', fr: '#5a3a8b', de: '#5a5a6b',
-  it: '#3a7a3a', ru: '#8b4a3a', he: '#3a5a8b', ar: '#3a7a5a',
-  arz:'#3a7a5a', ja: '#8b3a4a', zh: '#7a3a3a', hu: '#a88a4a',
-  el: '#5a3a8b', ko: '#3a5a8b', nl: '#3a5a8b', pl: '#8b3a3a',
-  sv: '#3a5a7a', pt: '#3a7a5a',
+// ── Nav state ──────────────────────────────────────────────────
+const level  = ref(null)
+const source = ref(null)
+
+function pick(cat) {
+  level.value  = cat
+  source.value = null
+  if (cat === 'articles' && !feedItems.value.length)       loadFeed()
+  if (cat === 'podcasts' && !podcastEpisodes.value.length) loadPodcasts()
+  if (cat === 'history'  && !todayArticle.value)           loadHistory()
 }
 
-function langColor(code) {
-  return LANG_COLORS[code] ?? '#5a5a6b'
-}
+function back() { level.value = null; source.value = null }
 
-const inProgress      = ref([])
-const storiesLoading  = ref(true)
-const stories         = ref([])
-const feedLoading     = ref(true)
-const feedItems       = ref([])
-const podcastLoading  = ref(true)
-const podcastEpisodes = ref([])
-const fetchingId      = ref(null)
+// ── Vocab summary ──────────────────────────────────────────────
+const vocabCount = computed(() =>
+  props.words.filter(w => w.lang === props.lang).length
+)
 
-const importUrl     = ref('')
-const importLoading = ref(false)
-const importPreview = ref(null)
-const importError   = ref('')
-
-const podcastShows = computed(() => {
-  const map = new Map()
-  for (const ep of podcastEpisodes.value) {
-    const name = ep.podcast_name ?? 'Unknown'
-    if (!map.has(name)) map.set(name, [])
-    map.get(name).push(ep)
-  }
-  return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-})
-
-async function loadAll(lang) {
-  storiesLoading.value  = true
-  feedLoading.value     = true
-  podcastLoading.value  = true
-  stories.value         = []
-  feedItems.value       = []
-  podcastEpisodes.value = []
-
-  const [curated, feed, pods] = await Promise.all([
-    fetchCuratedStories(lang),
-    fetchFeed(lang, 0, 16),
-    fetchPodcasts(lang),
-  ])
-
-  const saved = JSON.parse(localStorage.getItem('szol_local_stories') || '[]').filter(s => s.lang === lang)
-  stories.value = [...curated, ...saved]
-  storiesLoading.value = false
-  emit('stories-loaded', stories.value)
-
-  feedItems.value   = feed
-  feedLoading.value = false
-
-  podcastEpisodes.value = pods
-  podcastLoading.value  = false
-}
+// ── In-progress ────────────────────────────────────────────────
+const inProgress = ref([])
 
 async function loadProgress() {
   if (!props.currentUser) { inProgress.value = []; return }
@@ -188,12 +273,50 @@ async function loadProgress() {
   inProgress.value = all
     .filter(p => p.lang === props.lang && p.sentence_index > 0)
     .filter(p => { if (seen.has(p.story_id)) return false; seen.add(p.story_id); return true })
-    .slice(0, 8)
+    .slice(0, 4)
 }
 
-function resume(progress) {
-  const story = stories.value.find(s => s.id === progress.story_id)
+function resume(p) {
+  const story = stories.value.find(s => s.id === p.story_id)
   if (story) emit('load', story)
+}
+
+// ── Stories ────────────────────────────────────────────────────
+const storiesLoading = ref(true)
+const stories        = ref([])
+
+async function loadStories(lang) {
+  storiesLoading.value = true
+  const curated = await fetchCuratedStories(lang)
+  const saved   = JSON.parse(localStorage.getItem('szol_local_stories') || '[]').filter(s => s.lang === lang)
+  stories.value = [...curated, ...saved]
+  storiesLoading.value = false
+  emit('stories-loaded', stories.value)
+}
+
+// ── Articles ───────────────────────────────────────────────────
+const feedLoading = ref(false)
+const feedItems   = ref([])
+const fetchingId  = ref(null)
+
+const feedSources = computed(() =>
+  [...new Set(feedItems.value.map(f => f.source_name))].sort()
+)
+
+const feedBySource = computed(() => {
+  const map = {}
+  for (const item of feedItems.value) {
+    const k = item.source_name
+    if (!map[k]) map[k] = []
+    map[k].push(item)
+  }
+  return map
+})
+
+async function loadFeed() {
+  feedLoading.value = true
+  feedItems.value   = await fetchFeed(props.lang, 0, 80)
+  feedLoading.value = false
 }
 
 async function openFeed(item) {
@@ -210,18 +333,68 @@ async function openFeed(item) {
   emit('load', { id: item.id, title: item.title, content: text, lang: item.lang, source: item.source_name })
 }
 
+// ── Podcasts ───────────────────────────────────────────────────
+const podcastLoading  = ref(false)
+const podcastEpisodes = ref([])
+
+const podcastShows = computed(() => {
+  const map = new Map()
+  for (const ep of podcastEpisodes.value) {
+    const n = ep.podcast_name ?? 'Unknown'
+    if (!map.has(n)) map.set(n, [])
+    map.get(n).push(ep)
+  }
+  return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+})
+
+const episodesByShow = computed(() =>
+  podcastEpisodes.value.filter(ep => ep.podcast_name === source.value)
+)
+
+async function loadPodcasts() {
+  podcastLoading.value  = true
+  podcastEpisodes.value = await fetchPodcasts(props.lang)
+  podcastLoading.value  = false
+}
+
 function listenEpisode(ep) {
   emit('load', {
-    id:        ep.id,
-    title:     ep.title,
-    lang:      ep.lang,
-    author:    ep.podcast_name,
-    source:    ep.podcast_name,
-    audio_url: ep.audio_url,
-    segments:  ep.segments || [],
-    content:   null,
+    id: ep.id, title: ep.title, lang: ep.lang, author: ep.podcast_name,
+    source: ep.podcast_name, audio_url: ep.audio_url, segments: ep.segments || [], content: null,
   })
 }
+
+// ── History ────────────────────────────────────────────────────
+const historyLoading = ref(false)
+const todayArticle   = ref(null)
+const onThisDay      = ref([])
+
+async function loadHistory() {
+  historyLoading.value = true
+  const [today, otd] = await Promise.all([fetchFeaturedArticle(props.lang), fetchOnThisDay(props.lang)])
+  todayArticle.value   = today
+  onThisDay.value      = otd
+  historyLoading.value = false
+}
+
+function importToday() {
+  if (!todayArticle.value?.extract) return
+  pushLocal({ title: todayArticle.value.title, content: todayArticle.value.extract, source: 'Wikipedia' })
+}
+
+function importOnThisDay() {
+  if (!onThisDay.value.length) return
+  const now  = new Date()
+  const date = `${now.toLocaleString('default', { month: 'long' })} ${now.getDate()}`
+  pushLocal({ title: `On This Day: ${date}`, content: onThisDay.value.map(ev => `${ev.year} — ${ev.text}`).join('\n\n'), source: 'Wikipedia' })
+}
+
+// ── Import URL ─────────────────────────────────────────────────
+const showImport    = ref(false)
+const importUrl     = ref('')
+const importLoading = ref(false)
+const importPreview = ref(null)
+const importError   = ref('')
 
 async function fetchArticle() {
   const url = importUrl.value.trim()
@@ -232,157 +405,423 @@ async function fetchArticle() {
   try {
     const res  = await fetch(`/api/extract?url=${encodeURIComponent(url)}`)
     const data = await res.json()
-    if (data.error || !data.text) {
-      importError.value = data.error || 'Could not extract article content.'
-    } else {
-      importPreview.value = data
-    }
-  } catch (e) {
-    importError.value = e.message
-  }
+    if (data.error || !data.text) importError.value = data.error || 'Could not extract content.'
+    else importPreview.value = data
+  } catch (e) { importError.value = e.message }
   importLoading.value = false
 }
 
 function confirmImport() {
   if (!importPreview.value) return
-  const story = {
-    id:     'l' + Date.now(),
-    title:  importPreview.value.title,
-    content:importPreview.value.text,
-    lang:   props.lang,
-    local:  true,
-    source: importUrl.value,
-  }
+  pushLocal({ title: importPreview.value.title, content: importPreview.value.text, source: importUrl.value })
+  importUrl.value = ''; importPreview.value = null; showImport.value = false
+}
+
+function pushLocal({ title, content, source: src = '' }) {
+  const story = { id: 'l' + Date.now(), title, content, lang: props.lang, local: true, source: src || undefined }
   const saved = JSON.parse(localStorage.getItem('szol_local_stories') || '[]')
   saved.push(story)
   localStorage.setItem('szol_local_stories', JSON.stringify(saved))
   stories.value.push(story)
-  importUrl.value     = ''
-  importPreview.value = null
   emit('load', story)
 }
 
-onMounted(() => {
-  if (props.lang) loadAll(props.lang)
-  loadProgress()
-})
+// ── Init ───────────────────────────────────────────────────────
+async function init(lang) {
+  level.value = null; source.value = null
+  await Promise.all([loadStories(lang), loadProgress()])
+}
 
-watch(() => props.lang,        lang => { if (lang) loadAll(lang) })
+onMounted(() => { if (props.lang) init(props.lang) })
+watch(() => props.lang,        lang => { if (lang) { feedItems.value = []; podcastEpisodes.value = []; todayArticle.value = null; onThisDay.value = []; init(lang) } })
 watch(() => props.currentUser, loadProgress)
 </script>
 
 <style scoped>
-.row-label {
+.browse-root {
+  padding-bottom: 4rem;
+}
+
+/* ── Continue / Vocab block ── */
+.continue-block {
+  margin-bottom: 2.25rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(31,27,23,0.1);
+}
+
+.continue-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  cursor: pointer;
+  padding: 0.25rem 0;
+  margin-bottom: 0.75rem;
+  background: none;
+  border: none;
+  text-align: left;
+  width: 100%;
+}
+.continue-item:hover .ci-title { opacity: 0.65; }
+
+.ci-label {
   font-size: 0.6rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(245,235,220,0.3);
-  margin-bottom: 0.75rem;
-  font-family: 'IM Fell English', serif;
-}
-
-.empty-msg {
-  font-size: 0.78rem;
-  color: rgba(245,235,220,0.22);
-  padding: 0.25rem 0;
-  font-style: italic;
-}
-
-.card-row {
-  display: flex;
-  gap: 0.625rem;
-  overflow-x: auto;
-  padding-bottom: 0.375rem;
-  scrollbar-width: none;
-}
-.card-row::-webkit-scrollbar { display: none; }
-
-.content-card {
-  flex-shrink: 0;
-  width: 148px;
-  background: rgba(245,235,220,0.03);
-  border: 1px solid rgba(245,235,220,0.07);
-  border-radius: 5px;
-  padding: 0.75rem 0.75rem 0.875rem;
-  cursor: pointer;
-  text-align: left;
-  position: relative;
-  overflow: hidden;
-  transition: background 0.15s, border-color 0.15s;
-}
-.content-card:hover {
-  background: rgba(245,235,220,0.07);
-  border-color: rgba(245,235,220,0.14);
-}
-
-.card-stripe {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  opacity: 0.65;
-}
-
-.card-title {
-  font-size: 0.78rem;
-  line-height: 1.38;
-  color: rgba(245,235,220,0.8);
+  color: rgba(31,27,23,0.35);
   font-family: 'EB Garamond', serif;
-  margin-top: 0.5rem;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  flex-shrink: 0;
 }
 
-.card-meta {
-  font-size: 0.6rem;
-  color: rgba(245,235,220,0.28);
-  margin-top: 0.5rem;
-  white-space: nowrap;
+.ci-title {
+  font-size: 0.9rem;
+  color: #1f1b17;
+  font-family: 'EB Garamond', serif;
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity 0.12s;
+}
+
+.ci-meta {
+  font-size: 0.65rem;
+  color: rgba(31,27,23,0.3);
   font-style: italic;
+  flex-shrink: 0;
+}
+
+.vocab-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.vocab-text {
+  font-size: 0.78rem;
+  color: rgba(31,27,23,0.45);
+  font-family: 'EB Garamond', serif;
+  font-style: italic;
+}
+
+.vocab-review-btn {
+  font-size: 0.72rem;
+  color: #8b3a3a;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'IM Fell English', serif;
+  padding: 0;
+  transition: opacity 0.12s;
+}
+.vocab-review-btn:hover { opacity: 0.7; }
+
+/* ── Drawer list ── */
+.drawer-list {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 3rem;
+}
+
+.drawer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 0;
+  border-bottom: 1px solid rgba(31,27,23,0.1);
+  cursor: pointer;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  text-align: left;
+  transition: opacity 0.12s;
+}
+.drawer-row:first-child {
+  border-top: 1px solid rgba(31,27,23,0.1);
+}
+.drawer-row:hover { opacity: 0.6; }
+
+.drawer-label {
+  font-size: 1.1rem;
+  color: #1f1b17;
+  font-family: 'IM Fell English', serif;
+  letter-spacing: 0.01em;
+}
+
+.drawer-arrow {
+  font-size: 0.78rem;
+  color: rgba(31,27,23,0.28);
+  font-family: 'EB Garamond', serif;
+}
+
+/* ── Import section ── */
+.import-section {
+  margin-top: 0.5rem;
+}
+
+.import-toggle {
+  font-size: 0.72rem;
+  color: rgba(31,27,23,0.3);
+  font-style: italic;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: 'EB Garamond', serif;
+  transition: color 0.12s;
+}
+.import-toggle:hover { color: rgba(31,27,23,0.65); }
+
+.import-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
 }
 
 .import-input {
   flex: 1;
-  background: rgba(245,235,220,0.04);
-  border: 1px solid rgba(245,235,220,0.1);
-  border-radius: 4px;
-  padding: 0.375rem 0.625rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(31,27,23,0.2);
+  padding: 0.3rem 0.1rem;
   font-size: 0.8rem;
-  color: rgba(245,235,220,0.75);
+  color: #1f1b17;
   outline: none;
   font-family: 'EB Garamond', serif;
+  font-style: italic;
 }
-.import-input::placeholder { color: rgba(245,235,220,0.2); }
-.import-input:focus { border-color: rgba(245,235,220,0.25); }
+.import-input::placeholder { color: rgba(31,27,23,0.22); }
+.import-input:focus { border-color: rgba(31,27,23,0.45); }
 
 .import-btn {
-  background: rgba(245,235,220,0.07);
-  border: 1px solid rgba(245,235,220,0.12);
-  border-radius: 4px;
-  padding: 0.375rem 0.75rem;
-  font-size: 0.78rem;
-  color: rgba(245,235,220,0.65);
+  font-size: 0.72rem;
+  color: rgba(31,27,23,0.5);
+  background: none;
+  border: none;
   cursor: pointer;
-  transition: background 0.15s;
-  white-space: nowrap;
+  font-family: 'IM Fell English', serif;
+  transition: color 0.12s;
+  padding: 0 0.25rem;
 }
-.import-btn:hover { background: rgba(245,235,220,0.12); }
-.import-btn:disabled { opacity: 0.4; cursor: default; }
+.import-btn:hover { color: #1f1b17; }
+.import-btn:disabled { opacity: 0.3; }
 
-.cancel-btn {
-  background: transparent;
-  border: 1px solid rgba(245,235,220,0.08);
-  border-radius: 4px;
-  padding: 0.375rem 0.75rem;
-  font-size: 0.78rem;
-  color: rgba(245,235,220,0.35);
+.import-cancel {
+  font-size: 0.8rem;
+  color: rgba(31,27,23,0.3);
+  background: none;
+  border: none;
   cursor: pointer;
-  transition: border-color 0.15s;
+  padding: 0 0.25rem;
+  transition: color 0.12s;
 }
-.cancel-btn:hover { border-color: rgba(180,90,90,0.4); color: #b45a5a; }
+.import-cancel:hover { color: #8b3a3a; }
+
+.import-error {
+  font-size: 0.7rem;
+  color: #8b3a3a;
+  margin-top: 0.35rem;
+  font-style: italic;
+}
+
+.import-preview {
+  margin-top: 0.875rem;
+  padding: 0.875rem 0;
+  border-top: 1px solid rgba(31,27,23,0.1);
+}
+
+.ip-title {
+  font-size: 0.88rem;
+  color: #1f1b17;
+  font-family: 'EB Garamond', serif;
+  margin-bottom: 0.35rem;
+}
+
+.ip-excerpt {
+  font-size: 0.75rem;
+  color: rgba(31,27,23,0.45);
+  line-height: 1.55;
+  margin-bottom: 0.75rem;
+}
+
+.ip-actions { display: flex; gap: 1rem; }
+
+.ip-confirm {
+  font-size: 0.72rem;
+  color: #1f1b17;
+  background: none;
+  border: 1px solid rgba(31,27,23,0.2);
+  border-radius: 2px;
+  padding: 0.25rem 0.625rem;
+  cursor: pointer;
+  font-family: 'IM Fell English', serif;
+  transition: border-color 0.12s;
+}
+.ip-confirm:hover { border-color: rgba(31,27,23,0.5); }
+
+.ip-discard {
+  font-size: 0.72rem;
+  color: rgba(31,27,23,0.35);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'EB Garamond', serif;
+  font-style: italic;
+  transition: color 0.12s;
+}
+.ip-discard:hover { color: #8b3a3a; }
+
+/* ── Navigation bar (inside levels) ── */
+.nav-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.875rem;
+  border-bottom: 1px solid rgba(31,27,23,0.1);
+}
+
+.back-link {
+  font-size: 0.72rem;
+  color: rgba(31,27,23,0.38);
+  font-style: italic;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: 'EB Garamond', serif;
+  transition: color 0.12s;
+  flex-shrink: 0;
+}
+.back-link:hover { color: rgba(31,27,23,0.75); }
+
+.nav-title {
+  font-size: 1.05rem;
+  color: #1f1b17;
+  font-family: 'IM Fell English', serif;
+  letter-spacing: 0.01em;
+}
+
+/* ── Item lists ── */
+.item-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.item-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid rgba(31,27,23,0.07);
+  cursor: pointer;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  text-align: left;
+  width: 100%;
+  transition: opacity 0.12s;
+}
+.item-row:hover { opacity: 0.6; }
+
+.item-title {
+  font-size: 0.88rem;
+  color: #1f1b17;
+  font-family: 'EB Garamond', serif;
+  line-height: 1.4;
+}
+
+.item-meta {
+  font-size: 0.65rem;
+  color: rgba(31,27,23,0.3);
+  font-style: italic;
+  flex-shrink: 0;
+}
+
+.item-sub {
+  font-size: 0.65rem;
+  color: rgba(31,27,23,0.35);
+  font-style: italic;
+  margin-top: 0.1rem;
+}
+
+/* ── Status text ── */
+.status-text {
+  font-size: 0.8rem;
+  color: rgba(31,27,23,0.3);
+  font-style: italic;
+  padding: 0.5rem 0;
+}
+
+/* ── History ── */
+.history-block {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(31,27,23,0.08);
+}
+
+.history-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(31,27,23,0.3);
+  margin-bottom: 0.75rem;
+  font-family: 'EB Garamond', serif;
+}
+
+.history-title {
+  font-size: 1rem;
+  color: #1f1b17;
+  font-family: 'IM Fell English', serif;
+  line-height: 1.3;
+  margin-bottom: 0.6rem;
+}
+
+.history-body {
+  font-size: 0.85rem;
+  color: rgba(31,27,23,0.6);
+  line-height: 1.7;
+  margin-bottom: 0.875rem;
+  font-family: 'EB Garamond', serif;
+}
+
+.history-btn {
+  font-size: 0.72rem;
+  color: rgba(31,27,23,0.5);
+  background: none;
+  border: 1px solid rgba(31,27,23,0.15);
+  border-radius: 2px;
+  padding: 0.25rem 0.625rem;
+  cursor: pointer;
+  font-family: 'IM Fell English', serif;
+  transition: border-color 0.12s, color 0.12s;
+}
+.history-btn:hover { border-color: rgba(31,27,23,0.4); color: #1f1b17; }
+
+.otd-list { display: flex; flex-direction: column; }
+
+.otd-row {
+  display: flex;
+  gap: 0.875rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(31,27,23,0.05);
+  align-items: baseline;
+}
+
+.otd-year {
+  font-size: 0.65rem;
+  color: rgba(31,27,23,0.28);
+  font-family: 'EB Garamond', serif;
+  flex-shrink: 0;
+  min-width: 2.5rem;
+}
+
+.otd-text {
+  font-size: 0.82rem;
+  color: rgba(31,27,23,0.65);
+  line-height: 1.5;
+  font-family: 'EB Garamond', serif;
+}
 </style>
