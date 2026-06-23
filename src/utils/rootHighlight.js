@@ -100,7 +100,9 @@ async function loadLocalRoots(lang) {
     if (!res.ok) { _localRoots[lang] = new Map(); return _localRoots[lang] }
     const obj = await res.json()
     _localRoots[lang] = new Map(Object.entries(obj))
-  } catch {
+    console.log(`[roots] ${lang} dict loaded: ${_localRoots[lang].size} entries`)
+  } catch (e) {
+    console.warn(`[roots] ${lang} dict load failed:`, e.message)
     _localRoots[lang] = new Map()
   }
   return _localRoots[lang]
@@ -210,6 +212,8 @@ export async function preFetchRoots(words, lang) {
       stillUncached.push(word)
     }
   }
+
+  console.log(`[roots] ${lang} local hit: ${uncached.length - stillUncached.length}/${uncached.length} | miss: ${stillUncached.length}`)
 
   // 2. Dicta API for words not in local dict (new words, inflected forms not in Wiktionary)
   if (stillUncached.length && lang === 'he') {
