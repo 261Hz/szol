@@ -42,7 +42,18 @@
 
     <!-- ── DICT (WIKTIONARY) TAB ── -->
     <div v-else-if="activeTab === 'dict'">
-      <div v-if="dict.loading" class="text-xs" style="color:rgba(31,27,23,0.35); font-style:italic;">Loading…</div>
+      <div v-if="dict.loading || localDefLoading" class="text-xs" style="color:rgba(31,27,23,0.35); font-style:italic;">Loading…</div>
+
+      <!-- Model download progress -->
+      <div v-if="localDefDownloading" class="flex flex-col gap-1 my-1">
+        <div class="flex items-center justify-between text-xs" style="color:rgba(31,27,23,0.4);">
+          <span class="truncate max-w-[70%]">{{ localDefLabel || 'Loading language model…' }}</span>
+          <span>{{ localDefPct }}%</span>
+        </div>
+        <div class="h-0.5 rounded-full overflow-hidden" style="background:rgba(31,27,23,0.1);">
+          <div class="h-full rounded-full transition-all duration-300" style="background:#8b3a3a;" :style="{ width: localDefPct + '%' }" />
+        </div>
+      </div>
       <div v-else-if="dict.data" class="flex flex-col gap-3">
         <div v-if="dict.data.definitions.length" class="flex flex-col gap-1">
           <div class="text-xs uppercase tracking-wide" style="color:rgba(31,27,23,0.4); letter-spacing:0.1em;">Definition</div>
@@ -87,7 +98,8 @@
           </p>
         </div>
       </div>
-      <div v-else-if="dict.done" class="text-xs" style="color:rgba(31,27,23,0.35); font-style:italic;">Not found in Wiktionary.</div>
+      <div v-else-if="localDef" class="text-sm leading-snug" :dir="isRTL(lang) ? 'rtl' : 'ltr'">{{ localDef }}</div>
+      <div v-else-if="dict.done && !localDefLoading" class="text-xs" style="color:rgba(31,27,23,0.35); font-style:italic;">Not found.</div>
     </div>
 
     <!-- ── TATOEBA TAB ── -->
@@ -285,6 +297,7 @@ import { searchWikipedia } from '../utils/wikipedia.js'
 import { searchWikiquote } from '../utils/wikiquote.js'
 import { searchWiktionary } from '../utils/wiktionary.js'
 import { getWordExamples, getVocabClips } from '../utils/api.js'
+import { explain, onExplainerProgress } from '../utils/localExplainer.js'
 
 // Props received from the parent (ReadView or VocabView).
 // word       = the cleaned word to look up (no punctuation, e.g. "hola" not "hola,").
@@ -324,6 +337,31 @@ const wiki    = ref({ loading: false, results: [], done: false })
 const wq      = ref({ loading: false, results: [], done: false })
 const video   = ref({ loading: false, results: [], done: false })
 
+const localDef         = ref('')
+const localDefLoading  = ref(false)
+const localDefPct      = ref(0)
+const localDefLabel    = ref('')
+const localDefDownloading = ref(false)
+
+let pendingFiles = 0, doneFiles = 0
+const removeProgress = onExplainerProgress((info) => {
+  if (info.status === 'initiate') {
+    pendingFiles++
+    localDefDownloading.value = true
+  } else if (info.status === 'progress') {
+    localDefDownloading.value = true
+    localDefPct.value   = Math.round(info.progress ?? 0)
+    localDefLabel.value = info.file ?? ''
+  } else if (info.status === 'done') {
+    doneFiles++
+    if (doneFiles >= pendingFiles) {
+      localDefPct.value = 100
+      localDefLabel.value = ''
+      setTimeout(() => { localDefDownloading.value = false; doneFiles = 0; pendingFiles = 0 }, 600)
+    }
+  }
+})
+
 watch(() => props.word, () => {
   corpus.value    = { loading: false, results: [], done: false }
   dict.value      = { loading: false, data: null,  done: false }
@@ -331,6 +369,7 @@ watch(() => props.word, () => {
   wiki.value      = { loading: false, results: [], done: false }
   wq.value        = { loading: false, results: [], done: false }
   video.value     = { loading: false, results: [], done: false }
+  localDef.value  = ''
   activeTab.value = 'dict'
   loadDict()
   loadCorpus()
@@ -367,6 +406,11 @@ async function loadDict() {
   dict.value.data    = await searchWiktionary(props.word, props.lang)
   dict.value.loading = false
   dict.value.done    = true
+  if (!dict.value.data && props.lang !== 'en') {
+    localDefLoading.value = true
+    try { localDef.value = await explain(props.word, props.lang) } catch {}
+    localDefLoading.value = false
+  }
 }
 
 // loadTatoeba() fetches example sentences for the current word from Tatoeba.
