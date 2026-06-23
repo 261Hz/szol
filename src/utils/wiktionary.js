@@ -14,6 +14,8 @@ function stripHtml(s) {
   return (s ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
 }
 
+const JUNK_RE = /\bISO\s*\d|\bISO\s*639|\bISO\s*3166|language code|country code|\babbreviation\b|\binitialism\b/i
+
 async function fetchDefinition(word, siteCode) {
   try {
     const r = await fetch(
@@ -23,9 +25,9 @@ async function fetchDefinition(word, siteCode) {
     if (!r.ok) return null
     const data = await r.json()
 
-    // Response is keyed by language code. Prefer the site's own language,
-    // then fall back to whatever's available (e.g. en entry on fr.wiktionary).
-    const entries = data[siteCode] ?? Object.values(data)[0] ?? []
+    // Only use the site's own language section — cross-language fallback causes
+    // English definitions to appear for Arabic/Hebrew words.
+    const entries = data[siteCode] ?? []
     if (!entries.length) return null
 
     const definitions = []
@@ -34,7 +36,7 @@ async function fetchDefinition(word, siteCode) {
     for (const entry of entries.slice(0, 3)) {
       for (const def of (entry.definitions ?? []).slice(0, 4)) {
         const clean = stripHtml(def.definition)
-        if (clean.length > 4) definitions.push(clean)
+        if (clean.length > 4 && !JUNK_RE.test(clean)) definitions.push(clean)
         for (const ex of (def.examples ?? []).slice(0, 2)) {
           const cleanEx = stripHtml(ex)
           if (cleanEx.length > 8) examples.push(cleanEx)
