@@ -101,8 +101,15 @@
         <button @click="back" class="back-link">← Archive</button>
         <span class="nav-title">{{ t(lang, 'podcasts') }}</span>
       </div>
-      <div v-if="!podcastShows.length" class="status-text">{{ t(lang, 'noPodcasts') }}</div>
-      <div v-else class="item-list">
+      <!-- JRE pinned -->
+      <div class="item-list" style="margin-bottom:0.5rem">
+        <button @click="source = JRE_NAME" class="item-row">
+          <span class="item-title">{{ JRE_NAME }}</span>
+          <span class="item-sub" style="white-space:nowrap">Latest 3</span>
+        </button>
+      </div>
+      <!-- Subscriptions -->
+      <div v-if="podcastShows.length" class="item-list">
         <button
           v-for="sub in podcastShows"
           :key="sub.feed_url"
@@ -155,7 +162,7 @@
       <div class="nav-bar">
         <button @click="source = null" class="back-link">← Podcasts</button>
         <span class="nav-title">{{ source }}</span>
-        <button @click="removePodcast(subscriptions.find(s => s.podcast_name === source)?.feed_url)" class="remove-pod-btn">Remove</button>
+        <button v-if="source !== JRE_NAME" @click="removePodcast(subscriptions.find(s => s.podcast_name === source)?.feed_url)" class="remove-pod-btn">Remove</button>
       </div>
       <div v-if="episodesLoading" class="status-text">{{ t(lang, 'loading') }}</div>
       <div v-else-if="!currentEpisodes.length" class="status-text italic-muted">No episodes found.</div>
@@ -396,6 +403,9 @@ function _readStore(key) { try { return JSON.parse(localStorage.getItem(key) || 
 function _writeStore(key, val) { localStorage.setItem(key, JSON.stringify(val)) }
 
 // ── Podcasts ───────────────────────────────────────────────────
+const JRE_FEED = 'https://feeds.megaphone.fm/GLT1412515089'
+const JRE_NAME = 'The Joe Rogan Experience'
+
 // Subscriptions in localStorage per language: [{feed_url, podcast_name, artwork, lang}]
 const POD_KEY = 'szol_podcast_subs'
 const allPodSubs      = ref(_readStore(POD_KEY))
@@ -457,17 +467,19 @@ async function importRss() {
 
 watch(source, async (name) => {
   if (!name || level.value !== 'podcasts') { currentEpisodes.value = []; return }
-  const sub = podcastShows.value.find(s => s.podcast_name === name)
-  if (!sub) { currentEpisodes.value = []; return }
+  const isJre = name === JRE_NAME
+  const feedUrl = isJre ? JRE_FEED : podcastShows.value.find(s => s.podcast_name === name)?.feed_url
+  if (!feedUrl) { currentEpisodes.value = []; return }
   episodesLoading.value = true
-  const data = await fetchPodcastRss(sub.feed_url)
+  const data = await fetchPodcastRss(feedUrl)
   episodesLoading.value = false
-  currentEpisodes.value = (data?.episodes ?? []).map(ep => ({
+  const eps = (data?.episodes ?? []).map(ep => ({
     id: ep.audio_url, title: ep.title, lang: props.lang,
     podcast_name: name, audio_url: ep.audio_url,
     duration_sec: ep.duration_sec ?? null, transcript_url: ep.transcript_url ?? null,
     source_type: 'podcast',
   }))
+  currentEpisodes.value = isJre ? eps.slice(0, 3) : eps
 })
 
 function listenEpisode(ep) {
