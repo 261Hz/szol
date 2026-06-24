@@ -1,6 +1,6 @@
 // api/_auth.js — lightweight HS256 JWT verification for Vercel functions.
 // Uses Node.js built-in crypto — no extra packages needed.
-// Set JWT_SECRET in Vercel env vars (same value as on Render).
+// Set SECRET_KEY in Vercel env vars (same value as on Render).
 
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
@@ -33,7 +33,7 @@ export function verifyJwt(token, secret) {
 // Call at the top of any Vercel function that requires a logged-in user (including guests).
 // Returns true and continues if valid; writes 401 and returns false if not.
 export function requireAuth(req, res) {
-  const secret = process.env.JWT_SECRET
+  const secret = process.env.SECRET_KEY
   if (!secret) {
     // No secret configured — fail open in dev, closed in prod
     if (process.env.VERCEL_ENV === 'production') {
