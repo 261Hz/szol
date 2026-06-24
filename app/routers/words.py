@@ -112,18 +112,25 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
         lang_name = _LANG_NAMES.get(payload.lang, payload.lang)
         word      = payload.word.strip()
         resp = client.chat.completions.create(
-            model="qwen/qwen3.6-27b",
-            reasoning_effort="none",
+            model="meta-llama/llama-4-scout-17b-16e-instruct",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert OCR engine. Transcribe the handwritten word in the image exactly as it appears, letter by letter. Output only the transcribed letters — no spaces, no punctuation, no explanation.",
+                    "content": (
+                        "You are an OCR engine.\n"
+                        "Task: Return ONLY the handwritten word shown in the image.\n"
+                        "Rules:\n"
+                        "- Output exactly one word.\n"
+                        "- No explanation. No punctuation. No markdown.\n"
+                        "- If uncertain, return your best guess.\n"
+                        f"Expected language: {lang_name}"
+                    ),
                 },
                 {
                     "role": "user",
                     "content": [
                         {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{payload.image_b64}"}},
-                        {"type": "text",      "text": "Transcribe the handwritten word."},
+                        {"type": "text",      "text": "Return the handwritten word."},
                     ],
                 },
             ],
