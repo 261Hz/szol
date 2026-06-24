@@ -147,14 +147,12 @@ async def google_recognize(req: GoogleInkRequest):
     import logging as _log
     lang_code = _GOOGLE_LANG_MAP.get(req.lang, req.lang)
     ink = []
-    t_offset = 0
     for stroke in req.strokes:
         if not stroke:
             continue
         xs = [int(round(p.x)) for p in stroke]
         ys = [int(round(p.y)) for p in stroke]
         ink.append([xs, ys])
-    _log.warning("google-recognize: lang=%s strokes=%d pts=%d ink_fmt=%s", lang_code, len(ink), sum(len(s[0]) for s in ink), "xy" if ink and len(ink[0]) == 2 else "xyt")
     if not ink:
         return {"text": None, "candidates": []}
     payload = {
@@ -163,11 +161,13 @@ async def google_recognize(req: GoogleInkRequest):
         "language": lang_code,
         "max_completions": 5,
     }
+    body_str = _json.dumps(payload)
+    _log.warning("google-recognize: lang=%s strokes=%d pts=%d payload=%s", lang_code, len(ink), sum(len(s[0]) for s in ink), body_str[:400])
     try:
         async with httpx.AsyncClient(timeout=5.0) as c:
             r = await c.post(
                 "https://www.google.com/inputtools/request?ime=handwriting&app=mobilesearch&cs=1&oe=UTF-8",
-                content=_json.dumps(payload).encode("utf-8"),
+                content=body_str.encode("utf-8"),
                 headers={"Content-Type": "application/json"},
             )
         _log.warning("google-recognize: http=%d body=%s", r.status_code, r.text[:200])
