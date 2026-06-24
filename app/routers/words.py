@@ -119,14 +119,15 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
                     {"type": "text", "text": (
                         f"Handwriting grader. Target word: '{word}' ({lang_name}). "
                         + (
-                            f"The student wrote this in cursive Latin script — letters may connect or overlap. "
-                            f"Read the word as a whole (not letter-by-letter) and judge whether a fluent reader would recognise it as '{word}'. "
-                            f"PASS if it is clearly recognisable as the target word despite messy style. "
-                            f"FAIL only if it could be mistaken for a clearly different word. "
+                            f"The student wrote this in cursive Latin script. "
+                            f"Count the letters: '{word}' has {len(word)} letters. "
+                            f"FAIL if the written word is shorter than the target (incomplete). "
+                            f"PASS only if all {len(word)} letters are present and the word is clearly '{word}', even if messy. "
+                            f"FAIL if any letter is missing, added, or clearly wrong. "
                             if payload.lang in _LATIN_LANGS else
                             f"Read the characters carefully and compare to '{word}' one by one. "
                             f"PASS only if every character matches the target. Neatness and style do not matter. "
-                            f"For Arabic/Hebrew the word must read right-to-left (first character on the right). "
+                            f"For Arabic/Hebrew the word must read right-to-left. "
                             f"FAIL if any character is wrong, missing, or added. "
                         ) +
                         f"Reply PASS or FAIL only."
