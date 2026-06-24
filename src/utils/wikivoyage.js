@@ -12,7 +12,7 @@
 // ar, hu: Wikivoyage editions still in Wikimedia Incubator — not included.
 const WIKI_LANG = {
   en: 'en', es: 'es', fr: 'fr', de: 'de', it: 'it',
-  ru: 'ru', he: 'he', ja: 'ja', zh: 'zh', el: 'el', id: 'id',
+  ru: 'ru', he: 'he', ja: 'ja', zh: 'zh', 'zh-TW': 'zh', el: 'el', id: 'id',
 }
 
 // wl() = returns the Wikivoyage subdomain for a language, or null if unavailable.

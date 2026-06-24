@@ -330,6 +330,7 @@ const proficiencyOptions = computed(() => {
   ]
   if (targetLang.value === 'ja') return JLPT
   if (targetLang.value === 'zh') return HSK
+  if (targetLang.value === 'zh-TW') return CEFR
   return CEFR
 })
 
@@ -338,6 +339,7 @@ const proficiencyPrompt = computed(() => {
   if (!targetLang.value) return t(lang, 'levelOptional')
   if (targetLang.value === 'ja') return t(lang, 'jlptLevel')
   if (targetLang.value === 'zh') return t(lang, 'hskLevel')
+  if (targetLang.value === 'zh-TW') return t(lang, 'hskLevel')
   return `${t(lang, 'cefrLevel')} ${LANGS[targetLang.value]?.name ?? ''} ${t(lang, 'optional')}`
 })
 

@@ -7,7 +7,7 @@ const NLLB_LANG = {
   ar: 'ara_Arab', arz: 'ara_Arab', he: 'heb_Hebr',
   ja: 'jpn_Jpan', ru: 'rus_Cyrl', el: 'ell_Grek',
   en: 'eng_Latn', es: 'spa_Latn', fr: 'fra_Latn',
-  de: 'deu_Latn', it: 'ita_Latn', zh: 'zho_Hans',
+  de: 'deu_Latn', it: 'ita_Latn', zh: 'zho_Hans', 'zh-TW': 'zho_Hant',
   pt: 'por_Latn', ko: 'kor_Hang', nl: 'nld_Latn',
   tr: 'tur_Latn', pl: 'pol_Latn',
 }

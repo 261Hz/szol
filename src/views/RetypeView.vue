@@ -180,15 +180,15 @@ const showGuide   = ref(false)
 const ignorePunct = ref(false)
 
 // hasFranco = true for Arabic (both varieties) and Chinese, which have Latin-script alternates.
-const hasFranco = computed(() => ['ar', 'arz', 'zh'].includes(props.lang))
+const hasFranco = computed(() => ['ar', 'arz', 'zh', 'zh-TW'].includes(props.lang))
 
 const nativeLabel = computed(() => {
-  if (props.lang === 'zh')               return '中文'
+  if (['zh', 'zh-TW'].includes(props.lang)) return props.lang === 'zh-TW' ? '繁體' : '中文'
   if (['ar', 'arz'].includes(props.lang)) return 'عربي'
   return 'Native'
 })
 
-const francoLabel = computed(() => props.lang === 'zh' ? 'Pinyin' : 'Franco')
+const francoLabel = computed(() => ['zh', 'zh-TW'].includes(props.lang) ? 'Pinyin' : 'Franco')
 
 // francoText = auto-generated romanisation when story has no .franco field.
 const francoText = ref('')
@@ -196,7 +196,7 @@ watch([() => props.story, () => props.lang, mode], () => {
   if (!hasFranco.value || mode.value !== 'franco') { francoText.value = ''; return }
   if (props.story?.franco) { francoText.value = props.story.franco; return }
   const content = props.story?.content ?? ''
-  if (props.lang === 'zh') {
+  if (['zh', 'zh-TW'].includes(props.lang)) {
     francoText.value = chineseToPinyinText(content)
   } else if (['ar', 'arz'].includes(props.lang)) {
     francoText.value = arabicToFranco(content)
@@ -218,7 +218,7 @@ function charRoman(char) {
 
 // ── CJK detection ─────────────────────────────────────────────────────────────
 
-const CJK_LANGS = new Set(['ja', 'zh', 'cmn', 'yue', 'ko'])
+const CJK_LANGS = new Set(['ja', 'zh', 'zh-TW', 'cmn', 'yue', 'ko'])
 // In franco/pinyin mode Chinese text is Latin — behave like a space-separated language.
 const isCJK = computed(() => CJK_LANGS.has(props.lang) && mode.value === 'native')
 

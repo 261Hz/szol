@@ -52,7 +52,7 @@ const props = defineProps({
 
 const emit = defineEmits(['tap'])
 
-const CJK_LANGS = new Set(['ja', 'zh', 'cmn', 'yue', 'ko'])
+const CJK_LANGS = new Set(['ja', 'zh', 'zh-TW', 'cmn', 'yue', 'ko'])
 
 const tokens = computed(() => {
   const text = props.text || ''

@@ -114,13 +114,13 @@ import { checkHandwriting } from '../utils/api.js'
 
 const props = defineProps({ story: Object, lang: String })
 
-const isCJK    = computed(() => ['zh', 'ja'].includes(props.lang))
+const isCJK    = computed(() => ['zh', 'zh-TW', 'ja'].includes(props.lang))
 const isScript = computed(() => ['ar', 'arz', 'he', 'el', 'ru'].includes(props.lang))
 const isLatin  = computed(() => !isCJK.value && !isScript.value)
 
 // ── Handwriting font per script ────────────────────────────────────────────────
 const handwritingStyle = computed(() => {
-  if (props.lang === 'zh')               return { fontFamily: "'Zhi Mang Xing', cursive",    fontSize: '4rem' }
+  if (['zh', 'zh-TW'].includes(props.lang)) return { fontFamily: "'Zhi Mang Xing', cursive",    fontSize: '4rem' }
   if (props.lang === 'ja')               return { fontFamily: "'Kaisei Tokumin', serif",      fontSize: '4rem' }
   if (['ar', 'arz'].includes(props.lang)) return { fontFamily: "'Amiri', serif",               fontSize: '3.5rem' }
   if (props.lang === 'he')               return { fontFamily: "'Playpen Sans Hebrew', cursive",   fontSize: '4rem' }

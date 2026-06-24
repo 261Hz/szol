@@ -4,7 +4,7 @@ import { ref } from 'vue'
 const LANG_MAP = {
   ar: 'arabic',  he: 'hebrew',   en: 'english',  de: 'german',
   fr: 'french',  es: 'spanish',  it: 'italian',  pt: 'portuguese',
-  ru: 'russian', zh: 'chinese',  ja: 'japanese', ko: 'korean',
+  ru: 'russian', zh: 'chinese',  'zh-TW': 'chinese', ja: 'japanese', ko: 'korean',
   nl: 'dutch',   pl: 'polish',   sv: 'swedish',  tr: 'turkish',
   el: 'greek',   hu: 'hungarian',
 }

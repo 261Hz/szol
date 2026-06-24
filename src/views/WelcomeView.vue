@@ -82,7 +82,7 @@ const REGIONS_BASE = [
   { name: 'Western Europe', langs: ['en', 'fr', 'de', 'es', 'it', 'el'] },
   { name: 'Central & East', langs: ['hu', 'ru'] },
   { name: 'Middle East',    langs: ['ar', 'arz', 'he'] },
-  { name: 'East Asia',      langs: ['ja', 'zh'] },
+  { name: 'East Asia',      langs: ['ja', 'zh', 'zh-TW'] },
 ]
 
 const REGIONS = computed(() =>
@@ -103,7 +103,8 @@ const UI = {
   ar:  { choose: 'اختر لغة',             start: '← ابدأ',          signIn: 'تسجيل الدخول / إنشاء حساب',          rtl: true  },
   arz: { choose: 'اختار لغة',            start: '← ابدأ',          signIn: 'دخول / عمل حساب',                    rtl: true  },
   ja:  { choose: '言語を選んでください',  start: 'はじめる →',      signIn: 'ログイン / アカウント作成',           rtl: false },
-  zh:  { choose: '选择语言',              start: '开始 →',          signIn: '登录 / 创建账户',                     rtl: false },
+  zh:     { choose: '选择语言',              start: '开始 →',          signIn: '登录 / 创建账户',                     rtl: false },
+  'zh-TW': { choose: '選擇語言',              start: '開始 →',          signIn: '登入 / 建立帳戶',                     rtl: false },
   hu:  { choose: 'Válassz nyelvet',       start: 'Kezdjük →',       signIn: 'Bejelentkezés / Fiók létrehozása',   rtl: false },
   el:  { choose: 'Επίλεξε γλώσσα',       start: 'Ξεκίνα →',       signIn: 'Σύνδεση / Δημιουργία λογαριασμού',  rtl: false },
   id:  { choose: 'Pilih bahasa',          start: 'Mulai →',         signIn: 'Masuk / Buat akun',                  rtl: false },

@@ -16,9 +16,10 @@ export const LANGS = {
   ar:  { name: 'العربية',    wiki: 'ar', rtl: true,  script: true,  bcp47: 'ar-SA' },
   // Modern Standard Arabic: RTL, Arabic script. 'ar-SA' = Arabic as spoken in Saudi Arabia.
 
-  zh:  { name: '中文',        wiki: 'zh', rtl: false, script: true,  bcp47: 'zh-CN' },
-  // Simplified Chinese: non-Latin script (Chinese characters / Hanzi). Not RTL.
-  // 'zh-CN' = Mandarin Chinese as spoken in China (mainland, Simplified characters).
+  zh:    { name: '中文（简体）', wiki: 'zh', rtl: false, script: true, bcp47: 'zh-CN' },
+  // Simplified Chinese (Mainland China).
+  'zh-TW': { name: '中文（繁體）', wiki: 'zh', rtl: false, script: true, bcp47: 'zh-TW' },
+  // Traditional Chinese (Taiwan).
 
   arz: { name: 'مصري',       wiki: 'ar', rtl: true,  script: true,  franco: true, bcp47: 'ar-EG' },
   // Egyptian Colloquial Arabic: RTL, Arabic script, has Franco (Latin) mode.

@@ -2,6 +2,9 @@
 <template>
   <div class="min-h-screen">
 
+    <!-- Invisible Turnstile for guest account creation on first visit -->
+    <div id="szol-turnstile-guest" class="hidden" />
+
     <!-- Loading splash -->
     <Transition name="splash">
       <div
@@ -191,7 +194,7 @@ const JournalView    = defineAsyncComponent(() => import('./views/JournalView.vu
 const ParallelView   = defineAsyncComponent(() => import('./views/ParallelView.vue'))
 
 import { LANGS } from './data/stories.js'
-import { getMe, logout, onUnauthorized, getAccountVocab, saveVocabWord, removeVocabWord, requestWordClip } from './utils/api.js'
+import { getMe, logout, createGuestAccount, onUnauthorized, getAccountVocab, saveVocabWord, removeVocabWord, requestWordClip } from './utils/api.js'
 import { updateSEO } from './utils/seo.js'
 import { useEchoIndex } from './composables/useEchoIndex.js'
 
@@ -239,6 +242,41 @@ onUnauthorized(() => {
   showAuth.value    = true
 })
 
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY ?? ''
+
+async function initGuestAccount() {
+  if (!TURNSTILE_SITE_KEY) return  // dev/staging without Turnstile configured
+
+  let waited = 0
+  while (!window.turnstile && waited < 3000) {
+    await new Promise(r => setTimeout(r, 100))
+    waited += 100
+  }
+  if (!window.turnstile) return
+
+  return new Promise((resolve) => {
+    const el = document.getElementById('szol-turnstile-guest')
+    if (!el) return resolve()
+    window.turnstile.render(el, {
+      sitekey:            TURNSTILE_SITE_KEY,
+      appearance:         'interaction-only',
+      callback:           async (token) => {
+        try {
+          const { access_token } = await createGuestAccount(token)
+          localStorage.setItem('szol_token', access_token)
+          const user = await getMe()
+          if (user) currentUser.value = user
+        } catch {
+          // Guest creation failed — app still works, just no account
+        }
+        resolve()
+      },
+      'error-callback':   () => resolve(),
+      'expired-callback': () => resolve(),
+    })
+  })
+}
+
 onMounted(async () => {
   // Honor ?lang= query param (from hreflang links / shared URLs) — override stored lang
   const params = new URLSearchParams(window.location.search)
@@ -268,6 +306,7 @@ onMounted(async () => {
     await syncVocabOnLogin()
   } else {
     localStorage.removeItem('szol_token')
+    await initGuestAccount()
   }
 
   appLoading.value = false
