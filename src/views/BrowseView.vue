@@ -434,13 +434,14 @@ watch(source, async (name) => {
   const data = await fetchPodcastRss(sub.feed_url)
   episodesLoading.value = false
   currentEpisodes.value = (data?.episodes ?? []).map(ep => ({
-    id:           ep.audio_url,
-    title:        ep.title,
-    lang:         props.lang,
-    podcast_name: name,
-    audio_url:    ep.audio_url,
-    duration_sec: ep.duration_sec ?? null,
-    source_type:  'podcast',
+    id:             ep.audio_url,
+    title:          ep.title,
+    lang:           props.lang,
+    podcast_name:   name,
+    audio_url:      ep.audio_url,
+    duration_sec:   ep.duration_sec ?? null,
+    transcript_url: ep.transcript_url ?? null,
+    source_type:    'podcast',
   }))
 })
 
@@ -451,7 +452,7 @@ function listenEpisode(ep) {
     id: ep.audio_url, title: ep.title, lang: props.lang,
     author: ep.podcast_name, source: ep.podcast_name,
     audio_url: ep.audio_url, segments: [], content: null,
-    source_type: 'podcast',
+    source_type: 'podcast', transcript_url: ep.transcript_url ?? null,
   })
 }
 

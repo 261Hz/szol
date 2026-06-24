@@ -72,12 +72,17 @@ export default async function handler(req, res) {
     const pubDate   = textNode(item, 'pubDate')
     const guid      = textNode(item, 'guid') ?? audioUrl
 
+    // podcast:transcript namespace tag
+    const txTag = item.match(/<podcast:transcript([^>]*?)\/?\s*>/i)?.[1] ?? ''
+    const transcriptUrl = txTag ? attr(txTag, 'url') : null
+
     episodes.push({
-      id:           guid,
+      id:             guid,
       title,
-      audio_url:    audioUrl,
-      duration_sec: parseDurationSec(duration),
-      pub_date:     pubDate,
+      audio_url:      audioUrl,
+      duration_sec:   parseDurationSec(duration),
+      pub_date:       pubDate,
+      transcript_url: transcriptUrl,
     })
   }
 
