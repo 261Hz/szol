@@ -79,14 +79,8 @@
           </div>
         </div>
 
-        <!-- Non-Chrome non-CJK: no recognised fallback yet -->
-        <div v-if="!hwApiAvailable" class="px-5 py-8 text-center text-sm" style="color:#8c7a66;">
-          Handwriting recognition requires Chrome.<br>
-          <span style="font-size:0.75rem; opacity:0.7;">Android Chrome or ChromeOS recommended.</span>
-        </div>
-
-        <!-- Canvas -->
-        <canvas v-else
+        <!-- Canvas (all browsers — Chrome API used when available, stroke-count heuristic otherwise) -->
+        <canvas
           ref="canvasEl"
           class="w-full touch-none block"
           style="cursor:crosshair; background:#fefce8;"
@@ -97,22 +91,28 @@
           @pointerleave="endStroke"
         />
 
-        <div v-if="failCount >= 2 && hwApiAvailable"
+        <div v-if="failCount >= 2"
           class="text-center text-xs pb-3" style="color:rgba(140,122,102,0.5);">
           expected: {{ currentUnit }}
         </div>
       </div>
 
       <!-- ── Navigation ─────────────────────────────────────────────────── -->
-      <div class="flex justify-between">
+      <div class="flex justify-between items-center">
         <button @click="goPrev" :disabled="isFirst"
           class="text-sm px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 disabled:opacity-30 transition-all">
           ← Back
         </button>
-        <button @click="goNext" :disabled="isLast"
-          class="text-sm px-4 py-1.5 rounded-lg bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">
-          {{ isLast ? 'Done ✓' : 'Next →' }}
-        </button>
+        <div class="flex items-center gap-2">
+          <button v-if="story" @click="emit('go', 'retype')"
+            class="text-sm px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 transition-all">
+            ← retype
+          </button>
+          <button @click="goNext" :disabled="isLast"
+            class="text-sm px-4 py-1.5 rounded-lg bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">
+            {{ isLast ? 'Done ✓' : 'Next →' }}
+          </button>
+        </div>
       </div>
 
     </template>
@@ -126,6 +126,7 @@ import { isRTL }  from '../utils/rtl.js'
 import { t }      from '../utils/i18n.js'
 
 const props = defineProps({ story: Object, lang: String })
+const emit  = defineEmits(['go'])
 
 const isCJK = computed(() => ['zh', 'zh-TW', 'ja'].includes(props.lang))
 
@@ -237,6 +238,7 @@ const checkResult = ref(null)
 const failCount   = ref(0)
 let ctx            = null
 let autoCheckTimer = null
+let strokeCount    = 0   // number of completed strokes this attempt
 
 const CANVAS_HEIGHT = 200   // px (CSS)
 const INK_COLOR     = '#1a1a2e'
@@ -270,7 +272,7 @@ function clearCanvas() {
   ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke()
   ctx.restore()
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
-  checkResult.value = null; failCount.value = 0
+  checkResult.value = null; failCount.value = 0; strokeCount = 0
   if (hwDrawing) { try { hwDrawing.clear() } catch {} }
 }
 
@@ -315,6 +317,7 @@ function extendStroke(e) {
 }
 
 function endStroke() {
+  strokeCount++
   if (hwCurStroke && hwDrawing) {
     try { hwDrawing.addStroke(hwCurStroke) } catch {}
     hwCurStroke = null
@@ -345,24 +348,40 @@ function isMatch(got, expected) {
   return levenshtein(g, t) <= Math.max(1, Math.floor(t.length / 4))
 }
 
+// Rough expected stroke count — 1–2 strokes per letter/char is typical print handwriting
+function minExpectedStrokes(target) {
+  if (isCJK.value) return Math.max(1, Math.round(target.length * 2))
+  // For scripts: count non-space chars × ~1.5
+  const letters = target.replace(/\s/g, '').length
+  return Math.max(1, Math.round(letters * 1.2))
+}
+
 async function runCheck() {
-  if (!hwDrawing || checking.value || checkResult.value === true) return
+  if (checking.value || checkResult.value === true || strokeCount === 0) return
   checking.value = true
-  try {
-    const preds  = await hwDrawing.getPrediction()
-    // Snap-to-expected: pass if ANY alternative matches — we know what to look for
-    const passed = preds.some(p => isMatch(p.text ?? '', currentUnit.value))
-    checkResult.value = passed
-    if (passed) {
-      failCount.value = 0
-      hwDrawing.clear()
-      if (!isLast.value) setTimeout(() => { clearCanvas(); goNext() }, 700)
-    } else {
-      failCount.value++
-      if (failCount.value >= 2) drawTraceGuide()
-    }
-  } catch {}
-  checking.value = false
+  let passed = false
+  if (hwDrawing) {
+    try {
+      const preds = await hwDrawing.getPrediction()
+      // Snap-to-expected: pass if ANY alternative matches — constrained problem space
+      passed = preds.some(p => isMatch(p.text ?? '', currentUnit.value))
+      if (passed) hwDrawing.clear()
+    } catch {}
+  } else {
+    // No Chrome API — use stroke count as a proxy for genuine effort.
+    // If the user drew at least as many strokes as a minimal hand-written version,
+    // accept it. They can see the target and self-correct.
+    passed = strokeCount >= minExpectedStrokes(currentUnit.value)
+  }
+  checkResult.value = passed
+  checking.value    = false
+  if (passed) {
+    failCount.value = 0
+    if (!isLast.value) setTimeout(() => { clearCanvas(); goNext() }, 700)
+  } else {
+    failCount.value++
+    if (failCount.value >= 2) drawTraceGuide()
+  }
 }
 
 // ── HanziWriter ──────────────────────────────────────────────────────────────────

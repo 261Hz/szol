@@ -50,6 +50,11 @@
           :class="ignoreAccents ? 'bg-gray-700 text-white' : 'bg-gray-800 text-gray-400'"
           class="text-sm px-3 py-1 rounded-full transition-all"
         >ignore accents</button>
+        <button
+          v-if="story"
+          @click="emit('go', 'write')"
+          class="text-sm px-3 py-1 rounded-full transition-all bg-gray-800 text-gray-400 hover:text-white ml-auto"
+        >write →</button>
       </div>
 
       <!-- ── Completed-sentence history ──────────────────────────────────── -->
@@ -172,7 +177,7 @@ const props = defineProps({
   currentUser: Object, // null if logged out
 })
 
-const emit = defineEmits(['saveWord'])
+const emit = defineEmits(['saveWord', 'go'])
 
 watch([() => props.story, () => props.lang, rootHighlightOn], ([, , on]) => {
   nextTick(() => on ? applyRoots(overlayEl.value, props.lang) : clearRoots())
