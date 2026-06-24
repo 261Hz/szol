@@ -4,7 +4,6 @@
 // Called from the browser so it avoids the CORS issue of fetching RSS directly.
 //
 
-import { requireAuth } from './_auth.js'
 // Usage: GET /api/podcast-rss?url=https://example.com/feed.xml
 
 const CDATA_RE = /<!\[CDATA\[([\s\S]*?)\]\]>/g
@@ -31,7 +30,6 @@ function parseDurationSec(d) {
 }
 
 export default async function handler(req, res) {
-  if (!requireAuth(req, res)) return
   const url = req.query.url
   if (!url || !/^https?:\/\//.test(url)) {
     return res.status(400).json({ detail: 'Expected an http(s) URL.' })
