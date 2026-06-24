@@ -83,7 +83,8 @@
 
       <!-- ── Active sentence ─────────────────────────────────────────────── -->
       <div
-        class="leading-loose text-base cursor-text outline-none break-words min-h-16 font-serif"
+        class="leading-[1.8] text-base cursor-text outline-none"
+        style="color:#2a241c;"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right' : ''"
         tabindex="0"
@@ -94,16 +95,19 @@
       >
         <span v-if="done" class="text-accent-red font-medium">✓ {{ t(lang, 'done') ?? 'Complete!' }}</span>
 
-        <!-- Inline-block buttons with explicit margin-right for word spacing -->
+        <!-- Word buttons with explicit space spans between them — CSS margin is unreliable for
+             inline-block elements; actual space text nodes are how ContentView handles spacing. -->
         <template v-else>
           <template v-for="(word, wi) in words" :key="wi">
             <button
               type="button"
               class="inline-block whitespace-nowrap rounded transition-colors hover:bg-ink-primary/8 active:bg-ink-primary/8 select-none bg-transparent border-0 p-0 font-[inherit] leading-[inherit] cursor-pointer"
-              :class="savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-accent-red decoration-dotted underline-offset-2' : ''"
-              :style="(awaitingSpace && wi === currentWordIndex ? 'border-right:2px solid #2a241c;' : '') + (wi < words.length - 1 && !isCJK ? 'margin-right:0.45em;' : '')"
+              :class="[
+                savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-accent-red decoration-dotted underline-offset-2' : '',
+                awaitingSpace && wi === currentWordIndex ? 'border-r-2 border-ink-primary' : ''
+              ]"
               @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
-            ><ruby v-if="wordNum(word)" class="szol-num"><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span><rt>{{ wordNum(word) }}</rt></ruby><template v-else><template v-for="(c, ci) in word" :key="ci"><ruby v-if="showGuide && lang === 'zh' && charRoman(c.char)"><span :class="charClass(wi, ci)">{{ c.char }}</span><rt class="text-[0.6em] text-blue-300 font-normal not-italic leading-none">{{ charRoman(c.char) }}</rt></ruby><span v-else :class="charClass(wi, ci)">{{ c.char }}</span></template></template></button>
+            ><ruby v-if="wordNum(word)" class="szol-num"><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span><rt>{{ wordNum(word) }}</rt></ruby><template v-else><template v-for="(c, ci) in word" :key="ci"><ruby v-if="showGuide && lang === 'zh' && charRoman(c.char)"><span :class="charClass(wi, ci)">{{ c.char }}</span><rt class="text-[0.6em] text-blue-300 font-normal not-italic leading-none">{{ charRoman(c.char) }}</rt></ruby><span v-else :class="charClass(wi, ci)">{{ c.char }}</span></template></template></button><span v-if="!isCJK && wi < words.length - 1" aria-hidden="true"> </span>
           </template>
         </template>
       </div>
@@ -309,6 +313,10 @@ function tapWord(wordText, sentence) {
   }
 
   emit('saveWord', { word: clean, lang: props.lang, langName: LANGS[props.lang]?.name ?? props.lang, sentence: sentence ?? '', story: props.story?.title ?? '' })
+
+  // Return focus to the hidden input so typing continues after tapping a word.
+  // Must be synchronous (inside the click handler) so iOS opens the keyboard.
+  hiddenInput.value?.focus()
 }
 
 // ── Reactive state ────────────────────────────────────────────────────────────
@@ -408,7 +416,12 @@ function flushProgress() {
 
 function onVisibilityHide() { if (document.visibilityState === 'hidden') flushProgress() }
 
-onMounted(()   => document.addEventListener('visibilitychange', onVisibilityHide))
+onMounted(() => {
+  document.addEventListener('visibilitychange', onVisibilityHide)
+  // Focus the hidden input after mount so desktop users can type immediately.
+  // (The watch immediate:true fires before the DOM exists, so focus there is a no-op.)
+  nextTick(() => hiddenInput.value?.focus())
+})
 onUnmounted(() => { document.removeEventListener('visibilitychange', onVisibilityHide); flushProgress() })
 
 // loadSentence() prepares the word/char structure for a given sentence index.
