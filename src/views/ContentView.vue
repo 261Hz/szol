@@ -57,6 +57,17 @@
       <!-- ═══════════════════════ READ MODE ═══════════════════════ -->
       <template v-if="activeTool === 'read'">
 
+        <!-- Pinyin toggle — Chinese only -->
+        <div v-if="isChinese" class="flex gap-0.5">
+          <button
+            @click="showPinyin = !showPinyin"
+            class="text-xs px-2 py-0.5 rounded-full transition-all"
+            :style="showPinyin
+              ? 'background:#2a2018; color:#e8dcc4;'
+              : 'color:rgba(31,27,23,0.38);'"
+          >pinyin</button>
+        </div>
+
         <!-- Root mode switcher — Hebrew and Arabic only -->
         <div v-if="lang === 'ar' || lang === 'he'" class="flex gap-0.5">
           <button
@@ -91,6 +102,15 @@
                     ? 'color:transparent; -webkit-text-stroke:0.7px rgba(42,36,28,0.35);'
                     : ''"
               >{{ seg.ch }}</span></span>
+            <!-- Chinese with pinyin ruby -->
+            <span
+              v-else-if="tok.type === 'word' && isChinese && showPinyin"
+              @click="tap(tok.text)"
+              class="cursor-pointer"
+              :style="savedWords?.has(normalize(tok.text))
+                ? 'color:#8b3a3a; text-decoration:underline; text-underline-offset:2px;'
+                : ''"
+            ><ruby v-for="(ch, ci) in tok.text" :key="ci" style="ruby-align:center"><span>{{ ch }}</span><rt style="font-size:0.55em; color:#8b3a3a; font-family:sans-serif; letter-spacing:0; font-style:normal;">{{ charPinyin(ch) }}</rt></ruby></span>
             <!-- Plain word — no root data, or roots off -->
             <span
               v-else-if="tok.type === 'word'"
@@ -271,6 +291,7 @@ import { normalize } from '../utils/scoring.js'
 import { useVoiceList, pickVoice } from '../utils/voices.js'
 import ExamplesPanel from '../components/ExamplesPanel.vue'
 import { rootMode, preFetchRoots } from '../utils/rootHighlight.js'
+import { charPinyin } from '../utils/romanization.js'
 
 const props = defineProps({
   story:       Object,
@@ -400,6 +421,9 @@ const accuracy = computed(() => {
 })
 
 // ── Root annotation ───────────────────────────────────────────────────────────
+
+const isChinese  = computed(() => ['zh', 'zh-TW'].includes(props.lang))
+const showPinyin = ref(false)
 
 const ROOT_MODES = [
   { key: 'off',        label: 'Text' },
