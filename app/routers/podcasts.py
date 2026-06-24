@@ -109,7 +109,7 @@ def subscribe_podcast(payload: _SubscribeIn, db: Session = Depends(get_db)):
             segments     = None,
         )
         db.add(ep)
-        added.append({"title": title, "has_transcript": bool(segments)})
+        added.append({"title": title, "has_transcript": False})
 
     db.commit()
     return {
