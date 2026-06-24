@@ -1,54 +1,68 @@
 <template>
   <div class="flex flex-col gap-4">
 
-    <div v-if="!story" class="text-gray-500 text-sm text-center py-12">
+    <div v-if="!story" class="text-ink-muted text-sm text-center py-12">
       {{ t(lang, 'noStory') }}
     </div>
 
-    <div v-else class="flex flex-col gap-3">
+    <template v-else>
 
-      <!-- Header -->
-      <div class="flex items-center justify-between">
-        <div>
-          <div class="font-semibold text-lg">{{ story.title }}</div>
-          <div class="text-xs text-gray-500">{{ LANGS[lang]?.name }}</div>
-        </div>
-        <div class="text-xs text-gray-500 font-medium">
-          <span v-if="isCJK">{{ unitIdx + 1 }} / {{ cjkChars.length }}</span>
-          <span v-else>S{{ sentenceIdx + 1 }}/{{ sentences.length }} · W{{ wordIdx + 1 }}/{{ wordsInSentence.length }}</span>
+      <!-- ── Story text (flows like Retype) ───────────────────────────── -->
+      <div class="rounded-2xl px-5 py-4" style="background:#fefce8; border:1px solid #e8dcc8;">
+        <div class="font-serif leading-relaxed text-base" :dir="isRTL(lang) ? 'rtl' : 'ltr'" style="color:#2a241c;">
+
+          <!-- CJK: character stream -->
+          <template v-if="isCJK">
+            <span v-for="(ch, ci) in cjkChars" :key="ci"
+              :style="cjkCharStyle(ci)">{{ ch }}</span>
+          </template>
+
+          <!-- Non-CJK: sentence → word stream -->
+          <template v-else>
+            <template v-for="(sent, si) in sentences" :key="si">
+              <span v-for="(word, wi) in sentenceWords(sent)" :key="wi"
+                :style="wordStyle(si, wi)">{{ word }} </span>
+            </template>
+          </template>
+
         </div>
       </div>
 
-      <!-- Progress bar -->
-      <div class="h-1 bg-gray-800 rounded-full overflow-hidden">
-        <div class="h-full bg-green-600 transition-all duration-300" :style="{ width: progressPct + '%' }" />
-      </div>
-
-      <!-- ── Paper card ─────────────────────────────────────────────────── -->
+      <!-- ── Writing area ──────────────────────────────────────────────── -->
       <div ref="paperCard" class="paper-card rounded-2xl overflow-hidden shadow-xl">
 
-        <!-- Paper header: reference word -->
-        <div class="paper-header px-5 pt-5 pb-3 flex items-start justify-between">
-          <div class="flex flex-col gap-0.5">
-            <div
-              class="paper-word select-none leading-none"
-              :style="handwritingStyle"
-              :dir="isRTL(lang) ? 'rtl' : 'ltr'"
-            >{{ currentUnit }}</div>
-            <div class="text-xs text-amber-700/60 mt-1" :dir="isRTL(lang) ? 'rtl' : 'ltr'">{{ unitLabel }}</div>
+        <!-- Target word header -->
+        <div class="paper-header px-5 pt-5 pb-3 flex items-center justify-between gap-3">
+          <div class="paper-word select-none leading-none" :style="handwritingStyle" :dir="isRTL(lang) ? 'rtl' : 'ltr'">
+            {{ currentUnit }}
           </div>
-          <button
-            @click="toggleFullscreen"
-            class="text-amber-700/50 hover:text-amber-800 text-lg mt-0.5 transition-colors"
-            :title="isFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
-          >{{ isFullscreen ? '⊠' : '⛶' }}</button>
+          <div class="flex items-center gap-2 shrink-0">
+            <!-- CJK mode toggle -->
+            <div v-if="isCJK" class="flex gap-0.5">
+              <button @click="freehandMode = false"
+                class="text-xs px-2 py-0.5 rounded-full transition-all"
+                :style="!freehandMode ? 'background:#2a2018; color:#e8dcc4;' : 'color:rgba(26,26,46,0.38);'">
+                guided
+              </button>
+              <button @click="freehandMode = true"
+                class="text-xs px-2 py-0.5 rounded-full transition-all"
+                :style="freehandMode ? 'background:#2a2018; color:#e8dcc4;' : 'color:rgba(26,26,46,0.38);'">
+                freehand
+              </button>
+            </div>
+            <button @click="toggleFullscreen"
+              class="text-amber-700/50 hover:text-amber-800 text-lg transition-colors"
+              :title="isFullscreen ? 'Exit fullscreen' : 'Fullscreen'">
+              {{ isFullscreen ? '⊠' : '⛶' }}
+            </button>
+          </div>
         </div>
 
-        <!-- ── CJK: Hanzi Writer ──────────────────────────────────────── -->
-        <div v-if="isCJK" class="flex flex-col items-center gap-3 pb-5 px-5">
+        <!-- CJK guided (HanziWriter) -->
+        <div v-if="isCJK && !freehandMode" class="flex flex-col items-center gap-3 pb-5 px-5">
           <div ref="hanziContainer" class="hanzi-container rounded-xl" />
           <div v-if="charError" class="text-xs text-amber-700/60">Stroke data unavailable for this character.</div>
-          <div v-if="quizDone" class="text-green-700 font-medium text-sm">✓ Complete!</div>
+          <div v-if="quizDone" class="text-green-700 font-medium text-sm">✓ Done</div>
           <div class="flex gap-3">
             <button @click="animate" :disabled="!!charError"
               class="px-4 py-2 text-sm rounded-lg border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 disabled:opacity-30 transition-all">
@@ -61,7 +75,7 @@
           </div>
         </div>
 
-        <!-- ── Non-CJK: free canvas ───────────────────────────────────── -->
+        <!-- Canvas (CJK freehand + all non-CJK) -->
         <div v-else class="flex flex-col gap-3 pb-5 px-5">
           <canvas
             ref="canvas"
@@ -74,11 +88,12 @@
               class="px-4 py-2 text-sm rounded-lg border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 transition-all">
               Clear
             </button>
-            <button @click="runCheck" :disabled="aiChecking"
+            <button @click="runCheck" :disabled="aiChecking || checkResult !== null"
               class="px-4 py-2 text-sm rounded-lg bg-amber-700 text-amber-50 hover:bg-amber-600 disabled:opacity-50 transition-all">
               {{ aiChecking ? 'Checking…' : '✦ Check' }}
             </button>
           </div>
+          <!-- Pass / fail feedback -->
           <div v-if="checkResult !== null" class="text-center text-2xl font-bold py-1"
             :class="checkResult ? 'text-green-700' : 'text-red-600'">
             {{ checkResult ? '✓ Pass' : '✗ Fail' }}
@@ -86,7 +101,7 @@
         </div>
 
       </div>
-      <!-- ── End paper card ──────────────────────────────────────────── -->
+      <!-- ── End writing area ──────────────────────────────────────────── -->
 
       <!-- Navigation -->
       <div class="flex justify-between">
@@ -100,7 +115,7 @@
         </button>
       </div>
 
-    </div>
+    </template>
   </div>
 </template>
 
@@ -118,20 +133,16 @@ const isCJK    = computed(() => ['zh', 'zh-TW', 'ja'].includes(props.lang))
 const isScript = computed(() => ['ar', 'arz', 'he', 'el', 'ru'].includes(props.lang))
 const isLatin  = computed(() => !isCJK.value && !isScript.value)
 
-// ── Handwriting font per script ────────────────────────────────────────────────
+// ── Handwriting font per script ─────────────────────────────────────────────────
 const handwritingStyle = computed(() => {
-  if (['zh', 'zh-TW'].includes(props.lang)) return { fontFamily: "'Zhi Mang Xing', cursive",    fontSize: '4rem' }
-  if (props.lang === 'ja')               return { fontFamily: "'Kaisei Tokumin', serif",      fontSize: '4rem' }
-  if (['ar', 'arz'].includes(props.lang)) return { fontFamily: "'Amiri', serif",               fontSize: '3.5rem' }
-  if (props.lang === 'he')               return { fontFamily: "'Playpen Sans Hebrew', cursive",   fontSize: '4rem' }
+  if (['zh', 'zh-TW'].includes(props.lang)) return { fontFamily: "'Zhi Mang Xing', cursive",     fontSize: '4rem' }
+  if (props.lang === 'ja')                  return { fontFamily: "'Kaisei Tokumin', serif",       fontSize: '4rem' }
+  if (['ar', 'arz'].includes(props.lang))   return { fontFamily: "'Amiri', serif",                fontSize: '3.5rem' }
+  if (props.lang === 'he')                  return { fontFamily: "'Playpen Sans Hebrew', cursive", fontSize: '4rem' }
   return { fontFamily: "'Patrick Hand', cursive", fontSize: '4rem' }
 })
 
-// ── Navigation ──────────────────────────────────────────────────────────────────
-const sentenceIdx = ref(0)
-const wordIdx     = ref(0)
-const unitIdx     = ref(0)
-
+// ── Sentence / word / char splitting ────────────────────────────────────────────
 const sentences = computed(() => {
   if (!props.story) return []
   return props.story.content
@@ -139,26 +150,25 @@ const sentences = computed(() => {
     .map(s => s.trim()).filter(Boolean)
 })
 
-const wordsInSentence = computed(() =>
-  (sentences.value[sentenceIdx.value] || '').trim().split(/\s+/).filter(Boolean)
-)
+function sentenceWords(sent) {
+  return sent.trim().split(/\s+/).filter(Boolean)
+}
 
 const cjkChars = computed(() => {
   if (!props.story || !isCJK.value) return []
   return [...props.story.content].filter(c => /\p{L}/u.test(c))
 })
 
-const currentUnit = computed(() => {
-  if (isCJK.value) return cjkChars.value[unitIdx.value] || ''
-  return wordsInSentence.value[wordIdx.value] || ''
-})
+// ── Navigation state ─────────────────────────────────────────────────────────────
+const sentenceIdx = ref(0)
+const wordIdx     = ref(0)
+const unitIdx     = ref(0)   // CJK char index
 
-const unitLabel = computed(() => {
-  if (isLatin.value) return ''
-  const sentence = isCJK.value
-    ? (sentences.value.find(s => s.includes(currentUnit.value)) || '')
-    : (sentences.value[sentenceIdx.value] || '')
-  return sentence.length > 60 ? sentence.slice(0, 58) + '…' : sentence
+const wordsInSentence = computed(() => sentenceWords(sentences.value[sentenceIdx.value] ?? ''))
+
+const currentUnit = computed(() => {
+  if (isCJK.value) return cjkChars.value[unitIdx.value] ?? ''
+  return wordsInSentence.value[wordIdx.value] ?? ''
 })
 
 const isFirst = computed(() =>
@@ -172,14 +182,24 @@ const isLast = computed(() =>
       wordIdx.value >= wordsInSentence.value.length - 1
 )
 
-const progressPct = computed(() => {
-  if (isCJK.value) {
-    return cjkChars.value.length ? ((unitIdx.value + 1) / cjkChars.value.length) * 100 : 0
-  }
-  const total = sentences.value.reduce((s, x) => s + x.trim().split(/\s+/).filter(Boolean).length, 0)
-  const done  = sentences.value.slice(0, sentenceIdx.value).reduce((s, x) => s + x.trim().split(/\s+/).filter(Boolean).length, 0) + wordIdx.value
-  return total ? ((done + 1) / total) * 100 : 0
-})
+// ── Story text styling (Retype-like) ────────────────────────────────────────────
+const DONE_STYLE    = 'color:#8c7a66;'
+const CURRENT_STYLE = 'color:#2a241c; font-weight:600; border-bottom:2px solid #8b3a3a; padding-bottom:1px;'
+const FUTURE_STYLE  = 'color:rgba(140,122,102,0.4);'
+
+function cjkCharStyle(ci) {
+  if (ci < unitIdx.value)  return DONE_STYLE
+  if (ci === unitIdx.value) return CURRENT_STYLE
+  return FUTURE_STYLE
+}
+
+function wordStyle(si, wi) {
+  const before = si < sentenceIdx.value || (si === sentenceIdx.value && wi < wordIdx.value)
+  const isCurr = si === sentenceIdx.value && wi === wordIdx.value
+  if (before)  return DONE_STYLE
+  if (isCurr)  return CURRENT_STYLE
+  return FUTURE_STYLE
+}
 
 function goNext() {
   if (isCJK.value) {
@@ -199,8 +219,8 @@ function goPrev() {
   }
 }
 
-// ── Fullscreen ──────────────────────────────────────────────────────────────────
-const paperCard   = ref(null)
+// ── Fullscreen ───────────────────────────────────────────────────────────────────
+const paperCard    = ref(null)
 const isFullscreen = ref(false)
 
 function toggleFullscreen() {
@@ -210,20 +230,32 @@ function toggleFullscreen() {
 
 function onFullscreenChange() {
   isFullscreen.value = !!document.fullscreenElement
-  // Re-init canvas/writer after fullscreen change (size may have changed)
   nextTick(() => {
-    if (isCJK.value) initWriter()
-    else             setupCanvas()
+    if (isCJK.value && !freehandMode.value) initWriter()
+    else setupCanvas()
   })
 }
 
-onMounted(() => document.addEventListener('fullscreenchange', onFullscreenChange))
-onUnmounted(async () => {
-  document.removeEventListener('fullscreenchange', onFullscreenChange)
-  if (_tesseractWorker) { await _tesseractWorker.terminate(); _tesseractWorker = null }
-})
+// ── Chrome Handwriting Recognition API (progressive enhancement) ────────────────
+let hwRecognizer = null
+let hwDrawing    = null
+let hwCurStroke  = null
 
-// ── Latin OCR via Tesseract.js ──────────────────────────────────────────────────
+async function setupHWApi(lang) {
+  if (!('createHandwritingRecognizer' in navigator)) return
+  try {
+    hwRecognizer ??= await navigator.createHandwritingRecognizer({ languages: [lang] })
+    hwDrawing = hwRecognizer.startDrawing({ alternatives: 2 })
+  } catch {
+    hwRecognizer = null
+    hwDrawing    = null
+  }
+}
+
+// ── CJK freehand mode ────────────────────────────────────────────────────────────
+const freehandMode = ref(false)
+
+// ── Tesseract (Latin OCR fallback) ───────────────────────────────────────────────
 let _tesseractWorker = null
 
 async function _getTesseract() {
@@ -234,7 +266,6 @@ async function _getTesseract() {
   return _tesseractWorker
 }
 
-// Clean ink-on-white canvas for Tesseract (no guide lines, no paper tint)
 function inkCanvas() {
   if (!canvas.value || !strokes.length) return null
   const dpr = window.devicePixelRatio || 1
@@ -245,23 +276,17 @@ function inkCanvas() {
   off.height = ch * dpr
   const oc = off.getContext('2d')
   oc.setTransform(dpr, 0, 0, dpr, 0, 0)
-  oc.fillStyle = '#ffffff'
-  oc.fillRect(0, 0, cw, ch)
-  oc.strokeStyle = '#000000'
-  oc.lineWidth   = 3
-  oc.lineCap     = 'round'
-  oc.lineJoin    = 'round'
+  oc.fillStyle = '#ffffff'; oc.fillRect(0, 0, cw, ch)
+  oc.strokeStyle = '#000000'; oc.lineWidth = 3; oc.lineCap = 'round'; oc.lineJoin = 'round'
   for (const stroke of strokes) {
     if (stroke.length < 2) continue
-    oc.beginPath()
-    oc.moveTo(stroke[0].x, stroke[0].y)
+    oc.beginPath(); oc.moveTo(stroke[0].x, stroke[0].y)
     for (let i = 1; i < stroke.length; i++) oc.lineTo(stroke[i].x, stroke[i].y)
     oc.stroke()
   }
   return off
 }
 
-// Strip diacritics then lower-case for language-agnostic Latin comparison
 function normLatin(s) {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, '')
 }
@@ -276,6 +301,19 @@ function levenshtein(a, b) {
 }
 
 async function checkLatin() {
+  // Try Chrome Handwriting API first (no wasm cost; works on ChromeOS/Android)
+  if (hwDrawing) {
+    try {
+      const predictions = await hwDrawing.getPrediction()
+      const got = normLatin(predictions[0]?.text ?? '')
+      const target = normLatin(currentUnit.value)
+      if (got) {
+        hwDrawing.clear()
+        return levenshtein(got, target) <= Math.max(1, Math.floor(target.length / 4))
+      }
+    } catch {}
+  }
+  // Tesseract.js
   try {
     const worker = await _getTesseract()
     const off    = inkCanvas()
@@ -284,26 +322,21 @@ async function checkLatin() {
     const got    = normLatin(text)
     const target = normLatin(currentUnit.value)
     if (!got || !target) return false
-    const maxErr = Math.max(1, Math.floor(target.length / 4))
-    return levenshtein(got, target) <= maxErr
+    return levenshtein(got, target) <= Math.max(1, Math.floor(target.length / 4))
   } catch {
-    // Tesseract unavailable — fall back to LLM
     const result = await checkHandwriting(currentUnit.value, props.lang, annotatedImage())
     return result?.passed ?? false
   }
 }
 
-// ── RTL coordinate check ────────────────────────────────────────────────────────
-// For Arabic/Hebrew: early strokes should have a higher x (more to the right)
-// than late strokes. Compares the average x of the first half vs second half.
 function isRTLStrokeOrder() {
-  if (strokes.length < 3) return true // can't judge with < 3 strokes
+  if (strokes.length < 3) return true
   const half = Math.ceil(strokes.length / 2)
   const avgX = ss => { const pts = ss.flat(); return pts.reduce((s, p) => s + p.x, 0) / pts.length }
   return avgX(strokes.slice(0, half)) > avgX(strokes.slice(half))
 }
 
-// ── Hanzi Writer ────────────────────────────────────────────────────────────────
+// ── HanziWriter ──────────────────────────────────────────────────────────────────
 const hanziContainer = ref(null)
 const quizActive     = ref(false)
 const quizDone       = ref(false)
@@ -313,22 +346,15 @@ let writer = null
 function initWriter() {
   if (!hanziContainer.value || !currentUnit.value) return
   hanziContainer.value.innerHTML = ''
-  quizActive.value = false
-  quizDone.value   = false
-  charError.value  = false
-  writer           = null
+  quizActive.value = false; quizDone.value = false; charError.value = false; writer = null
   const size = Math.min(hanziContainer.value.clientWidth || 300, 400)
   try {
     writer = HanziWriter.create(hanziContainer.value, currentUnit.value, {
-      width:                size,
-      height:               size,
-      padding:              12,
-      showOutline:          true,
-      strokeColor:          '#1a1a2e',
-      outlineColor:         '#c8b99a',
-      strokeAnimationSpeed: 1,
-      delayBetweenStrokes:  300,
-      onLoadCharDataError:  () => { charError.value = true },
+      width: size, height: size, padding: 12,
+      showOutline: true,
+      strokeColor: '#1a1a2e', outlineColor: '#c8b99a',
+      strokeAnimationSpeed: 1, delayBetweenStrokes: 300,
+      onLoadCharDataError: () => { charError.value = true },
     })
   } catch { charError.value = true }
 }
@@ -339,17 +365,23 @@ function startQuiz() {
   if (!writer || quizActive.value) return
   quizActive.value = true
   quizDone.value   = false
-  writer.quiz({ onComplete: () => { quizActive.value = false; quizDone.value = true } })
+  writer.quiz({
+    onComplete: () => {
+      quizActive.value = false
+      quizDone.value   = true
+      if (!isLast.value) setTimeout(() => { goNext() }, 1000)
+    }
+  })
 }
 
-// ── Canvas drawing ──────────────────────────────────────────────────────────────
-const canvas       = ref(null)
-const checkResult  = ref(null)  // null | true | false
-const aiChecking   = ref(false)
-const failCount    = ref(0)
+// ── Canvas drawing ───────────────────────────────────────────────────────────────
+const canvas      = ref(null)
+const checkResult = ref(null)
+const aiChecking  = ref(false)
+const failCount   = ref(0)
 let ctx           = null
 let drawing       = false
-let strokes       = []          // [[{x,y},...], ...] — one array per pen-down→up
+let strokes       = []
 let currentStroke = null
 
 const PAPER_COLOR = '#fefce8'
@@ -358,20 +390,17 @@ const GUIDE_COLOR = '#e8dcc8'
 
 function setupCanvas() {
   if (!canvas.value) return
-  const dpr       = window.devicePixelRatio || 1
-  const cssWidth  = canvas.value.parentElement?.clientWidth - 40 || 320  // account for px-5
+  const dpr      = window.devicePixelRatio || 1
+  const cssWidth = canvas.value.parentElement?.clientWidth - 40 || 320
   const cssHeight = isFullscreen.value ? window.innerHeight * 0.55 : Math.max(cssWidth * 0.65, 260)
-  canvas.value.width        = cssWidth  * dpr
-  canvas.value.height       = cssHeight * dpr
+  canvas.value.width  = cssWidth  * dpr
+  canvas.value.height = cssHeight * dpr
   canvas.value.style.width  = cssWidth  + 'px'
   canvas.value.style.height = cssHeight + 'px'
   ctx = canvas.value.getContext('2d')
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  ctx.strokeStyle = INK_COLOR
-  ctx.fillStyle   = INK_COLOR
-  ctx.lineWidth   = 3
-  ctx.lineCap     = 'round'
-  ctx.lineJoin    = 'round'
+  ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'
   clearCanvasAndGuides()
 }
 
@@ -379,84 +408,56 @@ function drawGuideLines() {
   if (!ctx || !canvas.value) return
   const w = parseInt(canvas.value.style.width)
   const h = parseInt(canvas.value.style.height)
-  ctx.save()
-  ctx.strokeStyle = GUIDE_COLOR
-  ctx.lineWidth   = 0.75
-  const spacing = 38
-  for (let y = spacing; y < h; y += spacing) {
-    ctx.beginPath()
-    ctx.moveTo(0, y)
-    ctx.lineTo(w, y)
-    ctx.stroke()
-  }
+  ctx.save(); ctx.strokeStyle = GUIDE_COLOR; ctx.lineWidth = 0.75
+  for (let y = 38; y < h; y += 38) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke() }
   ctx.restore()
-  // Reset drawing style
-  ctx.strokeStyle = INK_COLOR
-  ctx.fillStyle   = INK_COLOR
-  ctx.lineWidth   = 3
+  ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
 }
 
 function clearCanvasAndGuides() {
   if (!ctx || !canvas.value) return
   const w = parseInt(canvas.value.style.width)
   const h = parseInt(canvas.value.style.height)
-  ctx.save()
-  ctx.fillStyle = PAPER_COLOR
-  ctx.fillRect(0, 0, w, h)
-  ctx.restore()
+  ctx.save(); ctx.fillStyle = PAPER_COLOR; ctx.fillRect(0, 0, w, h); ctx.restore()
   drawGuideLines()
-  strokes       = []
-  currentStroke = null
-  checkResult.value = null
-  failCount.value   = 0
+  strokes = []; currentStroke = null
+  checkResult.value = null; failCount.value = 0
+  if (hwDrawing) { try { hwDrawing.clear() } catch {} }
 }
 
-// Faint tracing guide drawn after 2 failed attempts.
 function drawTraceGuide() {
   if (!ctx || !canvas.value || !currentUnit.value) return
-  const w   = parseInt(canvas.value.style.width)
-  const h   = parseInt(canvas.value.style.height)
-  const sz  = Math.min(w, h) * 0.7
-  const family = handwritingStyle.value.fontFamily
+  const w = parseInt(canvas.value.style.width)
+  const h = parseInt(canvas.value.style.height)
+  const sz = Math.min(w, h) * 0.7
   ctx.save()
-  ctx.font          = `bold ${sz}px ${family}`
-  ctx.fillStyle     = 'rgba(150,100,40,0.10)'
-  ctx.textAlign     = 'center'
-  ctx.textBaseline  = 'middle'
-  ctx.direction     = isRTL(props.lang) ? 'rtl' : 'ltr'
+  ctx.font = `bold ${sz}px ${handwritingStyle.value.fontFamily}`
+  ctx.fillStyle = 'rgba(150,100,40,0.10)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.direction = isRTL(props.lang) ? 'rtl' : 'ltr'
   ctx.fillText(currentUnit.value, w / 2, h / 2)
   ctx.restore()
-  // restore drawing style
-  ctx.strokeStyle = INK_COLOR
-  ctx.fillStyle   = INK_COLOR
-  ctx.lineWidth   = 3
+  ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
 }
 
-// Offscreen copy of the canvas with coloured numbered circles at each stroke's
-// start point so the vision model can assess stroke order.
 function annotatedImage() {
   if (!canvas.value) return null
   const dpr = window.devicePixelRatio || 1
   const cw  = parseInt(canvas.value.style.width)
   const ch  = parseInt(canvas.value.style.height)
   const off = document.createElement('canvas')
-  off.width  = cw * dpr
-  off.height = ch * dpr
-  const oc   = off.getContext('2d')
+  off.width = cw * dpr; off.height = ch * dpr
+  const oc = off.getContext('2d')
   oc.setTransform(dpr, 0, 0, dpr, 0, 0)
   oc.drawImage(canvas.value, 0, 0, cw, ch)
   const palette = ['#e53e3e','#dd6b20','#d69e2e','#38a169','#3182ce','#805ad5']
   strokes.forEach((stroke, i) => {
     if (!stroke.length) return
-    const { x, y } = stroke[0]
-    const color    = palette[i % palette.length]
-    oc.beginPath(); oc.arc(x, y, 9, 0, Math.PI * 2)
-    oc.fillStyle = color; oc.fill()
+    const { x, y } = stroke[0]; const color = palette[i % palette.length]
+    oc.beginPath(); oc.arc(x, y, 9, 0, Math.PI * 2); oc.fillStyle = color; oc.fill()
     oc.fillStyle = '#fff'; oc.font = 'bold 11px sans-serif'
     oc.textAlign = 'center'; oc.textBaseline = 'middle'
     oc.fillText(String(i + 1), x, y)
   })
-  // Crop to bounding box of drawn strokes — sends only what was written
   const allPts = strokes.flat()
   if (!allPts.length) return off.toDataURL('image/png').split(',')[1]
   const PAD  = 20
@@ -464,46 +465,54 @@ function annotatedImage() {
   const minY = Math.max(0,          Math.min(...allPts.map(p => p.y)) - PAD) * dpr
   const maxX = Math.min(off.width,  Math.max(...allPts.map(p => p.x)) + PAD) * dpr
   const maxY = Math.min(off.height, Math.max(...allPts.map(p => p.y)) + PAD) * dpr
-  const cropW = maxX - minX
-  const cropH = maxY - minY
-  const crop  = document.createElement('canvas')
-  crop.width  = cropW
-  crop.height = cropH
-  crop.getContext('2d').drawImage(off, minX, minY, cropW, cropH, 0, 0, cropW, cropH)
+  const crop = document.createElement('canvas')
+  crop.width = maxX - minX; crop.height = maxY - minY
+  crop.getContext('2d').drawImage(off, minX, minY, crop.width, crop.height, 0, 0, crop.width, crop.height)
   return crop.toDataURL('image/png').split(',')[1]
 }
 
 async function runCheck() {
   if (!canvas.value || aiChecking.value) return
-  aiChecking.value  = true
-  checkResult.value = null
+  aiChecking.value = true; checkResult.value = null
 
   let passed = false
-  if (isLatin.value) {
-    // Client-side OCR — no backend call
-    passed = await checkLatin()
-  } else if (isRTL(props.lang)) {
-    // Coordinate check for writing direction first
-    if (!isRTLStrokeOrder()) {
-      passed = false
+
+  if (isCJK.value && freehandMode.value) {
+    if (hwDrawing) {
+      try {
+        const preds = await hwDrawing.getPrediction()
+        passed = (preds[0]?.text?.trim() ?? '') === currentUnit.value
+        hwDrawing.clear()
+      } catch {
+        const result = await checkHandwriting(currentUnit.value, props.lang, annotatedImage())
+        passed = result?.passed ?? false
+      }
     } else {
       const result = await checkHandwriting(currentUnit.value, props.lang, annotatedImage())
       passed = result?.passed ?? false
     }
+  } else if (isLatin.value) {
+    passed = await checkLatin()
+  } else if (isRTL(props.lang)) {
+    passed = isRTLStrokeOrder()
+      ? ((await checkHandwriting(currentUnit.value, props.lang, annotatedImage()))?.passed ?? false)
+      : false
   } else {
-    // Greek, Russian, etc. — LLM character check
     const result = await checkHandwriting(currentUnit.value, props.lang, annotatedImage())
     passed = result?.passed ?? false
   }
 
   checkResult.value = passed
-  if (!passed) {
+  aiChecking.value  = false
+
+  if (passed) {
+    failCount.value = 0
+    // Auto-advance after brief success feedback
+    if (!isLast.value) setTimeout(() => { goNext() }, 800)
+  } else {
     failCount.value++
     if (failCount.value >= 2) drawTraceGuide()
-  } else {
-    failCount.value = 0
   }
-  aiChecking.value = false
 }
 
 function getPos(e) {
@@ -515,66 +524,80 @@ function getPos(e) {
 function startDraw(e) {
   drawing = true
   const p = getPos(e)
-  currentStroke = [p]
-  strokes.push(currentStroke)
-  ctx.beginPath()
-  ctx.moveTo(p.x, p.y)
-  ctx.arc(p.x, p.y, ctx.lineWidth / 2, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.beginPath()
-  ctx.moveTo(p.x, p.y)
+  currentStroke = [p]; strokes.push(currentStroke)
+  if (hwDrawing && typeof HandwritingStroke !== 'undefined') {
+    hwCurStroke = new HandwritingStroke()
+    hwCurStroke.addPoint({ x: p.x, y: p.y, t: Date.now() })
+  }
+  ctx.beginPath(); ctx.moveTo(p.x, p.y)
+  ctx.arc(p.x, p.y, ctx.lineWidth / 2, 0, Math.PI * 2); ctx.fill()
+  ctx.beginPath(); ctx.moveTo(p.x, p.y)
 }
 
 function moveDraw(e) {
   if (!drawing) return
   const p = getPos(e)
   currentStroke?.push(p)
-  ctx.lineTo(p.x, p.y)
-  ctx.stroke()
-  ctx.beginPath()
-  ctx.moveTo(p.x, p.y)
+  hwCurStroke?.addPoint({ x: p.x, y: p.y, t: Date.now() })
+  ctx.lineTo(p.x, p.y); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(p.x, p.y)
 }
 
-function stopDraw() { drawing = false; currentStroke = null }
+function stopDraw() {
+  if (hwCurStroke && hwDrawing) { try { hwDrawing.addStroke(hwCurStroke) } catch {} hwCurStroke = null }
+  drawing = false; currentStroke = null
+}
 
-// ── Watchers & lifecycle ────────────────────────────────────────────────────────
+// ── Watchers & lifecycle ─────────────────────────────────────────────────────────
 onMounted(async () => {
+  document.addEventListener('fullscreenchange', onFullscreenChange)
   await nextTick()
   if (isCJK.value) initWriter()
-  else setupCanvas()
+  else { setupCanvas(); await setupHWApi(props.lang) }
 })
 
-watch(unitIdx, async () => {
+onUnmounted(async () => {
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
+  if (hwRecognizer) { try { hwRecognizer.finish() } catch {} }
+  if (_tesseractWorker) { await _tesseractWorker.terminate(); _tesseractWorker = null }
+})
+
+watch(freehandMode, async (isFree) => {
+  checkResult.value = null; failCount.value = 0
+  await nextTick()
   if (!isCJK.value) return
-  await nextTick()
-  initWriter()
+  if (isFree) {
+    setupCanvas(); await setupHWApi(props.lang)
+  } else {
+    if (hwRecognizer) { try { hwRecognizer.finish() } catch {} hwRecognizer = null; hwDrawing = null }
+    initWriter()
+  }
 })
 
-watch([sentenceIdx, wordIdx], async () => {
-  if (isCJK.value) return
-
-  checkResult.value = null
+// Reset canvas/writer when the target word/char changes
+watch([unitIdx, wordIdx, sentenceIdx], async ([newU], [oldU]) => {
+  checkResult.value = null; quizDone.value = false
   await nextTick()
-  if (canvas.value) clearCanvasAndGuides()
+  if (isCJK.value) {
+    if (freehandMode.value) clearCanvasAndGuides()
+    else initWriter()
+  } else {
+    if (canvas.value) clearCanvasAndGuides()
+  }
 })
 
 watch([() => props.lang, () => props.story], async () => {
-  sentenceIdx.value = 0
-  wordIdx.value     = 0
-  unitIdx.value     = 0
-
-  quizActive.value  = false
-  quizDone.value    = false
-  charError.value   = false
-  writer            = null
+  sentenceIdx.value = 0; wordIdx.value = 0; unitIdx.value = 0
+  freehandMode.value = false
+  quizActive.value = false; quizDone.value = false; charError.value = false; writer = null
+  if (hwRecognizer) { try { hwRecognizer.finish() } catch {} hwRecognizer = null; hwDrawing = null }
   await nextTick()
   if (isCJK.value) initWriter()
-  else setupCanvas()
+  else { setupCanvas(); await setupHWApi(props.lang) }
 })
 </script>
 
 <style scoped>
-/* Paper card — light mode (normal) */
 .paper-card {
   background: #fefce8;
   border: 1px solid #e8dcc8;
@@ -588,7 +611,6 @@ watch([() => props.lang, () => props.story], async () => {
   color: #1a1a2e;
 }
 
-/* Fullscreen: expand canvas height and center everything */
 .paper-card:fullscreen {
   display: flex;
   flex-direction: column;
@@ -596,15 +618,9 @@ watch([() => props.lang, () => props.story], async () => {
   overflow-y: auto;
 }
 
-.paper-card:fullscreen .paper-header {
-  flex-shrink: 0;
-}
+.paper-card:fullscreen .paper-header { flex-shrink: 0; }
+.paper-card:fullscreen .paper-word   { font-size: 5rem; }
 
-.paper-card:fullscreen .paper-word {
-  font-size: 5rem;
-}
-
-/* Hanzi container fills its space */
 .hanzi-container {
   width: 100%;
   max-width: 380px;
