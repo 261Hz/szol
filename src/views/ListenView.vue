@@ -803,7 +803,12 @@ async function tryFetchTranscript(storyId, title, podcastName) {
       if (ogjre?.segments?.length) {
         segments.value = ogjre.segments
         transcriptLoading.value = false
-        savePodcastTranscript(storyId, ogjre.segments)
+        // On-demand episodes have an audio URL as their ID — save locally, not to backend
+        if (storyId?.startsWith('http')) {
+          saveStoredTranscript(storyId, ogjre.segments)
+        } else {
+          savePodcastTranscript(storyId, ogjre.segments)
+        }
         return
       }
     }
