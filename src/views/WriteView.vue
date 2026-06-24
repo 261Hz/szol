@@ -301,7 +301,8 @@ function getXY(e) {
 }
 
 function startStroke(e) {
-  if (!ctx) { setupCanvas(); return }
+  if (!ctx) setupCanvas()
+  if (!ctx) return
   canvasEl.value.setPointerCapture(e.pointerId)
   clearTimeout(autoCheckTimer)
   checkResult.value = null
