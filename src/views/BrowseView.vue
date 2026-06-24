@@ -101,17 +101,15 @@
         <button @click="back" class="back-link">← Archive</button>
         <span class="nav-title">{{ t(lang, 'podcasts') }}</span>
       </div>
-      <div v-if="podcastLoading" class="status-text">{{ t(lang, 'loading') }}</div>
-      <div v-else-if="!podcastShows.length" class="status-text">{{ t(lang, 'noPodcasts') }}</div>
+      <div v-if="!podcastShows.length" class="status-text">{{ t(lang, 'noPodcasts') }}</div>
       <div v-else class="item-list">
         <button
-          v-for="[show, eps] in podcastShows"
-          :key="show"
-          @click="source = show"
+          v-for="sub in podcastShows"
+          :key="sub.feed_url"
+          @click="source = sub.podcast_name"
           class="item-row"
         >
-          <span class="item-title">{{ show }}</span>
-          <span class="item-meta">{{ eps.length }} ep{{ eps.length !== 1 ? 's' : '' }}</span>
+          <span class="item-title">{{ sub.podcast_name }}</span>
         </button>
       </div>
       <!-- Search / RSS import -->
@@ -143,10 +141,10 @@
               <div class="search-meta">{{ pod.publisher }}<span v-if="pod.episode_count"> · {{ pod.episode_count }} ep</span></div>
             </div>
             <button
-              @click="subscribeFromSearch(pod.feed_url, pod.lang)"
-              :disabled="subscribingFeed === pod.feed_url"
+              @click="subscribeFromSearch(pod.feed_url, pod.title, pod.artwork)"
+              :disabled="subscribingFeed === pod.feed_url || subscriptions.some(s => s.feed_url === pod.feed_url)"
               class="import-btn"
-            >{{ subscribingFeed === pod.feed_url ? '…' : 'Add' }}</button>
+            >{{ subscriptions.some(s => s.feed_url === pod.feed_url) ? '✓' : 'Add' }}</button>
           </div>
         </div>
       </div>
@@ -157,10 +155,13 @@
       <div class="nav-bar">
         <button @click="source = null" class="back-link">← Podcasts</button>
         <span class="nav-title">{{ source }}</span>
+        <button @click="removePodcast(subscriptions.find(s => s.podcast_name === source)?.feed_url)" class="remove-pod-btn">Remove</button>
       </div>
-      <div class="item-list">
+      <div v-if="episodesLoading" class="status-text">{{ t(lang, 'loading') }}</div>
+      <div v-else-if="!currentEpisodes.length" class="status-text italic-muted">No episodes found.</div>
+      <div v-else class="item-list">
         <button
-          v-for="ep in episodesByShow"
+          v-for="ep in currentEpisodes"
           :key="ep.id"
           @click="listenEpisode(ep)"
           class="item-row"
@@ -258,7 +259,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { fetchCuratedStories, fetchFeed, fetchFeedArticle, fetchPodcasts, fetchPodcastRss, searchPodcasts, subscribePodcast, getAllProgress } from '../utils/api.js'
+import { fetchCuratedStories, fetchFeed, fetchFeedArticle, fetchPodcastRss, searchPodcasts, getAllProgress } from '../utils/api.js'
 import { fetchFeaturedArticle, fetchOnThisDay } from '../utils/wikipedia.js'
 import { isRTL } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
@@ -361,26 +362,22 @@ async function openFeed(item) {
 }
 
 // ── Podcasts ───────────────────────────────────────────────────
-const podcastLoading  = ref(false)
-const podcastEpisodes = ref([])
+// Subscriptions stored in localStorage: [{feed_url, podcast_name, artwork}]
+// Episodes fetched on demand from RSS when a show is opened — nothing stored in DB.
+const SUBS_KEY = 'szol_podcast_subs'
+function loadSubs() { try { return JSON.parse(localStorage.getItem(SUBS_KEY) || '[]') } catch { return [] } }
+function saveSubs(s) { localStorage.setItem(SUBS_KEY, JSON.stringify(s)) }
 
-// RSS-imported feed (user-provided URL, not in backend)
-// Persisted to localStorage so episodes survive navigation
-const RSS_KEY     = 'szol_rss_feeds'
-function loadSavedFeeds() {
-  try { return JSON.parse(localStorage.getItem(RSS_KEY) || '[]') } catch { return [] }
-}
-const rssUrl        = ref('')
-const rssLoading    = ref(false)
-const rssError      = ref('')
-const rssTitle      = ref('')
-const rssEpisodes   = ref(loadSavedFeeds().flatMap(f => f.episodes))
-const searchResults = ref([])
-const searchLoading = ref(false)
+const subscriptions   = ref(loadSubs())
+const currentEpisodes = ref([])
+const episodesLoading = ref(false)
+const rssUrl          = ref('')
+const rssLoading      = ref(false)
+const rssError        = ref('')
+const searchResults   = ref([])
+const searchLoading   = ref(false)
 const subscribingFeed = ref(null)
-let   _searchTimer  = null
-// Pre-populate title from first saved feed
-;(() => { const feeds = loadSavedFeeds(); if (feeds.length) rssTitle.value = feeds[0].title })()
+let   _searchTimer    = null
 
 const isUrl = (s) => /^https?:\/\//i.test(s.trim())
 
@@ -396,30 +393,20 @@ watch(rssUrl, (val) => {
   }, 400)
 })
 
-async function subscribeFromSearch(feedUrl) {
+function _addSubscription(feedUrl, podcastName, artwork) {
+  if (subscriptions.value.some(s => s.feed_url === feedUrl)) return
+  const updated = [{ feed_url: feedUrl, podcast_name: podcastName, artwork: artwork ?? null }, ...subscriptions.value]
+  subscriptions.value = updated
+  saveSubs(updated)
+}
+
+function subscribeFromSearch(feedUrl, podcastName, artwork) {
   subscribingFeed.value = feedUrl
-  rssError.value = ''
-  const result = await subscribePodcast(feedUrl, props.lang)
+  _addSubscription(feedUrl, podcastName, artwork)
   subscribingFeed.value = null
-  searchResults.value = []
-  rssUrl.value = ''
-  await loadPodcasts()
-  if (result?.podcast_name) source.value = result.podcast_name
-}
-
-function saveRssFeed(title, episodes) {
-  const feeds = loadSavedFeeds().filter(f => f.title !== title)
-  feeds.unshift({ title, episodes })
-  localStorage.setItem(RSS_KEY, JSON.stringify(feeds.slice(0, 5)))
-}
-
-function parseDurSec(d) {
-  if (!d) return null
-  const p = d.trim().split(':').map(Number)
-  if (p.length === 3) return p[0] * 3600 + p[1] * 60 + p[2]
-  if (p.length === 2) return p[0] * 60 + p[1]
-  const n = Number(d)
-  return Number.isFinite(n) && n > 0 ? n : null
+  searchResults.value   = []
+  rssUrl.value          = ''
+  source.value          = podcastName
 }
 
 async function importRss() {
@@ -433,49 +420,46 @@ async function importRss() {
     rssError.value = data?.detail ?? t(props.lang, 'noRssEpisodes')
     return
   }
-  rssTitle.value    = data.title
-  const mapped = data.episodes.map(ep => ({
-    id:           ep.id ?? ep.audio_url,
-    title:        ep.title,
-    lang:         props.lang,
-    podcast_name: data.title,
-    image_url:    data.image ?? null,
-    audio_url:    ep.audio_url,
-    duration_sec: parseDurSec(String(ep.duration_sec ?? '')),
-    segments:     [],
-    source_type:  'podcast',
-  }))
-  rssEpisodes.value = [...rssEpisodes.value.filter(e => e.podcast_name !== data.title), ...mapped]
-  saveRssFeed(data.title, mapped)
+  _addSubscription(url, data.title, data.image ?? null)
+  rssUrl.value = ''
   source.value = data.title
 }
 
-const podcastShows = computed(() => {
-  const map = new Map()
-  for (const ep of [...podcastEpisodes.value, ...rssEpisodes.value]) {
-    const n = ep.podcast_name ?? 'Unknown'
-    if (!map.has(n)) map.set(n, [])
-    map.get(n).push(ep)
-  }
-  return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+// Fetch episodes from RSS when a show is opened
+watch(source, async (name) => {
+  if (!name) { currentEpisodes.value = []; return }
+  const sub = subscriptions.value.find(s => s.podcast_name === name)
+  if (!sub) { currentEpisodes.value = []; return }
+  episodesLoading.value = true
+  const data = await fetchPodcastRss(sub.feed_url)
+  episodesLoading.value = false
+  currentEpisodes.value = (data?.episodes ?? []).map(ep => ({
+    id:           ep.audio_url,
+    title:        ep.title,
+    lang:         props.lang,
+    podcast_name: name,
+    audio_url:    ep.audio_url,
+    duration_sec: ep.duration_sec ?? null,
+    source_type:  'podcast',
+  }))
 })
 
-const episodesByShow = computed(() => {
-  return [...podcastEpisodes.value, ...rssEpisodes.value].filter(ep => ep.podcast_name === source.value)
-})
-
-async function loadPodcasts() {
-  podcastLoading.value  = true
-  podcastEpisodes.value = await fetchPodcasts(props.lang)
-  podcastLoading.value  = false
-}
+const podcastShows = computed(() => subscriptions.value)
 
 function listenEpisode(ep) {
   emit('open-listen', {
-    id: ep.id, title: ep.title, lang: ep.lang, author: ep.podcast_name,
-    source: ep.podcast_name, audio_url: ep.audio_url, segments: ep.segments || [], content: null,
-    source_type: ep.source_type,
+    id: ep.audio_url, title: ep.title, lang: props.lang,
+    author: ep.podcast_name, source: ep.podcast_name,
+    audio_url: ep.audio_url, segments: [], content: null,
+    source_type: 'podcast',
   })
+}
+
+function removePodcast(feedUrl) {
+  const updated = subscriptions.value.filter(s => s.feed_url !== feedUrl)
+  subscriptions.value = updated
+  saveSubs(updated)
+  if (source.value) source.value = null
 }
 
 // ── History ────────────────────────────────────────────────────
@@ -899,7 +883,22 @@ watch(() => props.currentUser, loadProgress)
   color: #1f1b17;
   font-family: 'IM Fell English', serif;
   letter-spacing: 0.01em;
+  flex: 1;
 }
+
+.remove-pod-btn {
+  font-size: 0.65rem;
+  color: rgba(31,27,23,0.28);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'EB Garamond', serif;
+  font-style: italic;
+  padding: 0;
+  transition: color 0.12s;
+  flex-shrink: 0;
+}
+.remove-pod-btn:hover { color: #8b3a3a; }
 
 /* ── Item lists ── */
 .item-list {
