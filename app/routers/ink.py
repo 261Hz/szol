@@ -153,10 +153,8 @@ async def google_recognize(req: GoogleInkRequest):
             continue
         xs = [int(round(p.x)) for p in stroke]
         ys = [int(round(p.y)) for p in stroke]
-        ts = [t_offset + i * 50 for i in range(len(stroke))]
-        t_offset = ts[-1] + 200
-        ink.append([xs, ys, ts])
-    _log.warning("google-recognize: lang=%s strokes=%d pts=%d", lang_code, len(ink), sum(len(s[0]) for s in ink))
+        ink.append([xs, ys])
+    _log.warning("google-recognize: lang=%s strokes=%d pts=%d ink_fmt=%s", lang_code, len(ink), sum(len(s[0]) for s in ink), "xy" if ink and len(ink[0]) == 2 else "xyt")
     if not ink:
         return {"text": None, "candidates": []}
     payload = {
