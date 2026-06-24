@@ -169,9 +169,9 @@ const ICONS = {
 }
 
 const tabs = computed(() => [
-  { key: 'browse', label: 'Browse' },
-  { key: 'read',   label: 'Read' },
-  { key: 'vocab',  label: 'Vocab' },
+  { key: 'browse', label: t(props.lang, 'browse') },
+  { key: 'read',   label: t(props.lang, 'read') },
+  { key: 'vocab',  label: t(props.lang, 'vocab') },
 ])
 </script>
 

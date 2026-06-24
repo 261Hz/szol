@@ -156,6 +156,7 @@
 
     <AuthModal
       v-if="showAuth"
+      :lang="activeLang ?? 'en'"
       @close="showAuth = false"
       @logged-in="handleLogin"
     />
