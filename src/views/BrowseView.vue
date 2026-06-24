@@ -485,7 +485,7 @@ watch(source, async (name) => {
 function listenEpisode(ep) {
   emit('open-listen', {
     id: ep.audio_url, title: ep.title, lang: props.lang,
-    author: ep.podcast_name, source: ep.podcast_name,
+    author: ep.podcast_name, source: ep.podcast_name, podcast_name: ep.podcast_name,
     audio_url: ep.audio_url, segments: [], content: null,
     source_type: 'podcast', transcript_url: ep.transcript_url ?? null,
   })
