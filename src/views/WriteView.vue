@@ -295,17 +295,32 @@ function endStroke() {
   autoCheckTimer = setTimeout(runCheck, 1000)
 }
 
-// ── Clean canvas snapshot (no ghost watermark) for LLM vision ────────────────
+// ── Cropped snapshot of only the drawn strokes for LLM OCR ───────────────────
 function getCleanCanvasImage() {
-  const w = canvasCssWidth || window.innerWidth
+  const PAD = 12
+  // Compute bounding box of all stroke points
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const stroke of userStrokes) {
+    for (const p of stroke) {
+      if (p.x < minX) minX = p.x
+      if (p.y < minY) minY = p.y
+      if (p.x > maxX) maxX = p.x
+      if (p.y > maxY) maxY = p.y
+    }
+  }
+  if (!isFinite(minX)) return null  // nothing drawn
+  const cropX = Math.max(0, minX - PAD)
+  const cropY = Math.max(0, minY - PAD)
+  const cropW = Math.min((canvasCssWidth || window.innerWidth) - cropX, maxX - minX + PAD * 2)
+  const cropH = Math.min(CANVAS_HEIGHT - cropY, maxY - minY + PAD * 2)
   const dpr = window.devicePixelRatio || 1
   const off = document.createElement('canvas')
-  off.width  = Math.round(w * dpr)
-  off.height = Math.round(CANVAS_HEIGHT * dpr)
+  off.width  = Math.round(cropW * dpr)
+  off.height = Math.round(cropH * dpr)
   const c = off.getContext('2d')
-  c.setTransform(dpr, 0, 0, dpr, 0, 0)
+  c.setTransform(dpr, 0, 0, dpr, -cropX, -cropY)
   c.fillStyle = '#ffffff'
-  c.fillRect(0, 0, w, CANVAS_HEIGHT)
+  c.fillRect(cropX, cropY, cropW, cropH)
   c.strokeStyle = '#000000'
   c.lineWidth = 3; c.lineCap = 'round'; c.lineJoin = 'round'
   for (const stroke of userStrokes) {
@@ -348,9 +363,12 @@ async function runCheck() {
     const want = currentUnit.value.trim().toLowerCase()
     passed = got !== '' && got === want
   } else {
-    // Web Latin → Groq vision LLM on clean canvas image
-    const result = await checkHandwriting(currentUnit.value, props.lang, getCleanCanvasImage())
-    passed = result?.passed ?? false
+    // Web Latin → Groq vision LLM on cropped stroke image
+    const img = getCleanCanvasImage()
+    if (img) {
+      const result = await checkHandwriting(currentUnit.value, props.lang, img)
+      passed = result?.passed ?? false
+    }
   }
 
   checkResult.value = passed
