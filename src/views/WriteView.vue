@@ -48,13 +48,12 @@
       <div v-else
         class="font-serif leading-relaxed select-none"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
-        style="color:#2a241c; font-size:1.15rem; padding-bottom:220px;">
+        style="color:#2a241c; font-size:1.15rem; padding-bottom:220px; display:flex; flex-wrap:wrap; gap:0.2em 0.35em; align-items:baseline;">
         <span
           v-for="(u, i) in rewriteUnits"
           :key="i"
           :data-current="i === unitIdx ? '1' : undefined"
           :style="unitStyle(i)"
-          :class="!isCJK && i < rewriteUnits.length - 1 ? 'mr-[0.3em]' : ''"
         >{{ u }}</span>
       </div>
 
