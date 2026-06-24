@@ -93,11 +93,6 @@
             style="color:rgba(26,26,46,0.38); border:1px solid rgba(140,122,102,0.3);">
             clear
           </button>
-          <button @click="advanceManual"
-            class="text-xs px-3 py-0.5 rounded-full transition-all"
-            style="background:#2a241c; color:#e8dcc4;">
-            next →
-          </button>
         </div>
       </div>
 
@@ -290,7 +285,7 @@ function endStroke() {
     hwCurStroke = null
   }
   clearTimeout(autoCheckTimer)
-  if (hwApiAvailable) autoCheckTimer = setTimeout(runCheck, 1200)
+  autoCheckTimer = setTimeout(runCheck, 1000)
 }
 
 // ── Recognition ──────────────────────────────────────────────────────────────
@@ -314,19 +309,26 @@ function isMatch(got, expected) {
 }
 
 async function runCheck() {
-  if (checking.value || checkResult.value === true || strokeCount === 0 || !hwDrawing) return
+  if (checking.value || checkResult.value === true || strokeCount === 0) return
   checking.value = true
   let passed = false
-  try {
-    const preds = await hwDrawing.getPrediction()
-    passed = preds.some(p => isMatch(p.text ?? '', currentUnit.value))
-    if (passed) hwDrawing.clear()
-  } catch (err) { console.error('HW recognition:', err) }
+
+  if (hwDrawing) {
+    try {
+      const preds = await hwDrawing.getPrediction()
+      passed = preds.some(p => isMatch(p.text ?? '', currentUnit.value))
+      if (passed) hwDrawing.clear()
+    } catch (err) { console.error('HW recognition:', err) }
+  } else {
+    // HW recognition API unavailable — any drawing counts as correct (motor practice).
+    passed = strokeCount >= 2
+  }
+
   checkResult.value = passed
   checking.value    = false
   if (passed) {
     failCount.value = 0
-    if (!isLast.value) setTimeout(() => { clearCanvas(); goNext(); scrollToCurrent() }, 700)
+    if (!isLast.value) setTimeout(() => { clearCanvas(); goNext(); scrollToCurrent() }, 600)
   } else {
     failCount.value++
   }
