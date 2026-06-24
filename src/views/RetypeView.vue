@@ -102,11 +102,12 @@
               type="button"
               class="inline-block whitespace-nowrap rounded transition-colors hover:bg-ink-primary/8 active:bg-ink-primary/8 select-none bg-transparent border-0 p-0 font-[inherit] leading-[inherit] cursor-pointer"
               :class="[
+                !isCJK && wi < words.length - 1 ? 'mr-[0.3em]' : '',
                 savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-accent-red decoration-dotted underline-offset-2' : '',
                 awaitingSpace && wi === currentWordIndex ? 'border-r-2 border-ink-primary' : ''
               ]"
               @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
-            ><ruby v-if="wordNum(word)" class="szol-num"><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span><rt>{{ wordNum(word) }}</rt></ruby><template v-else><template v-for="(c, ci) in word" :key="ci"><ruby v-if="showGuide && lang === 'zh' && charRoman(c.char)"><span :class="charClass(wi, ci)">{{ c.char }}</span><rt class="text-[0.6em] text-blue-300 font-normal not-italic leading-none">{{ charRoman(c.char) }}</rt></ruby><span v-else :class="charClass(wi, ci)">{{ c.char }}</span></template></template></button><span v-if="!isCJK && wi < words.length - 1" aria-hidden="true"> </span>
+            ><ruby v-if="wordNum(word)" class="szol-num"><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span><rt>{{ wordNum(word) }}</rt></ruby><template v-else><template v-for="(c, ci) in word" :key="ci"><ruby v-if="showGuide && lang === 'zh' && charRoman(c.char)"><span :class="charClass(wi, ci)">{{ c.char }}</span><rt class="text-[0.6em] text-blue-300 font-normal not-italic leading-none">{{ charRoman(c.char) }}</rt></ruby><span v-else :class="charClass(wi, ci)">{{ c.char }}</span></template></template></button>
           </template>
         </template>
       </div>
