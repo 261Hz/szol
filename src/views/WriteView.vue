@@ -105,6 +105,9 @@
         @pointercancel="endStroke"
         @pointerleave="endStroke"
       />
+      <!-- Hidden iinkTS recognition surface (mirrors canvas position) -->
+      <div v-if="msLang" ref="inkEditorEl" aria-hidden="true"
+        style="position:absolute; inset:0; top:auto; height:220px; opacity:0; pointer-events:none;" />
     </div>
   </teleport>
 </template>
@@ -115,10 +118,16 @@ import HanziWriter from 'hanzi-writer'
 import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import { compareStrokes, getHanziTemplate, PASS_THRESHOLD } from '../utils/strokeRecognizer.js'
-import { recognizeInk, transcribeInk } from '../utils/api.js'
+import { recognizeInk } from '../utils/api.js'
 import { Capacitor } from '@capacitor/core'
 import { DigitalInk } from 'capacitor-mlkit-digitalink-plugin'
 
+const MYSCRIPT_LANG = {
+  ar: 'ar',    he: 'he_IL', ru: 'ru_RU', el: 'el_GR', uk: 'uk_UA', bg: 'bg_BG',
+  en: 'en_US', es: 'es_ES', fr: 'fr_FR', de: 'de_DE', it: 'it_IT', pt: 'pt_PT',
+  nl: 'nl_NL', pl: 'pl_PL', sv: 'sv_SE', tr: 'tr_TR', hu: 'hu_HU', fi: 'fi_FI',
+  da: 'da_DK', cs: 'cs_CZ', ro: 'ro_RO',
+}
 
 const ML_KIT_LANG = {
   'zh': 'zh-Hans-CN', 'zh-TW': 'zh-Hant-TW', 'ja': 'ja-JP', 'ko': 'ko-KR',
@@ -132,7 +141,9 @@ const ML_KIT_LANG = {
 const props = defineProps({ story: Object, lang: String })
 const emit  = defineEmits(['go'])
 
-const isCJK = computed(() => ['zh', 'zh-TW', 'ja'].includes(props.lang))
+const isCJK     = computed(() => ['zh', 'zh-TW', 'ja'].includes(props.lang))
+const isNative  = computed(() => Capacitor.isNativePlatform())
+const msLang    = computed(() => !isCJK.value && !isNative.value && MYSCRIPT_LANG[props.lang])
 
 // ── Single source of truth ────────────────────────────────────────────────────
 const rewriteUnits = computed(() => {
@@ -209,6 +220,49 @@ let canvasCssWidth = 0
 let userStrokes        = []   // completed strokes: {x,y}[][]
 let currentStrokePts   = []   // points in the stroke being drawn
 
+// ── iinkTS (web non-CJK recognition via MyScript WebSocket) ──────────────────
+const inkEditorEl  = ref(null)
+let inkEditor      = null
+let inkExportLabel = null   // latest recognized label from iinkTS
+
+async function initInkEditor() {
+  if (isNative.value || isCJK.value || !msLang.value) return
+  const appKey  = import.meta.env.VITE_MYSCRIPT_APP_KEY
+  const hmacKey = import.meta.env.VITE_MYSCRIPT_HMAC_KEY
+  if (!appKey || !hmacKey || !inkEditorEl.value) return
+  try {
+    if (inkEditor) { try { await inkEditor.destroy() } catch {} inkEditor = null }
+    const { Editor } = await import('iink-ts')
+    inkEditor = await Editor.load(inkEditorEl.value, 'INTERACTIVEINK', {
+      configuration: {
+        server: { scheme: 'https', host: 'cloud.myscript.com', applicationKey: appKey, hmacKey },
+        recognition: { lang: msLang.value },
+      },
+    })
+    inkExportLabel = null
+    inkEditor.event.addEventListener('exported', (e) => {
+      inkExportLabel = e.detail?.['application/vnd.myscript.jiix']?.label?.trim() ?? null
+    })
+  } catch (err) {
+    console.warn('iinkTS init failed:', err)
+    inkEditor = null
+  }
+}
+
+function forwardToInkEditor(type, e) {
+  if (!inkEditorEl.value || !inkEditor) return
+  try {
+    inkEditorEl.value.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, cancelable: true,
+      clientX: e.clientX, clientY: e.clientY,
+      pointerId: e.pointerId || 1,
+      pointerType: e.pointerType || 'mouse',
+      pressure: e.pressure || 0.5,
+      isPrimary: true,
+    }))
+  } catch {}
+}
+
 const CANVAS_HEIGHT = 220
 const INK_COLOR     = '#1a1a2e'
 
@@ -233,6 +287,7 @@ function clearCanvas() {
   clearTimeout(autoCheckTimer)
   userStrokes = []; currentStrokePts = []
   if (Capacitor.isNativePlatform()) DigitalInk.erase().catch(() => {})
+  if (inkEditor) { inkEditor.clear().catch(() => {}); inkExportLabel = null }
   if (!ctx || !canvasEl.value) return
   const w = canvasCssWidth || window.innerWidth
   ctx.clearRect(0, 0, w, CANVAS_HEIGHT)
@@ -256,6 +311,7 @@ function startStroke(e) {
   currentStrokePts = [{ x, y }]
   ctx.beginPath()
   ctx.moveTo(x, y)
+  forwardToInkEditor('pointerdown', e)
 }
 
 function extendStroke(e) {
@@ -266,9 +322,10 @@ function extendStroke(e) {
   ctx.stroke()
   ctx.beginPath()
   ctx.moveTo(x, y)
+  forwardToInkEditor('pointermove', e)
 }
 
-function endStroke() {
+function endStroke(e) {
   if (!drawing) return
   drawing = false
   if (currentStrokePts.length > 1) {
@@ -282,6 +339,7 @@ function endStroke() {
     }
   }
   currentStrokePts = []
+  if (e) forwardToInkEditor('pointerup', e)
   clearTimeout(autoCheckTimer)
   autoCheckTimer = setTimeout(runCheck, 1000)
 }
@@ -321,6 +379,15 @@ function getCleanCanvasImage() {
   return off.toDataURL('image/png').split(',')[1]
 }
 
+function levenshtein(a, b) {
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i])
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])
+  return dp[a.length][b.length]
+}
+
 // ── Recognition ──────────────────────────────────────────────────────────────
 async function runCheck() {
   if (checking.value || checkResult.value === true || userStrokes.length === 0) return
@@ -346,11 +413,24 @@ async function runCheck() {
       passed = template ? compareStrokes(userStrokes, template) < PASS_THRESHOLD : userStrokes.length >= 1
     }
   } else {
-    // Web non-CJK: MyScript iink stroke recognition (Latin, Arabic, Hebrew, Cyrillic, Greek…)
-    const result = await transcribeInk(userStrokes, props.lang)
-    const got  = result?.text?.trim().toLowerCase() ?? ''
-    const want = currentUnit.value.trim().toLowerCase()
-    passed = got !== '' && got === want
+    // Web non-CJK: iinkTS WebSocket recognition (Latin, Arabic, Hebrew, Cyrillic, Greek…)
+    if (inkEditor) {
+      if (inkExportLabel === null) {
+        await new Promise(resolve => {
+          const h = (ev) => {
+            inkExportLabel = ev.detail?.['application/vnd.myscript.jiix']?.label?.trim() ?? null
+            inkEditor.event.removeEventListener('exported', h)
+            resolve()
+          }
+          inkEditor.event.addEventListener('exported', h)
+          setTimeout(resolve, 3000)
+        })
+      }
+      const got  = (inkExportLabel ?? '').toLowerCase().replace(/[^\p{L}]/gu, '')
+      const want = currentUnit.value.toLowerCase().replace(/[^\p{L}]/gu, '')
+      const dist = levenshtein(got, want)
+      passed = got !== '' && dist <= (want.length >= 5 ? 1 : 0)
+    }
   }
 
   checkResult.value = passed
@@ -412,7 +492,8 @@ function startQuiz() {
 function onResize() { if (!usesHanzi.value) setupCanvas() }
 
 // ── Lifecycle ────────────────────────────────────────────────────────────────
-watch(canvasEl, (el) => { if (el) setupCanvas() })
+watch(canvasEl,    (el) => { if (el) setupCanvas() })
+watch(inkEditorEl, (el) => { if (el) initInkEditor() })
 
 onMounted(() => {
   if (isCJK.value) nextTick(initWriter)
@@ -424,6 +505,7 @@ onMounted(() => {
 onUnmounted(() => {
   clearTimeout(autoCheckTimer)
   window.removeEventListener('resize', onResize)
+  if (inkEditor) { inkEditor.destroy().catch(() => {}); inkEditor = null }
 })
 
 watch(unitIdx, () => {
@@ -439,6 +521,7 @@ watch([() => props.lang, () => props.story], () => {
   if (isCJK.value) nextTick(initWriter)
   else             setupCanvas()
   ensureMLKitModel()
+  nextTick(initInkEditor)
 })
 </script>
 
