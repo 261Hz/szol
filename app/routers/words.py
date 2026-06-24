@@ -129,8 +129,22 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
         )
         import re as _re
         def letters(s): return _re.sub(r'[^\w]', '', s, flags=_re.UNICODE).lower()
-        ocr = resp.choices[0].message.content.strip()
-        passed = letters(ocr) == letters(word)
+
+        def levenshtein(a, b):
+            m, n = len(a), len(b)
+            dp = list(range(n + 1))
+            for i in range(1, m + 1):
+                prev = dp[:]
+                dp[0] = i
+                for j in range(1, n + 1):
+                    dp[j] = prev[j-1] if a[i-1] == b[j-1] else 1 + min(prev[j], dp[j-1], prev[j-1])
+            return dp[n]
+
+        ocr  = letters(resp.choices[0].message.content.strip())
+        want = letters(word)
+        # Allow 1 edit for words ≥5 letters, exact for short words
+        threshold = 1 if len(want) >= 5 else 0
+        passed = levenshtein(ocr, want) <= threshold
         return {"passed": passed}
     except Exception as e:
         import traceback, logging
