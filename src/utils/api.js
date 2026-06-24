@@ -120,6 +120,19 @@ export function logout() {
   localStorage.removeItem('szol_token')
 }
 
+export async function createGuestAccount(turnstileToken) {
+  const res = await fetch(`${API_URL}/auth/guest`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ turnstile_token: turnstileToken, website: '' }),
+  })
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}))
+    throw new Error(json.detail || 'Could not create session')
+  }
+  return await res.json() // { access_token, token_type, is_guest, trust_level }
+}
+
 export async function updateSettings(settings) {
   const res = await apiFetch(`${API_URL}/users/me`, {
     method:  'PATCH',
@@ -454,6 +467,18 @@ export async function fetchPodcastRss(url) {
   const res = await fetch(`/api/podcast-rss?url=${encodeURIComponent(url)}`).catch(() => null)
   if (!res?.ok) return null
   return await res.json().catch(() => null)
+}
+
+export async function fetchArticleRss(url) {
+  const res = await fetch(`/api/article-rss?url=${encodeURIComponent(url)}`).catch(() => null)
+  if (!res?.ok) return null
+  return await res.json().catch(() => null)
+}
+
+export async function searchFeeds(q) {
+  const res = await fetch(`/api/feed-search?q=${encodeURIComponent(q)}`).catch(() => null)
+  if (!res?.ok) return []
+  return await res.json().catch(() => [])
 }
 
 export async function fetchPodcasts(lang) {

@@ -176,43 +176,78 @@
 
 
     <!-- ════════════════════════════════════
-         ARTICLES — source list
+         ARTICLES — feed list
     ════════════════════════════════════ -->
     <template v-else-if="level === 'articles' && !source">
       <div class="nav-bar">
         <button @click="back" class="back-link">← Archive</button>
         <span class="nav-title">{{ t(lang, 'articles') }}</span>
       </div>
-      <div v-if="feedLoading" class="status-text">{{ t(lang, 'loading') }}</div>
-      <div v-else-if="!feedSources.length" class="status-text">{{ t(lang, 'noArticles') }}</div>
+      <div v-if="!articleShows.length" class="status-text italic-muted">No feeds yet.</div>
       <div v-else class="item-list">
         <button
-          v-for="src in feedSources"
-          :key="src"
-          @click="source = src"
+          v-for="sub in articleShows"
+          :key="sub.feed_url"
+          @click="source = sub.feed_url"
           class="item-row"
         >
-          <span class="item-title">{{ src }}</span>
-          <span class="item-meta">{{ feedBySource[src].length }}</span>
+          <span class="item-title">{{ sub.title }}</span>
         </button>
+      </div>
+      <!-- Search / RSS import -->
+      <div class="import-section" style="margin-top:1rem">
+        <div class="import-row">
+          <input
+            v-model="artUrl"
+            type="text"
+            placeholder="Search or paste feed URL…"
+            @keydown.enter="importArticleRss"
+            class="import-input"
+          />
+          <span v-if="artSearchLoading" class="import-spinner" />
+          <button v-if="isUrl(artUrl)" @click="importArticleRss" :disabled="artUrlLoading" class="import-btn">
+            {{ artUrlLoading ? '…' : 'Add' }}
+          </button>
+        </div>
+        <div v-if="artError" class="import-error">{{ artError }}</div>
+        <div v-if="artResults.length" class="search-results">
+          <div v-for="feed in artResults" :key="feed.feed_url" class="search-row">
+            <img v-if="feed.icon_url" :src="feed.icon_url" class="search-art" />
+            <div class="search-info">
+              <div class="search-title">{{ feed.title }}</div>
+              <div class="search-meta">{{ feed.description?.slice(0, 80) || feed.website }}</div>
+            </div>
+            <button
+              @click="subscribeArticle(feed.feed_url, feed.title, feed.icon_url)"
+              :disabled="articleShows.some(s => s.feed_url === feed.feed_url)"
+              class="import-btn"
+            >{{ articleShows.some(s => s.feed_url === feed.feed_url) ? '✓' : 'Add' }}</button>
+          </div>
+        </div>
       </div>
     </template>
 
-    <!-- ARTICLES — items in source -->
+    <!-- ARTICLES — items in feed -->
     <template v-else-if="level === 'articles' && source">
       <div class="nav-bar">
         <button @click="source = null" class="back-link">← Articles</button>
-        <span class="nav-title">{{ source }}</span>
+        <span class="nav-title">{{ articleShows.find(s => s.feed_url === source)?.title ?? source }}</span>
+        <button @click="removeArticleFeed(source)" class="remove-pod-btn">Remove</button>
       </div>
-      <div class="item-list">
+      <div v-if="artLoading" class="status-text">{{ t(lang, 'loading') }}</div>
+      <div v-else-if="!currentArticles.length" class="status-text italic-muted">No articles found.</div>
+      <div v-else class="item-list">
         <button
-          v-for="item in feedBySource[source]"
-          :key="item.id"
-          @click="openFeed(item)"
+          v-for="item in currentArticles"
+          :key="item.url"
+          @click="openArticle(item)"
           class="item-row"
-          :class="{ 'opacity-40 cursor-wait': fetchingId === item.id }"
+          :class="{ 'opacity-40 cursor-wait': fetchingArtId === item.url }"
         >
-          <div class="item-title">{{ item.title }}</div>
+          <div>
+            <div class="item-title">{{ item.title }}</div>
+            <div v-if="item.pub_date" class="item-sub">{{ new Date(item.pub_date).toLocaleDateString() }}</div>
+          </div>
         </button>
       </div>
     </template>
@@ -259,7 +294,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { fetchCuratedStories, fetchFeed, fetchFeedArticle, fetchPodcastRss, searchPodcasts, getAllProgress } from '../utils/api.js'
+import { fetchCuratedStories, fetchFeedArticle, fetchPodcastRss, fetchArticleRss, searchPodcasts, searchFeeds, getAllProgress } from '../utils/api.js'
 import { fetchFeaturedArticle, fetchOnThisDay } from '../utils/wikipedia.js'
 import { isRTL } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
@@ -279,9 +314,7 @@ const source = ref(null)
 function pick(cat) {
   level.value  = cat
   source.value = null
-  if (cat === 'articles' && !feedItems.value.length)       loadFeed()
-  if (cat === 'podcasts' && !podcastEpisodes.value.length) loadPodcasts()
-  if (cat === 'history'  && !todayArticle.value)           loadHistory()
+  if (cat === 'history' && !todayArticle.value) loadHistory()
 }
 
 function back() { level.value = null; source.value = null }
@@ -322,53 +355,17 @@ async function loadStories(lang) {
   emit('stories-loaded', stories.value)
 }
 
-// ── Articles ───────────────────────────────────────────────────
-const feedLoading = ref(false)
-const feedItems   = ref([])
-const fetchingId  = ref(null)
+const isUrl = (s) => /^https?:\/\//i.test(s.trim())
 
-const feedSources = computed(() =>
-  [...new Set(feedItems.value.map(f => f.source_name))].sort()
-)
-
-const feedBySource = computed(() => {
-  const map = {}
-  for (const item of feedItems.value) {
-    const k = item.source_name
-    if (!map[k]) map[k] = []
-    map[k].push(item)
-  }
-  return map
-})
-
-async function loadFeed() {
-  feedLoading.value = true
-  feedItems.value   = await fetchFeed(props.lang, 0, 80)
-  feedLoading.value = false
-}
-
-async function openFeed(item) {
-  if (fetchingId.value) return
-  const wc = (item.text || '').split(/\s+/).filter(Boolean).length
-  if (wc >= 100) {
-    emit('load', { id: item.id, title: item.title, content: item.text, lang: item.lang, source: item.source_name })
-    return
-  }
-  fetchingId.value = item.id
-  const data = await fetchFeedArticle(item.source_url)
-  fetchingId.value = null
-  const text = data?.text && data.text.split(/\s+/).length > wc ? data.text : item.text
-  emit('load', { id: item.id, title: item.title, content: text, lang: item.lang, source: item.source_name })
-}
+// ── Shared sub helpers ─────────────────────────────────────────
+function _readStore(key) { try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] } }
+function _writeStore(key, val) { localStorage.setItem(key, JSON.stringify(val)) }
 
 // ── Podcasts ───────────────────────────────────────────────────
-// Subscriptions stored in localStorage: [{feed_url, podcast_name, artwork}]
-// Episodes fetched on demand from RSS when a show is opened — nothing stored in DB.
-const SUBS_KEY = 'szol_podcast_subs'
-function loadSubs() { try { return JSON.parse(localStorage.getItem(SUBS_KEY) || '[]') } catch { return [] } }
-function saveSubs(s) { localStorage.setItem(SUBS_KEY, JSON.stringify(s)) }
-
-const subscriptions   = ref(loadSubs())
+// Subscriptions in localStorage per language: [{feed_url, podcast_name, artwork, lang}]
+const POD_KEY = 'szol_podcast_subs'
+const allPodSubs      = ref(_readStore(POD_KEY))
+const podcastShows    = computed(() => allPodSubs.value.filter(s => s.lang === props.lang))
 const currentEpisodes = ref([])
 const episodesLoading = ref(false)
 const rssUrl          = ref('')
@@ -377,32 +374,31 @@ const rssError        = ref('')
 const searchResults   = ref([])
 const searchLoading   = ref(false)
 const subscribingFeed = ref(null)
-let   _searchTimer    = null
-
-const isUrl = (s) => /^https?:\/\//i.test(s.trim())
+let   _podSearchTimer = null
 
 watch(rssUrl, (val) => {
-  clearTimeout(_searchTimer)
+  clearTimeout(_podSearchTimer)
   searchResults.value = []
   rssError.value = ''
   if (isUrl(val) || val.trim().length < 2) return
-  _searchTimer = setTimeout(async () => {
+  _podSearchTimer = setTimeout(async () => {
     searchLoading.value = true
     searchResults.value = await searchPodcasts(val.trim())
     searchLoading.value = false
   }, 400)
 })
 
-function _addSubscription(feedUrl, podcastName, artwork) {
-  if (subscriptions.value.some(s => s.feed_url === feedUrl)) return
-  const updated = [{ feed_url: feedUrl, podcast_name: podcastName, artwork: artwork ?? null }, ...subscriptions.value]
-  subscriptions.value = updated
-  saveSubs(updated)
+function _addPodSub(feedUrl, podcastName, artwork) {
+  const all = _readStore(POD_KEY)
+  if (all.some(s => s.feed_url === feedUrl && s.lang === props.lang)) return
+  const updated = [{ feed_url: feedUrl, podcast_name: podcastName, artwork: artwork ?? null, lang: props.lang }, ...all]
+  allPodSubs.value = updated
+  _writeStore(POD_KEY, updated)
 }
 
 function subscribeFromSearch(feedUrl, podcastName, artwork) {
   subscribingFeed.value = feedUrl
-  _addSubscription(feedUrl, podcastName, artwork)
+  _addPodSub(feedUrl, podcastName, artwork)
   subscribingFeed.value = null
   searchResults.value   = []
   rssUrl.value          = ''
@@ -420,32 +416,25 @@ async function importRss() {
     rssError.value = data?.detail ?? t(props.lang, 'noRssEpisodes')
     return
   }
-  _addSubscription(url, data.title, data.image ?? null)
+  _addPodSub(url, data.title, data.image ?? null)
   rssUrl.value = ''
   source.value = data.title
 }
 
-// Fetch episodes from RSS when a show is opened
 watch(source, async (name) => {
-  if (!name) { currentEpisodes.value = []; return }
-  const sub = subscriptions.value.find(s => s.podcast_name === name)
+  if (!name || level.value !== 'podcasts') { currentEpisodes.value = []; return }
+  const sub = podcastShows.value.find(s => s.podcast_name === name)
   if (!sub) { currentEpisodes.value = []; return }
   episodesLoading.value = true
   const data = await fetchPodcastRss(sub.feed_url)
   episodesLoading.value = false
   currentEpisodes.value = (data?.episodes ?? []).map(ep => ({
-    id:             ep.audio_url,
-    title:          ep.title,
-    lang:           props.lang,
-    podcast_name:   name,
-    audio_url:      ep.audio_url,
-    duration_sec:   ep.duration_sec ?? null,
-    transcript_url: ep.transcript_url ?? null,
-    source_type:    'podcast',
+    id: ep.audio_url, title: ep.title, lang: props.lang,
+    podcast_name: name, audio_url: ep.audio_url,
+    duration_sec: ep.duration_sec ?? null, transcript_url: ep.transcript_url ?? null,
+    source_type: 'podcast',
   }))
 })
-
-const podcastShows = computed(() => subscriptions.value)
 
 function listenEpisode(ep) {
   emit('open-listen', {
@@ -457,10 +446,100 @@ function listenEpisode(ep) {
 }
 
 function removePodcast(feedUrl) {
-  const updated = subscriptions.value.filter(s => s.feed_url !== feedUrl)
-  subscriptions.value = updated
-  saveSubs(updated)
-  if (source.value) source.value = null
+  const updated = _readStore(POD_KEY).filter(s => !(s.feed_url === feedUrl && s.lang === props.lang))
+  allPodSubs.value = updated
+  _writeStore(POD_KEY, updated)
+  source.value = null
+}
+
+// ── Articles ───────────────────────────────────────────────────
+// Subscriptions in localStorage per language: [{feed_url, title, icon_url, lang}]
+const ART_KEY = 'szol_article_subs'
+const allArtSubs      = ref(_readStore(ART_KEY))
+const articleShows    = computed(() => allArtSubs.value.filter(s => s.lang === props.lang))
+const currentArticles = ref([])
+const artLoading      = ref(false)
+const artUrl          = ref('')
+const artUrlLoading   = ref(false)
+const artError        = ref('')
+const artResults      = ref([])
+const artSearchLoading = ref(false)
+const fetchingArtId   = ref(null)
+let   _artSearchTimer = null
+
+watch(artUrl, (val) => {
+  clearTimeout(_artSearchTimer)
+  artResults.value = []
+  artError.value = ''
+  if (isUrl(val) || val.trim().length < 2) return
+  _artSearchTimer = setTimeout(async () => {
+    artSearchLoading.value = true
+    artResults.value = await searchFeeds(val.trim())
+    artSearchLoading.value = false
+  }, 400)
+})
+
+function _addArtSub(feedUrl, title, iconUrl) {
+  const all = _readStore(ART_KEY)
+  if (all.some(s => s.feed_url === feedUrl && s.lang === props.lang)) return
+  const updated = [{ feed_url: feedUrl, title, icon_url: iconUrl ?? null, lang: props.lang }, ...all]
+  allArtSubs.value = updated
+  _writeStore(ART_KEY, updated)
+}
+
+function subscribeArticle(feedUrl, title, iconUrl) {
+  _addArtSub(feedUrl, title, iconUrl)
+  artResults.value = []
+  artUrl.value     = ''
+  source.value     = feedUrl
+}
+
+async function importArticleRss() {
+  const url = artUrl.value.trim()
+  if (!url || artUrlLoading.value || !isUrl(url)) return
+  artUrlLoading.value = true
+  artError.value      = ''
+  const data = await fetchArticleRss(url)
+  artUrlLoading.value = false
+  if (!data?.articles?.length) {
+    artError.value = data?.error ?? 'No articles found.'
+    return
+  }
+  _addArtSub(url, data.title, data.image ?? null)
+  artUrl.value = ''
+  source.value = url
+}
+
+watch(source, async (src) => {
+  if (!src || level.value !== 'articles') { currentArticles.value = []; return }
+  const sub = articleShows.value.find(s => s.feed_url === src)
+  if (!sub) { currentArticles.value = []; return }
+  artLoading.value = true
+  const data = await fetchArticleRss(src)
+  artLoading.value = false
+  currentArticles.value = data?.articles ?? []
+})
+
+async function openArticle(item) {
+  if (fetchingArtId.value) return
+  if ((item.description || '').split(/\s+/).length >= 100) {
+    emit('load', { id: item.url, title: item.title, content: item.description, lang: props.lang,
+      source: articleShows.value.find(s => s.feed_url === source.value)?.title ?? '' })
+    return
+  }
+  fetchingArtId.value = item.url
+  const data = await fetchFeedArticle(item.url)
+  fetchingArtId.value = null
+  const text = data?.text || item.description || ''
+  emit('load', { id: item.url, title: item.title, content: text, lang: props.lang,
+    source: articleShows.value.find(s => s.feed_url === source.value)?.title ?? '' })
+}
+
+function removeArticleFeed(feedUrl) {
+  const updated = _readStore(ART_KEY).filter(s => !(s.feed_url === feedUrl && s.lang === props.lang))
+  allArtSubs.value = updated
+  _writeStore(ART_KEY, updated)
+  source.value = null
 }
 
 // ── History ────────────────────────────────────────────────────
