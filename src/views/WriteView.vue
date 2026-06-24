@@ -27,7 +27,7 @@
         style="background:#fefce8; border:1px solid #e8dcc8;">
         <div class="self-stretch font-serif text-sm leading-relaxed select-none"
           :dir="isRTL(lang) ? 'rtl' : 'ltr'" style="color:#2a241c; max-height:80px; overflow:hidden;">
-          <span v-for="(ch, ci) in cjkChars" :key="ci" :style="charStyle(ci)">{{ ch }}</span>
+          <span v-for="(u, i) in rewriteUnits" :key="i" :style="unitStyle(i)">{{ u }}</span>
         </div>
         <div ref="hanziContainer" class="hanzi-container rounded-xl" />
         <div v-if="charError" class="text-xs" style="color:rgba(140,122,102,0.6)">Stroke data unavailable.</div>
@@ -44,26 +44,21 @@
         </div>
       </div>
 
-      <!-- ── Full-page story text (non-Hanzi modes) ─────────────────────── -->
+      <!-- ── Full-page story text (write mode) ─────────────────────────── -->
       <div v-else
         class="font-serif leading-relaxed select-none"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         style="color:#2a241c; font-size:1.15rem; padding-bottom:220px;">
-        <template v-if="isCJK">
-          <span v-for="(ch, ci) in cjkChars" :key="ci"
-            :data-current="ci === unitIdx ? '1' : undefined"
-            :style="charStyle(ci)">{{ ch }}</span>
-        </template>
-        <template v-else>
-          <template v-for="(sent, si) in sentences" :key="si">
-            <span v-for="(word, wi) in sentenceWords(sent)" :key="si+'-'+wi"
-              :data-current="si === sentenceIdx && wi === wordIdx ? '1' : undefined"
-              :style="wordStyle(si, wi)">{{ word }} </span>
-          </template>
-        </template>
+        <span
+          v-for="(u, i) in rewriteUnits"
+          :key="i"
+          :data-current="i === unitIdx ? '1' : undefined"
+          :style="unitStyle(i)"
+          :class="!isCJK && i < rewriteUnits.length - 1 ? 'mr-[0.3em]' : ''"
+        >{{ u }}</span>
       </div>
 
-      <!-- ── Navigation (top-right, small) ─────────────────────────────── -->
+      <!-- ── Navigation ─────────────────────────────────────────────────── -->
       <div v-if="!usesHanzi" class="flex justify-between items-center">
         <button @click="emit('go', 'retype')"
           class="text-sm px-3 py-1.5 rounded-lg transition-all"
@@ -134,65 +129,29 @@ const emit  = defineEmits(['go'])
 
 const isCJK = computed(() => ['zh', 'zh-TW', 'ja'].includes(props.lang))
 
-// ── Story parsing ────────────────────────────────────────────────────────────
-const sentences = computed(() => {
+// ── Single source of truth: all units the user must write, in order ──────────
+// CJK = every letter character; Latin/RTL = whitespace-split words with
+// leading/trailing punctuation stripped (mirrors RetypeView's buildWords).
+const rewriteUnits = computed(() => {
   if (!props.story) return []
-  return props.story.content.split(/(?<=[.!?؟।。！？])\s+/).map(s => s.trim()).filter(Boolean)
+  const text = props.story.content.trim()
+  if (isCJK.value) return [...text].filter(c => /\p{L}/u.test(c))
+  return text.split(/\s+/).map(w => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')).filter(Boolean)
 })
 
-function sentenceWords(sent) { return sent.trim().split(/\s+/).filter(Boolean) }
+// ── Single index ─────────────────────────────────────────────────────────────
+const unitIdx = ref(0)
 
-const cjkChars = computed(() => {
-  if (!props.story || !isCJK.value) return []
-  return [...props.story.content].filter(c => /\p{L}/u.test(c))
-})
+const currentUnit = computed(() => rewriteUnits.value[unitIdx.value] ?? '')
 
-// ── Navigation ───────────────────────────────────────────────────────────────
-const sentenceIdx = ref(0)
-const wordIdx     = ref(0)
-const unitIdx     = ref(0)
+const isFirst = computed(() => unitIdx.value === 0)
 
-const wordsInSentence = computed(() => sentenceWords(sentences.value[sentenceIdx.value] ?? ''))
+const isLast = computed(() => unitIdx.value >= rewriteUnits.value.length - 1)
 
-const currentUnit = computed(() =>
-  isCJK.value ? (cjkChars.value[unitIdx.value] ?? '') : (wordsInSentence.value[wordIdx.value] ?? '')
-)
-
-const isFirst = computed(() =>
-  isCJK.value ? unitIdx.value === 0 : sentenceIdx.value === 0 && wordIdx.value === 0
-)
-
-const isLast = computed(() =>
-  isCJK.value
-    ? unitIdx.value >= cjkChars.value.length - 1
-    : sentenceIdx.value >= sentences.value.length - 1 &&
-      wordIdx.value >= wordsInSentence.value.length - 1
-)
-
-const totalUnits = computed(() =>
-  isCJK.value ? cjkChars.value.length : sentences.value.reduce((n, s) => n + sentenceWords(s).length, 0)
-)
-
-const currentUnitNum = computed(() => {
-  if (isCJK.value) return unitIdx.value + 1
-  let n = 0
-  for (let si = 0; si < sentences.value.length; si++) {
-    const ws = sentenceWords(sentences.value[si])
-    if (si < sentenceIdx.value) { n += ws.length; continue }
-    n += wordIdx.value + 1; break
-  }
-  return n
-})
-
-const progressLabel = computed(() => `${currentUnitNum.value} / ${totalUnits.value}`)
+const progressLabel = computed(() => `${unitIdx.value + 1} / ${rewriteUnits.value.length}`)
 
 function goNext() {
-  if (isCJK.value) {
-    if (unitIdx.value < cjkChars.value.length - 1) unitIdx.value++
-  } else {
-    if (wordIdx.value < wordsInSentence.value.length - 1) wordIdx.value++
-    else if (sentenceIdx.value < sentences.value.length - 1) { sentenceIdx.value++; wordIdx.value = 0 }
-  }
+  if (!isLast.value) unitIdx.value++
 }
 
 function advanceManual() {
@@ -205,20 +164,14 @@ const DONE_STYLE    = 'color:#8c7a66;'
 const CURRENT_STYLE = 'color:#2a241c; font-weight:700; border-bottom:2px solid #8b3a3a; padding-bottom:1px;'
 const FUTURE_STYLE  = 'color:rgba(140,122,102,0.3);'
 
-function charStyle(ci) {
-  if (ci < unitIdx.value)   return DONE_STYLE
-  if (ci === unitIdx.value) return CURRENT_STYLE
+function unitStyle(i) {
+  if (i < unitIdx.value)   return DONE_STYLE
+  if (i === unitIdx.value) return CURRENT_STYLE
   return FUTURE_STYLE
 }
 
-function wordStyle(si, wi) {
-  const past = si < sentenceIdx.value || (si === sentenceIdx.value && wi < wordIdx.value)
-  const curr = si === sentenceIdx.value && wi === wordIdx.value
-  return past ? DONE_STYLE : curr ? CURRENT_STYLE : FUTURE_STYLE
-}
-
 // ── Auto-scroll current word into view above the canvas strip ────────────────
-const CANVAS_TOTAL_H = 200   // canvas + controls strip (px) — keep in sync with canvas height
+const CANVAS_TOTAL_H = 200
 
 function scrollToCurrent() {
   nextTick(() => {
@@ -226,7 +179,7 @@ function scrollToCurrent() {
     if (!el) return
     const rect = el.getBoundingClientRect()
     const vh   = window.innerHeight
-    const usable = vh - CANVAS_TOTAL_H   // viewport area above canvas
+    const usable = vh - CANVAS_TOTAL_H
     const targetScroll = window.scrollY + rect.top - usable * 0.35
     window.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' })
   })
@@ -242,9 +195,11 @@ async function initHW() {
   if (!hwApiAvailable) return
   if (hwRecognizer) { try { hwRecognizer.finish() } catch {} hwRecognizer = null; hwDrawing = null }
   try {
-    hwRecognizer = await navigator.createHandwritingRecognizer({ languages: [props.lang === 'zh-TW' ? 'zh-TW' : props.lang === 'zh' ? 'zh' : props.lang] })
-    hwDrawing    = hwRecognizer.startDrawing({ alternatives: 8 })
-  } catch {}
+    hwRecognizer = await navigator.createHandwritingRecognizer({
+      languages: [props.lang === 'zh-TW' ? 'zh-TW' : props.lang === 'zh' ? 'zh' : props.lang]
+    })
+    hwDrawing = hwRecognizer.startDrawing({ alternatives: 8 })
+  } catch (err) { console.error('HW init:', err) }
 }
 
 // ── Canvas ───────────────────────────────────────────────────────────────────
@@ -265,8 +220,6 @@ function setupCanvas() {
   const el = canvasEl.value
   if (!el) return
   const dpr      = window.devicePixelRatio || 1
-  // Use the element's actual laid-out width so pointer coords and canvas coords agree.
-  // window.innerWidth drifts when the fixed container has scrollbars or padding.
   const rect     = el.getBoundingClientRect()
   canvasCssWidth = rect.width || window.innerWidth
   el.width        = canvasCssWidth * dpr
@@ -286,13 +239,12 @@ function clearCanvas() {
   const w = canvasCssWidth || window.innerWidth
   const h = CANVAS_HEIGHT
   ctx.clearRect(0, 0, w, h)
-  // Ghost trace guide: always show target word faintly
   if (currentUnit.value) {
     ctx.save()
     ctx.font = `bold ${Math.min(h * 0.7, 100)}px serif`
     ctx.fillStyle = 'rgba(139,58,58,0.07)'
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText(currentUnit.value, (canvasCssWidth || window.innerWidth) / 2, h / 2)
+    ctx.fillText(currentUnit.value, w / 2, h / 2)
     ctx.restore()
   }
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
@@ -431,15 +383,12 @@ function startQuiz() {
 function onResize() { if (!usesHanzi.value) setupCanvas() }
 
 // ── Lifecycle ────────────────────────────────────────────────────────────────
-
-// Teleported canvas appears asynchronously after the component mounts.
-// Watch the ref so setupCanvas runs the moment the DOM element is available.
 watch(canvasEl, (el) => { if (el) setupCanvas() })
 
 onMounted(async () => {
   await initHW()
   if (isCJK.value) nextTick(initWriter)
-  else             setupCanvas()   // no-op if canvasEl not yet in DOM; watcher handles that case
+  else             setupCanvas()
   window.addEventListener('resize', onResize)
 })
 
@@ -449,14 +398,14 @@ onUnmounted(() => {
   if (hwRecognizer) { try { hwRecognizer.finish() } catch {} }
 })
 
-watch([unitIdx, wordIdx, sentenceIdx], () => {
+watch(unitIdx, () => {
   quizDone.value = false; checkResult.value = null; failCount.value = 0
   if (usesHanzi.value) nextTick(initWriter)
   else                 nextTick(() => { clearCanvas(); scrollToCurrent() })
 })
 
 watch([() => props.lang, () => props.story], async () => {
-  sentenceIdx.value = 0; wordIdx.value = 0; unitIdx.value = 0
+  unitIdx.value = 0
   mode.value = 'guided'; quizActive.value = false; quizDone.value = false
   charError.value = false; writer = null; checkResult.value = null; failCount.value = 0
   await initHW()
