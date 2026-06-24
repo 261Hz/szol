@@ -149,9 +149,9 @@
             </div>
             <button
               @click="subscribeFromSearch(pod.feed_url, pod.title, pod.artwork)"
-              :disabled="subscribingFeed === pod.feed_url || subscriptions.some(s => s.feed_url === pod.feed_url)"
+              :disabled="subscribingFeed === pod.feed_url || podcastShows.some(s => s.feed_url === pod.feed_url)"
               class="import-btn"
-            >{{ subscriptions.some(s => s.feed_url === pod.feed_url) ? '✓' : 'Add' }}</button>
+            >{{ podcastShows.some(s => s.feed_url === pod.feed_url) ? '✓' : 'Add' }}</button>
           </div>
         </div>
       </div>
@@ -162,7 +162,7 @@
       <div class="nav-bar">
         <button @click="source = null" class="back-link">← Podcasts</button>
         <span class="nav-title">{{ source }}</span>
-        <button v-if="source !== JRE_NAME" @click="removePodcast(subscriptions.find(s => s.podcast_name === source)?.feed_url)" class="remove-pod-btn">Remove</button>
+        <button v-if="source !== JRE_NAME" @click="removePodcast(podcastShows.find(s => s.podcast_name === source)?.feed_url)" class="remove-pod-btn">Remove</button>
       </div>
       <div v-if="episodesLoading" class="status-text">{{ t(lang, 'loading') }}</div>
       <div v-else-if="!currentEpisodes.length" class="status-text italic-muted">No episodes found.</div>
