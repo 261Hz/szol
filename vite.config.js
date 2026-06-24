@@ -1,26 +1,63 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
+import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
   plugins: [
     vue(),
     tailwindcss(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'robots.txt'],
+      manifest: {
+        name: 'Szól',
+        short_name: 'Szól',
+        description: 'Read, listen, and write in any language.',
+        theme_color: '#2a241c',
+        background_color: '#d4c7a4',
+        display: 'standalone',
+        start_url: '/',
+        icons: [
+          { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+          { src: 'apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        runtimeCaching: [
+          {
+            // App API — network first, fall back to cache
+            urlPattern: /^https:\/\/szol\.onrender\.com\//,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              networkTimeoutSeconds: 10,
+              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 },
+            },
+          },
+          {
+            // Google Fonts + web fonts
+            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'font-cache',
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+        ],
+      },
+    }),
   ],
   optimizeDeps: {
     exclude: ['@huggingface/transformers'],
   },
   server: {
     proxy: {
-      // In local dev, redirect /api/tatoeba to Tatoeba's real API.
-      // Vite makes this request from its own Node.js process (no browser CORS restriction).
-      // In production on Vercel, /api/tatoeba is handled by api/tatoeba.js instead.
       '/api/tatoeba': {
         target: 'https://tatoeba.org',
-        changeOrigin: true, // makes the request look like it came from tatoeba.org itself
-        // rewrite() transforms the path before forwarding.
-        // /api/tatoeba?query=... → /en/api_v0/search?query=...
-        // The query string (?query=...) is preserved automatically; only the path is rewritten.
+        changeOrigin: true,
         rewrite: (path) => path.replace('/api/tatoeba', '/en/api_v0/search'),
       },
     },

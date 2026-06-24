@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#2a241c"/>
+  <text
+    x="256" y="330"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="260"
+    font-weight="400"
+    fill="#e8dcc4"
+    text-anchor="middle"
+    letter-spacing="-8"
+  >Sz</text>
+  <text
+    x="256" y="400"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="52"
+    font-weight="400"
+    fill="#8b3a3a"
+    text-anchor="middle"
+    letter-spacing="8"
+  >ól</text>
+</svg>
