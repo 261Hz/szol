@@ -115,6 +115,7 @@ import HanziWriter from 'hanzi-writer'
 import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import { compareStrokes, getHanziTemplate, PASS_THRESHOLD } from '../utils/strokeRecognizer.js'
+import { recognizeInk } from '../utils/api.js'
 
 const props = defineProps({ story: Object, lang: String })
 const emit  = defineEmits(['go'])
@@ -259,17 +260,21 @@ async function runCheck() {
   let passed = false
 
   if (isCJK.value) {
-    const template = await getHanziTemplate(currentUnit.value)
-    if (template) {
-      const score = compareStrokes(userStrokes, template)
-      passed = score < PASS_THRESHOLD
+    // Try backend first: per-stroke comparison, better than whole-char $1
+    const result = await recognizeInk(userStrokes, props.lang, currentUnit.value)
+    if (result !== null) {
+      passed = result.match
     } else {
-      // No template data (rare) — accept any drawing
-      passed = userStrokes.length >= 1
+      // Backend unreachable: fall back to local $1 recognizer
+      const template = await getHanziTemplate(currentUnit.value)
+      if (template) {
+        passed = compareStrokes(userStrokes, template) < PASS_THRESHOLD
+      } else {
+        passed = userStrokes.length >= 1
+      }
     }
   } else {
-    // Latin / RTL: no geometric templates available.
-    // Pass when stroke count is proportional to word length.
+    // Latin / RTL: stroke-count heuristic (no template library yet)
     const minStrokes = Math.max(1, Math.ceil(currentUnit.value.length / 4))
     passed = userStrokes.length >= minStrokes
   }
