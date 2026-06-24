@@ -82,6 +82,7 @@
           <span v-if="checkResult === true" class="text-base font-bold" style="color:#38a169">✓</span>
           <span v-else-if="checkResult === false" class="text-base font-bold" style="color:#8b3a3a">✗</span>
           <span v-else-if="checking" class="text-xs" style="color:#8c7a66;">…</span>
+          <span v-else-if="mlkitDownloading" class="text-xs" style="color:#8c7a66;">downloading model…</span>
           <span v-else class="text-xs" style="color:rgba(140,122,102,0.5);">write the word</span>
         </div>
         <div class="flex items-center gap-3">
@@ -116,8 +117,19 @@ import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import { compareStrokes, getHanziTemplate, PASS_THRESHOLD } from '../utils/strokeRecognizer.js'
 import { recognizeInk, transcribeInk, checkHandwriting } from '../utils/api.js'
+import { Capacitor } from '@capacitor/core'
+import { DigitalInk } from 'capacitor-mlkit-digitalink-plugin'
 
 const MYSCRIPT_LANGS = new Set(['ar', 'he', 'ru', 'el', 'uk', 'bg'])
+
+const ML_KIT_LANG = {
+  'zh': 'zh-Hans-CN', 'zh-TW': 'zh-Hant-TW', 'ja': 'ja-JP', 'ko': 'ko-KR',
+  'ar': 'ar',         'he': 'he-IL',           'ru': 'ru-RU', 'uk': 'uk-UA',
+  'bg': 'bg-BG',      'el': 'el-GR',
+  'en': 'en-US', 'es': 'es-ES', 'fr': 'fr-FR', 'de': 'de-DE', 'it': 'it-IT',
+  'pt': 'pt-PT', 'nl': 'nl-NL', 'pl': 'pl-PL', 'sv': 'sv-SE', 'tr': 'tr-TR',
+  'hu': 'hu-HU', 'fi': 'fi-FI', 'da': 'da-DK', 'cs': 'cs-CZ', 'ro': 'ro-RO',
+}
 
 const props = defineProps({ story: Object, lang: String })
 const emit  = defineEmits(['go'])
@@ -167,6 +179,25 @@ function scrollToCurrent() {
 }
 
 // ── Canvas ───────────────────────────────────────────────────────────────────
+// ── ML Kit (native only) ─────────────────────────────────────────────────────
+const mlkitDownloading = ref(false)
+
+function mlkitLang() { return ML_KIT_LANG[props.lang] || 'en-US' }
+
+async function ensureMLKitModel() {
+  if (!Capacitor.isNativePlatform()) return
+  const lang = mlkitLang()
+  try {
+    const { models } = await DigitalInk.getDownloadedModels()
+    if (models.includes(lang)) return
+    mlkitDownloading.value = true
+    await new Promise(resolve => {
+      DigitalInk.downloadSingularModel({ model: lang }, r => { if (r.done) resolve() })
+    })
+  } catch { /* ignore — recognition falls back gracefully */ }
+  finally { mlkitDownloading.value = false }
+}
+
 const canvasEl    = ref(null)
 const checking    = ref(false)
 const checkResult = ref(null)
@@ -203,6 +234,7 @@ function setupCanvas() {
 function clearCanvas() {
   clearTimeout(autoCheckTimer)
   userStrokes = []; currentStrokePts = []
+  if (Capacitor.isNativePlatform()) DigitalInk.erase().catch(() => {})
   if (!ctx || !canvasEl.value) return
   const w = canvasCssWidth || window.innerWidth
   ctx.clearRect(0, 0, w, CANVAS_HEIGHT)
@@ -249,7 +281,16 @@ function extendStroke(e) {
 function endStroke() {
   if (!drawing) return
   drawing = false
-  if (currentStrokePts.length > 1) userStrokes.push([...currentStrokePts])
+  if (currentStrokePts.length > 1) {
+    const stroke = [...currentStrokePts]
+    userStrokes.push(stroke)
+    if (Capacitor.isNativePlatform()) {
+      DigitalInk.logStrokes({
+        x: stroke.map(p => p.x),
+        y: stroke.map(p => p.y),
+      }).catch(() => {})
+    }
+  }
   currentStrokePts = []
   clearTimeout(autoCheckTimer)
   autoCheckTimer = setTimeout(runCheck, 1000)
@@ -283,8 +324,17 @@ async function runCheck() {
   checking.value = true
   let passed = false
 
-  if (isCJK.value) {
-    // Backend per-stroke geometric comparison; fall back to local $1
+  if (Capacitor.isNativePlatform()) {
+    // Native: ML Kit Digital Ink Recognition for all languages
+    const result = await DigitalInk.doRecognition({
+      model: mlkitLang(),
+      writingArea: { w: canvasCssWidth || window.innerWidth, h: CANVAS_HEIGHT },
+    }).catch(() => null)
+    const top  = (result?.results?.candidates?.[0] ?? '').trim().toLowerCase()
+    const want = currentUnit.value.trim().toLowerCase()
+    passed = top !== '' && top === want
+  } else if (isCJK.value) {
+    // Web CJK: backend per-stroke geometric comparison; fall back to local $1
     const result = await recognizeInk(userStrokes, props.lang, currentUnit.value)
     if (result !== null) {
       passed = result.match
@@ -293,13 +343,13 @@ async function runCheck() {
       passed = template ? compareStrokes(userStrokes, template) < PASS_THRESHOLD : userStrokes.length >= 1
     }
   } else if (MYSCRIPT_LANGS.has(props.lang)) {
-    // Arabic / Hebrew / Russian / Greek → MyScript iink (stroke-based cloud recognition)
+    // Web Arabic / Hebrew / Russian / Greek → MyScript iink
     const result = await transcribeInk(userStrokes, props.lang)
     const got  = result?.text?.trim().toLowerCase() ?? ''
     const want = currentUnit.value.trim().toLowerCase()
     passed = got !== '' && got === want
   } else {
-    // Latin → Groq vision LLM on a clean white canvas image
+    // Web Latin → Groq vision LLM on clean canvas image
     const result = await checkHandwriting(currentUnit.value, props.lang, getCleanCanvasImage())
     passed = result?.passed ?? false
   }
@@ -369,6 +419,7 @@ onMounted(() => {
   if (isCJK.value) nextTick(initWriter)
   else             setupCanvas()
   window.addEventListener('resize', onResize)
+  ensureMLKitModel()
 })
 
 onUnmounted(() => {
@@ -388,6 +439,7 @@ watch([() => props.lang, () => props.story], () => {
   charError.value = false; writer = null; checkResult.value = null; failCount.value = 0
   if (isCJK.value) nextTick(initWriter)
   else             setupCanvas()
+  ensureMLKitModel()
 })
 </script>
 
