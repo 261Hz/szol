@@ -141,11 +141,14 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
                     dp[j] = prev[j-1] if a[i-1] == b[j-1] else 1 + min(prev[j], dp[j-1], prev[j-1])
             return dp[n]
 
-        ocr  = letters(resp.choices[0].message.content.strip())
+        import logging as _log
+        raw  = resp.choices[0].message.content.strip()
+        ocr  = letters(raw)
         want = letters(word)
-        # Allow 1 edit for words ≥5 letters, exact for short words
         threshold = 1 if len(want) >= 5 else 0
-        passed = levenshtein(ocr, want) <= threshold
+        dist   = levenshtein(ocr, want)
+        passed = dist <= threshold
+        _log.warning("OCR raw=%r  norm=%r  want=%r  dist=%d  passed=%s", raw, ocr, want, dist, passed)
         return {"passed": passed}
     except Exception as e:
         import traceback, logging
