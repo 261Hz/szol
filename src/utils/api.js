@@ -231,7 +231,8 @@ export function removeVocabWord(word, lang) {
 
 export async function getVocabClips(word, lang) {
   const res = await fetch(
-    `/api/find-clips?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}`
+    `/api/find-clips?word=${encodeURIComponent(word)}&lang=${encodeURIComponent(lang)}`,
+    { headers: authHeaders() }
   ).catch(() => null)
   if (!res?.ok) return []
   return await res.json().catch(() => [])
@@ -356,7 +357,7 @@ export async function fetchYouTubeTranscript(videoId, lang) {
   const l = encodeURIComponent(lang)
 
   const metaPromise = fetchVideoMetadata(videoId)
-  const vercelRes   = await fetch(`/api/transcript-segments?v=${v}&lang=${l}`)
+  const vercelRes   = await fetch(`/api/transcript-segments?v=${v}&lang=${l}`, { headers: authHeaders() })
   const vercelData  = await vercelRes.json().catch(() => ({}))
   if (vercelRes.ok) {
     const meta = await metaPromise
@@ -457,19 +458,19 @@ export async function fetchFeedArticle(url) {
 }
 
 export async function fetchPodcastRss(url) {
-  const res = await fetch(`/api/podcast-rss?url=${encodeURIComponent(url)}`).catch(() => null)
+  const res = await fetch(`/api/podcast-rss?url=${encodeURIComponent(url)}`, { headers: authHeaders() }).catch(() => null)
   if (!res?.ok) return null
   return await res.json().catch(() => null)
 }
 
 export async function fetchArticleRss(url) {
-  const res = await fetch(`/api/feeds?action=rss&url=${encodeURIComponent(url)}`).catch(() => null)
+  const res = await fetch(`/api/feeds?action=rss&url=${encodeURIComponent(url)}`, { headers: authHeaders() }).catch(() => null)
   if (!res?.ok) return null
   return await res.json().catch(() => null)
 }
 
 export async function searchFeeds(q) {
-  const res = await fetch(`/api/feeds?action=search&q=${encodeURIComponent(q)}`).catch(() => null)
+  const res = await fetch(`/api/feeds?action=search&q=${encodeURIComponent(q)}`, { headers: authHeaders() }).catch(() => null)
   if (!res?.ok) return []
   return await res.json().catch(() => [])
 }
@@ -520,7 +521,7 @@ export async function fetchOgjreTranscript(title) {
     ? `joe-rogan-experience-${slugify(title.trim().slice(1))}`
     : slugify(title)
   // Use Vercel proxy — direct browser call blocked by ogjre.com CORS policy
-  const res = await fetch(`/api/fetch-transcript?slug=${encodeURIComponent(slug)}`).catch(() => null)
+  const res = await fetch(`/api/fetch-transcript?slug=${encodeURIComponent(slug)}`, { headers: authHeaders() }).catch(() => null)
   if (!res?.ok) return null
   return await res.json().catch(() => null)
 }
@@ -536,7 +537,8 @@ export async function suggestSource(url, lang, note = '') {
 
 export async function fetchSubstackFeed(lang, limit = 10) {
   const res = await fetch(
-    `/api/feeds?action=wp&lang=${encodeURIComponent(lang)}&limit=${limit}`
+    `/api/feeds?action=wp&lang=${encodeURIComponent(lang)}&limit=${limit}`,
+    { headers: authHeaders() }
   ).catch(() => null)
   if (!res?.ok) return []
   return await res.json().catch(() => [])

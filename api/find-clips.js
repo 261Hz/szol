@@ -3,6 +3,8 @@
 //   1. Backend DB  — pre-populated by worker.py context indexing (no filmot quota)
 //   2. Filmot API  — live search; result is CDN-cached 24 h so repeats are free
 
+import { requireAuth } from './_auth.js'
+
 const FILMOT_LANGS = new Set(['nl','en','fr','de','id','it','ko','pt','ru','es','tr','vi','ja','hi','iw','ar'])
 const BACKEND      = 'https://szol.onrender.com'
 
@@ -56,6 +58,7 @@ async function fromBackend(word, lang) {
 }
 
 export default async function handler(req, res) {
+  if (!requireAuth(req, res)) return
   const { word, lang = 'en' } = req.query
   if (!word?.trim()) return res.status(400).json({ detail: 'word required' })
 

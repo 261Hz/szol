@@ -3,6 +3,8 @@
 // WHY THIS EXISTS:
 // Tatoeba's API doesn't include the Access-Control-Allow-Origin header,
 // so browsers block direct requests from szol.vercel.app (CORS error).
+
+import { requireAuth } from './_auth.js'
 // Server-to-server requests have no CORS restriction, so this function
 // fetches from Tatoeba on the user's behalf and returns the result.
 //
@@ -13,6 +15,7 @@
 // Vercel automatically deploys every file in /api/ as a serverless function.
 // "handler" receives req (the incoming request) and res (the outgoing response).
 export default async function handler(req, res) {
+  if (!requireAuth(req, res)) return
   // req.query is an object of all URL query parameters.
   // new URLSearchParams(...).toString() turns { query:'hola', from:'spa', ... }
   // back into the string "query=hola&from=spa&..." for the Tatoeba URL.

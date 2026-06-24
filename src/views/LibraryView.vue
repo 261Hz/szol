@@ -919,7 +919,8 @@ async function fetchArticle() {
   importError.value   = ''
   try {
     // encodeURIComponent() percent-encodes the URL so it's safe to pass as a query parameter.
-    const res  = await fetch(`/api/extract?url=${encodeURIComponent(importUrl.value.trim())}`)
+    const _t = localStorage.getItem('szol_token')
+    const res  = await fetch(`/api/extract?url=${encodeURIComponent(importUrl.value.trim())}`, _t ? { headers: { Authorization: `Bearer ${_t}` } } : {})
     const data = await res.json()
     if (data.error || !data.text) {
       importError.value = data.error || 'Could not extract article content.'
@@ -1077,7 +1078,8 @@ async function importSuggestedSource(src) {
   } else {
     // All other sources: call the api/extract.js Vercel proxy to extract article text.
     try {
-      const res  = await fetch(`/api/extract?url=${encodeURIComponent(src.url)}`)
+      const _tok = localStorage.getItem('szol_token')
+      const res  = await fetch(`/api/extract?url=${encodeURIComponent(src.url)}`, _tok ? { headers: { Authorization: `Bearer ${_tok}` } } : {})
       const data = await res.json()
       if (data.text) {
         // Use the extracted title if available, fall back to the source name.

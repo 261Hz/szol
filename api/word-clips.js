@@ -3,6 +3,8 @@
 // Returns YouTube caption clips where a word (or words) appears.
 // Supports two call modes:
 //   Single : GET /api/word-clips?word=town&lang=en&video_ids=id1,id2   → Clip[]
+
+import { requireAuth } from './_auth.js'
 //   Multi  : GET /api/word-clips?words=town,city&lang=en&video_ids=id1 → { word: Clip[] }
 //
 // Caption sources are tried in priority order; exhausted or disabled sources
@@ -433,6 +435,7 @@ async function fetchCaptions(videoId, lang) {
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
+  if (!requireAuth(req, res)) return
   const { word, words: wordsParam, lang = 'en', video_ids } = req.query
 
   if (!video_ids?.trim()) {

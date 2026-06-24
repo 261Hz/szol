@@ -3,6 +3,8 @@
 // ?action=rss&url=...    → parse RSS/Atom article feed
 // ?action=wp&lang=...    → WordPress Reader curated posts
 
+import { requireAuth } from './_auth.js'
+
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 
 const CDATA_RE = /<!\[CDATA\[([\s\S]*?)\]\]>/g
@@ -190,6 +192,7 @@ async function handleWp(req, res) {
 // ── Router ─────────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
+  if (!requireAuth(req, res)) return
   const action = req.query.action
   if (action === 'search') return handleSearch(req, res)
   if (action === 'rss')    return handleRss(req, res)
