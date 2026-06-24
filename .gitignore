@@ -31,7 +31,7 @@ insert_fonissa.mjs
 insert_verwandlung.mjs
 
 # Git worktree for backend branch — tracked separately
-app/
+/app/
 
 # Local dev/admin scripts
 seed_mock.py
