@@ -152,7 +152,11 @@ def _myscript_hmac(app_key: str, hmac_key: str, body: str) -> str:
 async def transcribe(req: TranscribeRequest):
     from ..config import settings
     lang_code = _MYSCRIPT_LANG_MAP.get(req.lang)
-    if not lang_code or not settings.MYSCRIPT_APP_KEY or not settings.MYSCRIPT_HMAC_KEY:
+    app_key  = settings.MYSCRIPT_APP_KEY.strip()
+    hmac_key = settings.MYSCRIPT_HMAC_KEY.strip()
+    import logging
+    logging.warning("MyScript keys: app_key_len=%d hmac_key_len=%d lang=%s", len(app_key), len(hmac_key), req.lang)
+    if not lang_code or not app_key or not hmac_key:
         return {"text": None}
 
     # Build stroke list with synthetic timestamps (10ms per point, 500ms gap between strokes)
@@ -176,7 +180,7 @@ async def transcribe(req: TranscribeRequest):
         "strokeGroups": [{"strokes": ms_strokes}],
     }
     body_str = _json.dumps(body, separators=(",", ":"))
-    sig = _myscript_hmac(settings.MYSCRIPT_APP_KEY, settings.MYSCRIPT_HMAC_KEY, body_str)
+    sig = _myscript_hmac(app_key, hmac_key, body_str)
 
     try:
         async with httpx.AsyncClient(timeout=8.0) as c:
@@ -186,7 +190,7 @@ async def transcribe(req: TranscribeRequest):
                 headers={
                     "Content-Type": "application/json",
                     "Accept": "application/json,application/vnd.myscript.jiix",
-                    "applicationKey": settings.MYSCRIPT_APP_KEY,
+                    "applicationKey": app_key,
                     "hmac": sig,
                 },
             )
