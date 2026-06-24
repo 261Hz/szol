@@ -115,7 +115,9 @@ import HanziWriter from 'hanzi-writer'
 import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import { compareStrokes, getHanziTemplate, PASS_THRESHOLD } from '../utils/strokeRecognizer.js'
-import { recognizeInk } from '../utils/api.js'
+import { recognizeInk, transcribeInk, checkHandwriting } from '../utils/api.js'
+
+const MYSCRIPT_LANGS = new Set(['ar', 'he', 'ru', 'el', 'uk', 'bg'])
 
 const props = defineProps({ story: Object, lang: String })
 const emit  = defineEmits(['go'])
@@ -253,6 +255,28 @@ function endStroke() {
   autoCheckTimer = setTimeout(runCheck, 1000)
 }
 
+// ── Clean canvas snapshot (no ghost watermark) for LLM vision ────────────────
+function getCleanCanvasImage() {
+  const w = canvasCssWidth || window.innerWidth
+  const dpr = window.devicePixelRatio || 1
+  const off = document.createElement('canvas')
+  off.width  = Math.round(w * dpr)
+  off.height = Math.round(CANVAS_HEIGHT * dpr)
+  const c = off.getContext('2d')
+  c.setTransform(dpr, 0, 0, dpr, 0, 0)
+  c.fillStyle = '#ffffff'
+  c.fillRect(0, 0, w, CANVAS_HEIGHT)
+  c.strokeStyle = '#000000'
+  c.lineWidth = 3; c.lineCap = 'round'; c.lineJoin = 'round'
+  for (const stroke of userStrokes) {
+    if (stroke.length < 2) continue
+    c.beginPath(); c.moveTo(stroke[0].x, stroke[0].y)
+    for (let i = 1; i < stroke.length; i++) c.lineTo(stroke[i].x, stroke[i].y)
+    c.stroke()
+  }
+  return off.toDataURL('image/png').split(',')[1]
+}
+
 // ── Recognition ──────────────────────────────────────────────────────────────
 async function runCheck() {
   if (checking.value || checkResult.value === true || userStrokes.length === 0) return
@@ -260,23 +284,24 @@ async function runCheck() {
   let passed = false
 
   if (isCJK.value) {
-    // Try backend first: per-stroke comparison, better than whole-char $1
+    // Backend per-stroke geometric comparison; fall back to local $1
     const result = await recognizeInk(userStrokes, props.lang, currentUnit.value)
     if (result !== null) {
       passed = result.match
     } else {
-      // Backend unreachable: fall back to local $1 recognizer
       const template = await getHanziTemplate(currentUnit.value)
-      if (template) {
-        passed = compareStrokes(userStrokes, template) < PASS_THRESHOLD
-      } else {
-        passed = userStrokes.length >= 1
-      }
+      passed = template ? compareStrokes(userStrokes, template) < PASS_THRESHOLD : userStrokes.length >= 1
     }
+  } else if (MYSCRIPT_LANGS.has(props.lang)) {
+    // Arabic / Hebrew / Russian / Greek → MyScript iink (stroke-based cloud recognition)
+    const result = await transcribeInk(userStrokes, props.lang)
+    const got  = result?.text?.trim().toLowerCase() ?? ''
+    const want = currentUnit.value.trim().toLowerCase()
+    passed = got !== '' && got === want
   } else {
-    // Latin / RTL: stroke-count heuristic (no template library yet)
-    const minStrokes = Math.max(1, Math.ceil(currentUnit.value.length / 4))
-    passed = userStrokes.length >= minStrokes
+    // Latin → Groq vision LLM on a clean white canvas image
+    const result = await checkHandwriting(currentUnit.value, props.lang, getCleanCanvasImage())
+    passed = result?.passed ?? false
   }
 
   checkResult.value = passed
