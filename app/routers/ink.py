@@ -1,4 +1,7 @@
 import math
+import hmac as _hmac
+import hashlib
+import json as _json
 import httpx
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -124,6 +127,71 @@ def _score(user_raw: list, template_raw: list) -> float:
         fwd = _avg_dist(u_flat, t_flat)
         rev = _avg_dist(u_flat, list(reversed(t_flat)))
         return min(fwd, rev) * 1.5
+
+_MYSCRIPT_LANG_MAP = {
+    "ar": "ar",
+    "he": "he_IL",
+    "ru": "ru_RU",
+    "el": "el_GR",
+    "uk": "uk_UA",
+    "bg": "bg_BG",
+}
+
+class TranscribeRequest(BaseModel):
+    strokes: list[list[Pt]]
+    lang: str
+
+def _myscript_hmac(app_key: str, hmac_key: str, body: str) -> str:
+    msg = (app_key + body).encode("utf-8")
+    return _hmac.new(hmac_key.encode("utf-8"), msg, hashlib.sha512).hexdigest()
+
+@router.post("/transcribe")
+async def transcribe(req: TranscribeRequest):
+    from ..config import settings
+    lang_code = _MYSCRIPT_LANG_MAP.get(req.lang)
+    if not lang_code or not settings.MYSCRIPT_APP_KEY or not settings.MYSCRIPT_HMAC_KEY:
+        return {"text": None}
+
+    # Build stroke list with synthetic timestamps (10ms per point, 500ms gap between strokes)
+    ms_strokes = []
+    t_offset = 0
+    for stroke in req.strokes:
+        if not stroke:
+            continue
+        xs = [p.x for p in stroke]
+        ys = [p.y for p in stroke]
+        ts = [t_offset + i * 10 for i in range(len(stroke))]
+        t_offset = ts[-1] + 500
+        ms_strokes.append({"x": xs, "y": ys, "t": ts})
+
+    if not ms_strokes:
+        return {"text": None}
+
+    body = {
+        "configuration": {"lang": lang_code},
+        "contentType": "Text",
+        "strokeGroups": [{"strokes": ms_strokes}],
+    }
+    body_str = _json.dumps(body, separators=(",", ":"))
+    sig = _myscript_hmac(settings.MYSCRIPT_APP_KEY, settings.MYSCRIPT_HMAC_KEY, body_str)
+
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as c:
+            r = await c.post(
+                "https://cloud.myscript.com/api/v4.0/iink/batch",
+                content=body_str.encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json,application/vnd.myscript.jiix",
+                    "applicationKey": settings.MYSCRIPT_APP_KEY,
+                    "hmac": sig,
+                },
+            )
+        if r.status_code != 200:
+            return {"text": None}
+        return {"text": r.json().get("label", "").strip()}
+    except Exception:
+        return {"text": None}
 
 @router.post("/recognize", response_model=RecognizeResponse)
 async def recognize(req: RecognizeRequest):
