@@ -127,8 +127,10 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
             }],
             max_tokens=20,
         )
-        ocr = resp.choices[0].message.content.strip().lower()
-        passed = ocr == word.lower()
+        import re as _re
+        def letters(s): return _re.sub(r'[^\w]', '', s, flags=_re.UNICODE).lower()
+        ocr = resp.choices[0].message.content.strip()
+        passed = letters(ocr) == letters(word)
         return {"passed": passed}
     except Exception as e:
         import traceback, logging
