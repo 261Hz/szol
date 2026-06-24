@@ -21,20 +21,17 @@
         </button>
       </div>
 
-      <!-- ── HanziWriter (CJK guided, or write-mode on non-Chrome) ─────── -->
-      <div v-if="isCJK && (mode === 'guided' || !hwApiAvailable)"
+      <!-- ── HanziWriter (CJK guided mode) ─────────────────────────────── -->
+      <div v-if="usesHanzi"
         class="rounded-2xl flex flex-col items-center gap-3 py-5 px-5"
         style="background:#fefce8; border:1px solid #e8dcc8;">
-
-        <!-- mini story progress text above HanziWriter -->
         <div class="self-stretch font-serif text-sm leading-relaxed select-none"
           :dir="isRTL(lang) ? 'rtl' : 'ltr'" style="color:#2a241c; max-height:80px; overflow:hidden;">
           <span v-for="(ch, ci) in cjkChars" :key="ci" :style="charStyle(ci)">{{ ch }}</span>
         </div>
-
         <div ref="hanziContainer" class="hanzi-container rounded-xl" />
-        <div v-if="charError" class="text-xs text-amber-700/60">Stroke data unavailable.</div>
-        <div v-if="quizDone" class="text-green-700 font-medium text-sm">✓ Done</div>
+        <div v-if="charError" class="text-xs" style="color:rgba(140,122,102,0.6)">Stroke data unavailable.</div>
+        <div v-if="quizDone" class="text-sm font-medium" style="color:#38a169">✓ Done</div>
         <div class="flex gap-3">
           <button @click="animate" :disabled="!!charError"
             class="px-4 py-2 text-sm rounded-lg border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 disabled:opacity-30 transition-all">
@@ -47,85 +44,83 @@
         </div>
       </div>
 
-      <!-- ── Story text + canvas overlay ───────────────────────────────── -->
-      <div v-else class="relative rounded-2xl overflow-hidden"
-        style="background:#fefce8; border:1px solid #e8dcc8;">
-
-        <!-- Scrollable story text (behind canvas) -->
-        <div ref="storyScroll"
-          class="font-serif leading-relaxed px-5 py-4 overflow-y-auto select-none"
-          style="max-height:52vh; color:#2a241c;"
-          :dir="isRTL(lang) ? 'rtl' : 'ltr'">
-          <template v-if="isCJK">
-            <span v-for="(ch, ci) in cjkChars" :key="ci"
-              :data-current="ci === unitIdx ? '1' : undefined"
-              :style="charStyle(ci)">{{ ch }}</span>
+      <!-- ── Full-page story text (non-Hanzi modes) ─────────────────────── -->
+      <div v-else
+        class="font-serif leading-relaxed select-none"
+        :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+        style="color:#2a241c; font-size:1.15rem; padding-bottom:220px;">
+        <template v-if="isCJK">
+          <span v-for="(ch, ci) in cjkChars" :key="ci"
+            :data-current="ci === unitIdx ? '1' : undefined"
+            :style="charStyle(ci)">{{ ch }}</span>
+        </template>
+        <template v-else>
+          <template v-for="(sent, si) in sentences" :key="si">
+            <span v-for="(word, wi) in sentenceWords(sent)" :key="si+'-'+wi"
+              :data-current="si === sentenceIdx && wi === wordIdx ? '1' : undefined"
+              :style="wordStyle(si, wi)">{{ word }} </span>
           </template>
-          <template v-else>
-            <template v-for="(sent, si) in sentences" :key="si">
-              <span v-for="(word, wi) in sentenceWords(sent)" :key="si+'-'+wi"
-                :data-current="si === sentenceIdx && wi === wordIdx ? '1' : undefined"
-                :style="wordStyle(si, wi)">{{ word }} </span>
-            </template>
-          </template>
-          <!-- extra bottom padding so last words scroll above canvas -->
-          <div style="height:4rem;" />
-        </div>
-
-        <!-- Canvas overlay — transparent so story text shows through -->
-        <canvas
-          ref="canvasEl"
-          class="absolute bottom-0 left-0 w-full touch-none"
-          style="cursor:crosshair;"
-          @pointerdown.prevent="startStroke"
-          @pointermove="extendStroke"
-          @pointerup="endStroke"
-          @pointercancel="endStroke"
-          @pointerleave="endStroke"
-        />
-
-        <!-- Top controls row (result + clear) -->
-        <div class="absolute top-2 right-3 flex items-center gap-2 z-10">
-          <span v-if="checkResult !== null" class="text-base font-bold"
-            :style="checkResult ? 'color:#38a169' : 'color:#8b3a3a'">
-            {{ checkResult ? '✓' : '✗' }}
-          </span>
-          <span v-else-if="checking" class="text-xs" style="color:#8c7a66;">…</span>
-          <button @click="clearCanvas"
-            class="text-xs px-2 py-0.5 rounded-full"
-            style="color:rgba(26,26,46,0.38); border:1px solid rgba(140,122,102,0.3); background:rgba(254,252,232,0.8);">
-            clear
-          </button>
-        </div>
-
-        <!-- Hint after 2 fails -->
-        <div v-if="failCount >= 2"
-          class="absolute bottom-1 left-0 w-full text-center text-xs pointer-events-none"
-          style="color:rgba(140,122,102,0.5);">
-          {{ currentUnit }}
-        </div>
+        </template>
       </div>
 
-      <!-- ── Navigation ─────────────────────────────────────────────────── -->
-      <div class="flex justify-between items-center">
-        <button @click="goPrev" :disabled="isFirst"
-          class="text-sm px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 disabled:opacity-30 transition-all">
-          ← Back
+      <!-- ── Navigation (top-right, small) ─────────────────────────────── -->
+      <div v-if="!usesHanzi" class="flex justify-between items-center">
+        <button @click="emit('go', 'retype')"
+          class="text-sm px-3 py-1.5 rounded-lg transition-all"
+          style="color:#8c7a66; border:1px solid rgba(140,122,102,0.3);">
+          ← retype
         </button>
-        <div class="flex items-center gap-2">
-          <button v-if="story" @click="emit('go', 'retype')"
-            class="text-sm px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 transition-all">
-            ← retype
-          </button>
-          <button @click="goNext" :disabled="isLast"
-            class="text-sm px-4 py-1.5 rounded-lg bg-green-700 text-white hover:bg-green-600 disabled:opacity-40 transition-all">
-            {{ isLast ? 'Done ✓' : 'Next →' }}
-          </button>
-        </div>
+        <button v-if="!hwApiAvailable" @click="advanceManual"
+          class="text-sm px-4 py-1.5 rounded-lg transition-all"
+          style="background:#2a241c; color:#e8dcc4;">
+          Next →
+        </button>
       </div>
 
     </template>
   </div>
+
+  <!-- ── Canvas: teleported to body so position:fixed works from any parent ── -->
+  <teleport to="body">
+    <div v-if="story && !usesHanzi"
+      class="fixed bottom-0 left-0 right-0 z-40"
+      style="background:rgba(254,252,232,0.92); border-top:1px solid rgba(140,122,102,0.25); backdrop-filter:blur(4px);">
+
+      <!-- Controls strip above canvas -->
+      <div class="flex items-center justify-between px-4 py-1.5">
+        <div class="flex items-center gap-2">
+          <span v-if="checkResult === true" class="text-base font-bold" style="color:#38a169">✓</span>
+          <span v-else-if="checkResult === false" class="text-base font-bold" style="color:#8b3a3a">✗</span>
+          <span v-else-if="checking" class="text-xs" style="color:#8c7a66;">…</span>
+          <span v-else class="text-xs" style="color:rgba(140,122,102,0.5);">
+            {{ hwApiAvailable ? 'write the word' : 'write for practice' }}
+          </span>
+        </div>
+        <div class="flex items-center gap-3">
+          <span v-if="!isFirst" class="text-xs" style="color:rgba(140,122,102,0.5);">
+            {{ progressLabel }}
+          </span>
+          <button @click="clearCanvas"
+            class="text-xs px-2 py-0.5 rounded-full"
+            style="color:rgba(26,26,46,0.38); border:1px solid rgba(140,122,102,0.3);">
+            clear
+          </button>
+        </div>
+      </div>
+
+      <!-- The canvas itself -->
+      <canvas
+        ref="canvasEl"
+        class="w-full block touch-none"
+        style="cursor:crosshair; display:block;"
+        @pointerdown.prevent="startStroke"
+        @pointermove="extendStroke"
+        @pointerup="endStroke"
+        @pointercancel="endStroke"
+        @pointerleave="endStroke"
+      />
+    </div>
+  </teleport>
 </template>
 
 <script setup>
@@ -139,7 +134,7 @@ const emit  = defineEmits(['go'])
 
 const isCJK = computed(() => ['zh', 'zh-TW', 'ja'].includes(props.lang))
 
-// ── Story parsing ────────────────────────────────────────────────────────────────
+// ── Story parsing ────────────────────────────────────────────────────────────
 const sentences = computed(() => {
   if (!props.story) return []
   return props.story.content.split(/(?<=[.!?؟।。！？])\s+/).map(s => s.trim()).filter(Boolean)
@@ -152,7 +147,7 @@ const cjkChars = computed(() => {
   return [...props.story.content].filter(c => /\p{L}/u.test(c))
 })
 
-// ── Navigation ───────────────────────────────────────────────────────────────────
+// ── Navigation ───────────────────────────────────────────────────────────────
 const sentenceIdx = ref(0)
 const wordIdx     = ref(0)
 const unitIdx     = ref(0)
@@ -174,6 +169,23 @@ const isLast = computed(() =>
       wordIdx.value >= wordsInSentence.value.length - 1
 )
 
+const totalUnits = computed(() =>
+  isCJK.value ? cjkChars.value.length : sentences.value.reduce((n, s) => n + sentenceWords(s).length, 0)
+)
+
+const currentUnitNum = computed(() => {
+  if (isCJK.value) return unitIdx.value + 1
+  let n = 0
+  for (let si = 0; si < sentences.value.length; si++) {
+    const ws = sentenceWords(sentences.value[si])
+    if (si < sentenceIdx.value) { n += ws.length; continue }
+    n += wordIdx.value + 1; break
+  }
+  return n
+})
+
+const progressLabel = computed(() => `${currentUnitNum.value} / ${totalUnits.value}`)
+
 function goNext() {
   if (isCJK.value) {
     if (unitIdx.value < cjkChars.value.length - 1) unitIdx.value++
@@ -183,19 +195,15 @@ function goNext() {
   }
 }
 
-function goPrev() {
-  if (isCJK.value) {
-    if (unitIdx.value > 0) unitIdx.value--
-  } else {
-    if (wordIdx.value > 0) wordIdx.value--
-    else if (sentenceIdx.value > 0) { sentenceIdx.value--; wordIdx.value = wordsInSentence.value.length - 1 }
-  }
+function advanceManual() {
+  clearCanvas()
+  if (!isLast.value) goNext()
 }
 
-// ── Story text colour helpers ────────────────────────────────────────────────────
+// ── Story text colour helpers ────────────────────────────────────────────────
 const DONE_STYLE    = 'color:#8c7a66;'
 const CURRENT_STYLE = 'color:#2a241c; font-weight:700; border-bottom:2px solid #8b3a3a; padding-bottom:1px;'
-const FUTURE_STYLE  = 'color:rgba(140,122,102,0.35);'
+const FUTURE_STYLE  = 'color:rgba(140,122,102,0.3);'
 
 function charStyle(ci) {
   if (ci < unitIdx.value)   return DONE_STYLE
@@ -209,40 +217,37 @@ function wordStyle(si, wi) {
   return past ? DONE_STYLE : curr ? CURRENT_STYLE : FUTURE_STYLE
 }
 
-// ── Auto-scroll current word into view above the canvas strip ────────────────────
-const storyScroll = ref(null)
+// ── Auto-scroll current word into view above the canvas strip ────────────────
+const CANVAS_TOTAL_H = 200   // canvas + controls strip (px) — keep in sync with canvas height
 
 function scrollToCurrent() {
-  const container = storyScroll.value
-  if (!container) return
-  const el = container.querySelector('[data-current="1"]')
-  if (!el) return
-  const cRect = container.getBoundingClientRect()
-  const eRect = el.getBoundingClientRect()
-  const relTop = eRect.top - cRect.top + container.scrollTop
-  container.scrollTo({ top: Math.max(0, relTop - 40), behavior: 'smooth' })
+  nextTick(() => {
+    const el = document.querySelector('[data-current="1"]')
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const vh   = window.innerHeight
+    const usable = vh - CANVAS_TOTAL_H   // viewport area above canvas
+    const targetScroll = window.scrollY + rect.top - usable * 0.35
+    window.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' })
+  })
 }
 
-// ── Chrome Handwriting Recognition API ──────────────────────────────────────────
+// ── Chrome Handwriting Recognition API ──────────────────────────────────────
 const hwApiAvailable = 'createHandwritingRecognizer' in navigator
 let hwRecognizer = null
 let hwDrawing    = null
 let hwCurStroke  = null
 
-function hwLang(lang) {
-  return lang === 'zh-TW' ? 'zh-TW' : lang === 'zh' ? 'zh' : lang === 'ja' ? 'ja' : lang
-}
-
 async function initHW() {
   if (!hwApiAvailable) return
   if (hwRecognizer) { try { hwRecognizer.finish() } catch {} hwRecognizer = null; hwDrawing = null }
   try {
-    hwRecognizer = await navigator.createHandwritingRecognizer({ languages: [hwLang(props.lang)] })
+    hwRecognizer = await navigator.createHandwritingRecognizer({ languages: [props.lang === 'zh-TW' ? 'zh-TW' : props.lang === 'zh' ? 'zh' : props.lang] })
     hwDrawing    = hwRecognizer.startDrawing({ alternatives: 8 })
   } catch {}
 }
 
-// ── Canvas ───────────────────────────────────────────────────────────────────────
+// ── Canvas ───────────────────────────────────────────────────────────────────
 const canvasEl    = ref(null)
 const checking    = ref(false)
 const checkResult = ref(null)
@@ -251,52 +256,44 @@ let ctx            = null
 let autoCheckTimer = null
 let strokeCount    = 0
 
-const CANVAS_HEIGHT = 160   // px — strip at bottom of story card
+const CANVAS_HEIGHT = 160
 const INK_COLOR     = '#1a1a2e'
 
 function setupCanvas() {
-  if (!canvasEl.value) return
-  const dpr      = window.devicePixelRatio || 1
-  const cssWidth = canvasEl.value.parentElement?.clientWidth || 340
-  canvasEl.value.width        = cssWidth      * dpr
-  canvasEl.value.height       = CANVAS_HEIGHT * dpr
-  canvasEl.value.style.width  = cssWidth      + 'px'
-  canvasEl.value.style.height = CANVAS_HEIGHT + 'px'
-  ctx = canvasEl.value.getContext('2d')
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR
-  ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
-  clearCanvas()
+  nextTick(() => {
+    if (!canvasEl.value) return
+    const dpr      = window.devicePixelRatio || 1
+    const cssWidth = window.innerWidth
+    canvasEl.value.width        = cssWidth      * dpr
+    canvasEl.value.height       = CANVAS_HEIGHT * dpr
+    canvasEl.value.style.width  = cssWidth      + 'px'
+    canvasEl.value.style.height = CANVAS_HEIGHT + 'px'
+    ctx = canvasEl.value.getContext('2d')
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR
+    ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+    clearCanvas()
+  })
 }
 
 function clearCanvas() {
   clearTimeout(autoCheckTimer)
   if (!ctx || !canvasEl.value) return
-  const w = parseInt(canvasEl.value.style.width)
-  const h = parseInt(canvasEl.value.style.height)
-  // Transparent clear — story text shows through
+  const w = parseInt(canvasEl.value.style.width) || window.innerWidth
+  const h = CANVAS_HEIGHT
   ctx.clearRect(0, 0, w, h)
-  // Subtle top border line so user knows where the canvas starts
-  ctx.save()
-  ctx.strokeStyle = 'rgba(140,122,102,0.25)'; ctx.lineWidth = 1
-  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(w, 0); ctx.stroke()
-  ctx.restore()
+  // Ghost trace guide: always show target word faintly
+  if (currentUnit.value) {
+    ctx.save()
+    ctx.font = `bold ${Math.min(h * 0.7, 100)}px serif`
+    ctx.fillStyle = 'rgba(139,58,58,0.07)'
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(currentUnit.value, w / 2, h / 2)
+    ctx.restore()
+  }
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
-  checkResult.value = null; failCount.value = 0; strokeCount = 0
+  checkResult.value = null; strokeCount = 0
   if (hwDrawing) { try { hwDrawing.clear() } catch {} }
-}
-
-function drawTraceGuide() {
-  if (!ctx || !canvasEl.value) return
-  const w = parseInt(canvasEl.value.style.width)
-  const h = parseInt(canvasEl.value.style.height)
-  ctx.save()
-  ctx.font = `bold ${h * 0.65}px serif`
-  ctx.fillStyle = 'rgba(139,58,58,0.08)'
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText(currentUnit.value, w / 2, h / 2)
-  ctx.restore()
-  ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
 }
 
 function getXY(e) {
@@ -333,10 +330,11 @@ function endStroke() {
     hwCurStroke = null
   }
   clearTimeout(autoCheckTimer)
-  autoCheckTimer = setTimeout(runCheck, 1200)
+  if (hwApiAvailable) autoCheckTimer = setTimeout(runCheck, 1200)
+  // No auto-check without HW API — user taps "Next →" manually
 }
 
-// ── Recognition ──────────────────────────────────────────────────────────────────
+// ── Recognition ──────────────────────────────────────────────────────────────
 function norm(s) {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
 }
@@ -356,42 +354,34 @@ function isMatch(got, expected) {
   return levenshtein(g, t) <= Math.max(1, Math.floor(t.length / 4))
 }
 
-function minExpectedStrokes(target) {
-  if (isCJK.value) return Math.max(1, Math.round(target.length * 2))
-  return Math.max(1, Math.round(target.replace(/\s/g, '').length * 1.2))
-}
-
 async function runCheck() {
-  if (checking.value || checkResult.value === true || strokeCount === 0) return
+  if (checking.value || checkResult.value === true || strokeCount === 0 || !hwDrawing) return
   checking.value = true
   let passed = false
-  if (hwDrawing) {
-    try {
-      const preds = await hwDrawing.getPrediction()
-      passed = preds.some(p => isMatch(p.text ?? '', currentUnit.value))
-      if (passed) hwDrawing.clear()
-    } catch {}
-  } else {
-    passed = strokeCount >= minExpectedStrokes(currentUnit.value)
-  }
+  try {
+    const preds = await hwDrawing.getPrediction()
+    passed = preds.some(p => isMatch(p.text ?? '', currentUnit.value))
+    if (passed) hwDrawing.clear()
+  } catch {}
   checkResult.value = passed
   checking.value    = false
   if (passed) {
     failCount.value = 0
-    if (!isLast.value) setTimeout(() => { clearCanvas(); goNext() }, 700)
+    if (!isLast.value) setTimeout(() => { clearCanvas(); goNext(); scrollToCurrent() }, 700)
   } else {
     failCount.value++
-    if (failCount.value >= 2) drawTraceGuide()
   }
 }
 
-// ── HanziWriter ──────────────────────────────────────────────────────────────────
+// ── HanziWriter ──────────────────────────────────────────────────────────────
 const mode           = ref('guided')
 const hanziContainer = ref(null)
 const quizActive     = ref(false)
 const quizDone       = ref(false)
 const charError      = ref(false)
 let writer = null
+
+const usesHanzi = computed(() => isCJK.value && (mode.value === 'guided' || !hwApiAvailable))
 
 function setMode(m) {
   mode.value = m
@@ -428,24 +418,27 @@ function startQuiz() {
   })
 }
 
-// ── Lifecycle ────────────────────────────────────────────────────────────────────
+// ── Window resize ────────────────────────────────────────────────────────────
+function onResize() { if (!usesHanzi.value) setupCanvas() }
+
+// ── Lifecycle ────────────────────────────────────────────────────────────────
 onMounted(async () => {
   await initHW()
   if (isCJK.value) nextTick(initWriter)
-  else             nextTick(setupCanvas)
+  else             setupCanvas()
+  window.addEventListener('resize', onResize)
 })
 
 onUnmounted(() => {
   clearTimeout(autoCheckTimer)
+  window.removeEventListener('resize', onResize)
   if (hwRecognizer) { try { hwRecognizer.finish() } catch {} }
 })
-
-const usesHanzi = computed(() => isCJK.value && (mode.value === 'guided' || !hwApiAvailable))
 
 watch([unitIdx, wordIdx, sentenceIdx], () => {
   quizDone.value = false; checkResult.value = null; failCount.value = 0
   if (usesHanzi.value) nextTick(initWriter)
-  else                 nextTick(() => { clearCanvas(); nextTick(scrollToCurrent) })
+  else                 nextTick(() => { clearCanvas(); scrollToCurrent() })
 })
 
 watch([() => props.lang, () => props.story], async () => {
@@ -454,7 +447,7 @@ watch([() => props.lang, () => props.story], async () => {
   charError.value = false; writer = null; checkResult.value = null; failCount.value = 0
   await initHW()
   if (isCJK.value) nextTick(initWriter)
-  else             nextTick(setupCanvas)
+  else             setupCanvas()
 })
 </script>
 
