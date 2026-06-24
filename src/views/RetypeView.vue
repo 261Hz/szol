@@ -153,7 +153,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import { normalize } from '../utils/scoring.js'
@@ -398,6 +398,19 @@ watch([() => props.story, mode, activeText], async () => {
 
 watch(ignorePunct,   () => { loadSentence(sentenceIdx.value); saveLocalProgress() })
 watch(ignoreAccents, () => { loadSentence(sentenceIdx.value); saveLocalProgress() })
+
+// Flush progress to server when the user navigates away mid-story.
+function flushProgress() {
+  if (!props.currentUser || !props.story?.id || done.value) return
+  if (sentenceIdx.value === 0 && currentWordIndex.value === 0) return
+  saveLocalProgress()
+  saveProgress(props.story.id, props.story.title ?? '', props.lang, 'retype', sentenceIdx.value)
+}
+
+function onVisibilityHide() { if (document.visibilityState === 'hidden') flushProgress() }
+
+onMounted(()   => document.addEventListener('visibilitychange', onVisibilityHide))
+onUnmounted(() => { document.removeEventListener('visibilitychange', onVisibilityHide); flushProgress() })
 
 // loadSentence() prepares the word/char structure for a given sentence index.
 function loadSentence(idx) {
