@@ -23,7 +23,9 @@ class UserUpdate(BaseModel):
 class UserResponse(BaseModel):
     id:               UUID
     username:         str
-    email:            EmailStr
+    email:            Optional[str]  = None   # null for guest accounts
+    is_guest:         bool           = False
+    trust_level:      str            = "guest"
     created_at:       datetime
     proficiency:      Optional[str]  = None
     native_lang:      Optional[str]  = None
@@ -57,6 +59,16 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     id: Optional[UUID] = None
+
+class GuestCreate(BaseModel):
+    turnstile_token: str
+    website:         str = ""   # honeypot — must be empty
+
+class GuestResponse(BaseModel):
+    access_token: str
+    token_type:   str = "bearer"
+    is_guest:     bool = True
+    trust_level:  str  = "guest"
 
 
 # ── User progress ────────────────────────────────────────────────────────────

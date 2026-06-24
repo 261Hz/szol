@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, field_validator
 from typing import List, Optional
 import os
 from groq import Groq
 from .. import models, oauth2
+from ..limiter import limiter, dynamic_limit
 
 router = APIRouter(tags=["Chat"])
 
@@ -39,7 +40,8 @@ class ChatRequest(BaseModel):
 
 
 @router.post("/chat")
-def chat(req: ChatRequest, current_user: models.User = Depends(oauth2.get_current_user)):
+@limiter.limit(dynamic_limit("chat"))
+def chat(request: Request, req: ChatRequest, current_user: models.User = Depends(oauth2.get_current_user)):
     lang_name   = _LANG_NAMES.get(req.lang, req.lang)
     story_snip  = (req.story_content or "")[:1500].strip()
     vocab_str   = ", ".join(req.vocab[:20]) if req.vocab else "none yet"

@@ -23,8 +23,9 @@ class Settings(BaseSettings):
     BACKEND_URL:     str = "https://szol.onrender.com"
     TURNSTILE_SECRET:  str = ""   # Cloudflare Turnstile secret key
     YOUTUBE_API_KEY:   str = ""   # YouTube Data API v3 key (same one used in Vite frontend)
-    WORKER_SECRET:     str = ""   # shared secret for local worker.py
-    HF_TOKEN:          str = ""   # Hugging Face API token (for Gemma 4 inference)
+    WORKER_SECRET:          str = ""   # shared secret for local worker.py
+    HF_TOKEN:               str = ""   # Hugging Face API token (for Gemma 4 inference)
+    GUEST_JWT_EXPIRE_HOURS: int = 48   # guests get short-lived tokens; no refresh
 
     class Config:
         env_file = ".env"

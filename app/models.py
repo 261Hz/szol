@@ -9,16 +9,25 @@ class User(Base):
     __tablename__ = "users"
     id           = Column(Uuid, primary_key=True, server_default=text("gen_random_uuid()"))
     username     = Column(String, nullable=False, unique=True, index=True)
-    email        = Column(String, nullable=False, unique=True, index=True)
-    password     = Column(String, nullable=False)
+    email        = Column(String, nullable=True, unique=True, index=True)   # null for guest accounts
+    password     = Column(String, nullable=True)                            # null for guest accounts
     created_at   = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
-    proficiency       = Column(String)                                          # CEFR level: A1 A2 B1 B2 C1 C2
-    native_lang       = Column(String)                                          # e.g. 'en', 'es'
-    target_lang       = Column(String)                                          # language they are learning
-    open_to_messages      = Column(Boolean, server_default=text('false'))        # opt-in to receive voice messages
+    is_guest          = Column(Boolean, nullable=False, server_default=text('false'))
+    trust_level       = Column(String, nullable=False, server_default=text("'guest'"))  # guest|established_guest|verified|high_trust
+    proficiency       = Column(String)
+    native_lang       = Column(String)
+    target_lang       = Column(String)
+    open_to_messages      = Column(Boolean, server_default=text('false'))
     email_verified        = Column(Boolean, nullable=False, server_default=text('false'))
-    email_verify_token    = Column(String)                                       # null once verified
-    email_verify_expires  = Column(TIMESTAMP(timezone=True))                    # null once verified
+    email_verify_token    = Column(String)
+    email_verify_expires  = Column(TIMESTAMP(timezone=True))
+
+
+class UsedTurnstileToken(Base):
+    """Single-use Turnstile token registry. Prevents token replay attacks."""
+    __tablename__ = "used_turnstile_tokens"
+    token_hash = Column(String, primary_key=True)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
 
 class UserWord(Base):
     __tablename__ = "user_words"

@@ -4,7 +4,7 @@ import tempfile
 import urllib.request
 
 import yt_dlp
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from youtube_transcript_api import (
     YouTubeTranscriptApi,
     NoTranscriptFound,
@@ -13,6 +13,8 @@ from youtube_transcript_api import (
 )
 
 from app.config import settings
+from app.limiter import limiter, dynamic_limit
+from app import oauth2, models
 
 router = APIRouter()
 
@@ -189,11 +191,14 @@ def _groq_transcribe(audio_path, lang):
 
 
 @router.post("/transcript-from-audio")
+@limiter.limit(dynamic_limit("transcript"))
 async def transcript_from_audio(
+    request: Request,
     file: UploadFile = File(...),
     lang: str = Form("en"),
     video_id: str = Form(""),
     title: str = Form(""),
+    current_user: models.User = Depends(oauth2.get_current_user),
 ):
     """Accept browser-uploaded audio and transcribe with Groq Whisper.
     Browser fetches audio from Invidious proxy (CORS ✓, not IP-bound);
@@ -226,7 +231,8 @@ async def transcript_from_audio(
 
 
 @router.get("/transcript-segments")
-def get_transcript_segments(v: str, lang: str = "en"):
+@limiter.limit(dynamic_limit("transcript"))
+def get_transcript_segments(request: Request, v: str, lang: str = "en", current_user: models.User = Depends(oauth2.get_current_user)):
     """Return timed segments without DB write; frontend caches in IndexedDB.
     yt-dlp caption extraction only — Whisper fallback uses POST /transcript-from-audio
     (browser downloads audio and uploads to avoid Render's YouTube IP blocks).

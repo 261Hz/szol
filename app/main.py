@@ -15,6 +15,25 @@ from slowapi.middleware import SlowAPIMiddleware
 # When using Alembic for migrations this line should be removed — Alembic owns the schema.
 models.Base.metadata.create_all(bind=engine)
 
+def _run_migrations():
+    """Idempotent ALTER TABLE statements for columns added after initial deploy."""
+    from sqlalchemy import text as _text
+    stmts = [
+        "ALTER TABLE users ALTER COLUMN email DROP NOT NULL",
+        "ALTER TABLE users ALTER COLUMN password DROP NOT NULL",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_guest BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS trust_level VARCHAR NOT NULL DEFAULT 'guest'",
+    ]
+    with engine.connect() as conn:
+        for sql in stmts:
+            try:
+                conn.execute(_text(sql))
+            except Exception:
+                pass
+        conn.commit()
+
+_run_migrations()
+
 app = FastAPI(docs_url="/docs-szol", redoc_url=None)
 
 app.state.limiter = limiter
