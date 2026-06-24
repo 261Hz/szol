@@ -191,8 +191,13 @@ async def transcribe(req: TranscribeRequest):
                 },
             )
         if r.status_code != 200:
+            import logging
+            logging.warning("MyScript %d: %s", r.status_code, r.text[:200])
             return {"text": None}
-        return {"text": r.json().get("label", "").strip()}
+        label = r.json().get("label", "").strip()
+        import logging
+        logging.warning("MyScript lang=%s label=%r", req.lang, label)
+        return {"text": label}
     except Exception:
         return {"text": None}
 
