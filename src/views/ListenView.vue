@@ -797,7 +797,7 @@ async function applyPastedTranscript() {
 async function tryFetchTranscript(storyId, title, podcastName) {
   transcriptLoading.value = true
   try {
-    // JRE only: try ogjre.com directly from the browser (faster, no backend hop)
+    // JRE: ogjre.com directly from browser
     if (podcastName === 'The Joe Rogan Experience' && title) {
       const ogjre = await fetchOgjreTranscript(title)
       if (ogjre?.segments?.length) {
@@ -807,7 +807,23 @@ async function tryFetchTranscript(storyId, title, podcastName) {
         return
       }
     }
-    // Backend transcript fetch only works for DB-stored episodes (UUID, not a URL)
+
+    // On-demand episodes: try embedded podcast:transcript URL from RSS
+    const txUrl = selectedStory.value?.transcript_url
+    if (txUrl) {
+      const r = await fetch(`/api/fetch-transcript?url=${encodeURIComponent(txUrl)}`).catch(() => null)
+      if (r?.ok) {
+        const data = await r.json().catch(() => null)
+        if (data?.segments?.length) {
+          segments.value = data.segments
+          transcriptLoading.value = false
+          await saveStoredTranscript(storyId, data.segments)
+          return
+        }
+      }
+    }
+
+    // DB-stored episodes: backend UUID lookup
     if (storyId && !storyId.startsWith('http')) {
       const data = await fetchPodcastTranscript(storyId)
       if (data?.segments?.length) {
