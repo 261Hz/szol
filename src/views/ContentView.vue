@@ -22,12 +22,20 @@
             {{ knownInText }} {{ knownInText === 1 ? 'word' : 'words' }} from your collection
           </div>
         </div>
-        <button
-          v-if="story.content"
-          @click="$emit('go', 'retype')"
-          class="flex-shrink-0 text-sm border-b transition-all"
-          style="border-color:rgba(139,58,58,0.4); color:#8b3a3a;"
-        >{{ t(lang, 'retype') }} →</button>
+        <div class="flex gap-3 flex-shrink-0">
+          <button
+            v-if="story.content"
+            @click="$emit('go', 'retype')"
+            class="text-sm border-b transition-all"
+            style="border-color:rgba(139,58,58,0.4); color:#8b3a3a;"
+          >{{ t(lang, 'retype') }} →</button>
+          <button
+            v-if="story.content"
+            @click="$emit('go', 'write')"
+            class="text-sm border-b transition-all"
+            style="border-color:rgba(139,58,58,0.4); color:#8b3a3a;"
+          >rewrite →</button>
+        </div>
       </div>
 
       <!-- ── Hidden audio element ── -->
