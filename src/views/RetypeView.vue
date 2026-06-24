@@ -83,7 +83,7 @@
 
       <!-- ── Active sentence ─────────────────────────────────────────────── -->
       <div
-        class="leading-loose text-base cursor-text outline-none border border-ink-muted/40 rounded-lg p-4 transition-colors focus:border-ink-primary break-words min-h-16"
+        class="leading-loose text-base cursor-text outline-none break-words min-h-16 font-serif"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right' : ''"
         tabindex="0"
