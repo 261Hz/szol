@@ -129,6 +129,7 @@
         v-if="activeTab === 'settings'"
         :current-user="currentUser"
         :lang="activeLang"
+        :install-prompt="installPrompt"
         @open-auth="showAuth = true"
         @user-updated="currentUser = $event"
         @logout="handleLogout"
@@ -172,7 +173,14 @@
 <script setup>
 import { ref, watch, computed, onMounted, defineAsyncComponent } from 'vue'
 
-const appLoading = ref(true)
+const appLoading    = ref(true)
+const installPrompt = ref(null)
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault()
+  installPrompt.value = e
+})
+window.addEventListener('appinstalled', () => { installPrompt.value = null })
 
 import NavBar      from './components/NavBar.vue'
 import AuthModal   from './components/AuthModal.vue'

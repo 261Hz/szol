@@ -66,6 +66,21 @@
       </div>
     </div>
 
+    <!-- ── Install app ── -->
+    <div class="flex items-center justify-between gap-4 py-3 px-4" style="border:1px solid rgba(31,27,23,0.12); border-radius:3px;">
+      <div class="flex flex-col gap-0.5">
+        <div class="text-sm" style="color:#1f1b17;">Install app</div>
+        <div class="text-xs" style="color:rgba(31,27,23,0.45);">Add Szól to your home screen for quick access.</div>
+      </div>
+      <button
+        v-if="installPrompt"
+        @click="installApp"
+        class="flex-shrink-0 text-sm px-4 py-1.5 transition-all"
+        style="background:#8b3a3a; color:#e8dcc4; border-radius:2px;"
+      >Install</button>
+      <span v-else class="flex-shrink-0 text-xs" style="color:rgba(31,27,23,0.35); font-style:italic;">Installed or not supported</span>
+    </div>
+
     <!-- ── Danger Zone ── -->
     <div v-if="currentUser" class="flex flex-col gap-3 p-4" style="border:1px solid rgba(139,58,58,0.25); border-radius:3px;">
       <div class="text-sm" style="color:#8b3a3a; font-family:'IM Fell English',serif;">{{ t(lang, 'dangerZone') }}</div>
@@ -105,7 +120,7 @@ import { updateSettings, deleteAccount, logout } from '../utils/api.js'
 import { t } from '../utils/i18n.js'
 import { localModelsEnabled, setLocalModelsEnabled, clearModelCache, modelCacheBytes, fmtBytes } from '../utils/modelCache.js'
 
-const props = defineProps({ currentUser: Object, lang: String })
+const props = defineProps({ currentUser: Object, lang: String, installPrompt: Object })
 const emit  = defineEmits(['openAuth', 'userUpdated', 'logout'])
 
 const openToMessages = ref(props.currentUser?.open_to_messages ?? false)
@@ -126,6 +141,12 @@ onMounted(async () => {
 function toggleModels() {
   modelsEnabled.value = !modelsEnabled.value
   setLocalModelsEnabled(modelsEnabled.value)
+}
+
+async function installApp() {
+  if (!props.installPrompt) return
+  props.installPrompt.prompt()
+  await props.installPrompt.userChoice
 }
 
 async function clearCache() {
