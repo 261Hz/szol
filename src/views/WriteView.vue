@@ -260,20 +260,19 @@ const CANVAS_HEIGHT = 160
 const INK_COLOR     = '#1a1a2e'
 
 function setupCanvas() {
-  nextTick(() => {
-    if (!canvasEl.value) return
-    const dpr      = window.devicePixelRatio || 1
-    const cssWidth = window.innerWidth
-    canvasEl.value.width        = cssWidth      * dpr
-    canvasEl.value.height       = CANVAS_HEIGHT * dpr
-    canvasEl.value.style.width  = cssWidth      + 'px'
-    canvasEl.value.style.height = CANVAS_HEIGHT + 'px'
-    ctx = canvasEl.value.getContext('2d')
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR
-    ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
-    clearCanvas()
-  })
+  const el = canvasEl.value
+  if (!el) return   // will be called again by the canvasEl watcher when the element mounts
+  const dpr      = window.devicePixelRatio || 1
+  const cssWidth = window.innerWidth
+  el.width        = cssWidth      * dpr
+  el.height       = CANVAS_HEIGHT * dpr
+  el.style.width  = cssWidth      + 'px'
+  el.style.height = CANVAS_HEIGHT + 'px'
+  ctx = el.getContext('2d')
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR
+  ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+  clearCanvas()
 }
 
 function clearCanvas() {
@@ -302,6 +301,7 @@ function getXY(e) {
 }
 
 function startStroke(e) {
+  if (!ctx) { setupCanvas(); return }
   canvasEl.value.setPointerCapture(e.pointerId)
   clearTimeout(autoCheckTimer)
   checkResult.value = null
@@ -316,6 +316,7 @@ function startStroke(e) {
 }
 
 function extendStroke(e) {
+  if (!ctx) return
   if (!(e.buttons & 1) && e.pointerType === 'mouse') return
   const { x, y } = getXY(e)
   hwCurStroke?.addPoint({ x, y, t: Date.now() })
@@ -422,10 +423,15 @@ function startQuiz() {
 function onResize() { if (!usesHanzi.value) setupCanvas() }
 
 // ── Lifecycle ────────────────────────────────────────────────────────────────
+
+// Teleported canvas appears asynchronously after the component mounts.
+// Watch the ref so setupCanvas runs the moment the DOM element is available.
+watch(canvasEl, (el) => { if (el && !ctx) setupCanvas() })
+
 onMounted(async () => {
   await initHW()
   if (isCJK.value) nextTick(initWriter)
-  else             setupCanvas()
+  else             setupCanvas()   // no-op if canvasEl not yet in DOM; watcher handles that case
   window.addEventListener('resize', onResize)
 })
 
