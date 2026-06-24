@@ -115,7 +115,7 @@ import HanziWriter from 'hanzi-writer'
 import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import { compareStrokes, getHanziTemplate, PASS_THRESHOLD } from '../utils/strokeRecognizer.js'
-import { recognizeInk } from '../utils/api.js'
+import { recognizeInk, googleRecognizeInk } from '../utils/api.js'
 import { Capacitor } from '@capacitor/core'
 import { DigitalInk } from 'capacitor-mlkit-digitalink-plugin'
 
@@ -389,6 +389,16 @@ async function runCheck() {
     const want = currentUnit.value.toLowerCase().replace(/[^\p{L}]/gu, '')
     const dist = levenshtein(got, want)
     passed = got !== '' && dist <= (want.length >= 5 ? 1 : 0)
+  } else {
+    // Web non-CJK fallback: Google Handwriting Input via backend proxy
+    const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth, CANVAS_HEIGHT)
+    const candidates = result?.candidates ?? (result?.text ? [result.text] : [])
+    const want = currentUnit.value.toLowerCase().replace(/[^\p{L}]/gu, '')
+    passed = candidates.some(c => {
+      const got  = c.toLowerCase().replace(/[^\p{L}]/gu, '')
+      const dist = levenshtein(got, want)
+      return got !== '' && dist <= (want.length >= 5 ? 1 : 0)
+    })
   }
 
   checkResult.value = passed
