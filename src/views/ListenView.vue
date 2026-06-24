@@ -443,7 +443,7 @@
             v-model="pasteText"
             rows="10"
             :placeholder="t(lang, 'srtPaste')"
-            class="w-full text-sm bg-stone-800 border border-stone-600 rounded-lg px-3 py-2.5 text-stone-100 placeholder-stone-600 resize-y focus:outline-none focus:border-emerald-600 leading-relaxed"
+            class="w-full text-sm bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-stone-800 placeholder-stone-400 resize-y focus:outline-none focus:border-amber-400 leading-relaxed"
           />
           <div v-if="pasteError" class="text-sm text-red-400">{{ pasteError }}</div>
           <div class="flex items-center gap-3 mt-1">
