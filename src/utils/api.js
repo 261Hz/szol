@@ -589,6 +589,29 @@ export async function discoverPartners(targetLang) {
   return await res.json()
 }
 
+// ── Ink stroke recognizer ─────────────────────────────────────────────────────
+
+// strokes: {x,y}[][] — array of strokes, each stroke is array of points
+// Returns { match: bool, score: float } or null if the backend is unreachable.
+export async function recognizeInk(strokes, lang, expected) {
+  try {
+    const res = await fetch(`${API_URL}/ink/recognize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        strokes: strokes.map(s => s.map(p => ({ x: p.x, y: p.y }))),
+        lang,
+        expected,
+      }),
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
 // ── Handwriting checker ───────────────────────────────────────────────────────
 
 export async function checkTranslation(sourceText, translation, sourceLang, targetLang = 'en') {
