@@ -128,6 +128,59 @@ def _score(user_raw: list, template_raw: list) -> float:
         rev = _avg_dist(u_flat, list(reversed(t_flat)))
         return min(fwd, rev) * 1.5
 
+_GOOGLE_LANG_MAP = {
+    "en": "en", "es": "es", "fr": "fr", "de": "de", "it": "it",
+    "pt": "pt", "nl": "nl", "pl": "pl", "sv": "sv", "tr": "tr",
+    "hu": "hu", "fi": "fi", "da": "da", "cs": "cs", "ro": "ro",
+    "ar": "ar", "arz": "ar", "he": "iw", "ru": "ru", "el": "el",
+    "uk": "uk", "bg": "bg",
+}
+
+class GoogleInkRequest(BaseModel):
+    strokes: list[list[Pt]]
+    lang: str
+    width: float = 600
+    height: float = 220
+
+@router.post("/google-recognize")
+async def google_recognize(req: GoogleInkRequest):
+    lang_code = _GOOGLE_LANG_MAP.get(req.lang, req.lang)
+    ink = []
+    t_offset = 0
+    for stroke in req.strokes:
+        if not stroke:
+            continue
+        xs = [p.x for p in stroke]
+        ys = [p.y for p in stroke]
+        ts = [t_offset + i * 50 for i in range(len(stroke))]
+        t_offset = ts[-1] + 200
+        ink.append([xs, ys, ts])
+    if not ink:
+        return {"text": None, "candidates": []}
+    payload = {
+        "writing_guide": {"writing_area_width": req.width, "writing_area_height": req.height},
+        "ink": ink,
+        "language": lang_code,
+        "max_completions": 5,
+        "pre_context": "",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as c:
+            r = await c.post(
+                "https://www.google.com/inputtools/request?ime=handwriting&app=mobilesearch&cs=1&oe=UTF-8",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
+        if r.status_code != 200:
+            return {"text": None, "candidates": []}
+        data = r.json()
+        if not data or data[0] != "SUCCESS" or not data[1]:
+            return {"text": None, "candidates": []}
+        candidates = data[1][0] if data[1] else []
+        return {"text": candidates[0] if candidates else None, "candidates": candidates}
+    except Exception:
+        return {"text": None, "candidates": []}
+
 _MYSCRIPT_LANG_MAP = {
     # Non-Latin scripts
     "ar": "ar",      "he": "he_IL",  "ru": "ru_RU",
