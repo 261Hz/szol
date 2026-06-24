@@ -240,7 +240,7 @@
       <template v-if="!artUrl">
         <div class="section-label" style="margin:1.5rem 0 0.625rem">Suggested</div>
         <div class="item-list">
-          <div v-for="f in CURATED_FEEDS" :key="f.feed_url" class="item-row" style="cursor:default">
+          <div v-for="f in suggestedFeeds" :key="f.feed_url" class="item-row" style="cursor:default">
             <div>
               <div class="item-title">{{ f.title }}</div>
               <div class="item-sub">{{ f.category }}</div>
@@ -385,18 +385,85 @@ async function loadStories(lang) {
 
 const isUrl = (s) => /^https?:\/\//i.test(s.trim())
 
-const CURATED_FEEDS = [
-  { title: 'HowStuffWorks',      feed_url: 'https://feeds.howstuffworks.com/HowStuffWorks',        category: 'Science & Tech' },
-  { title: 'Atlas Obscura',      feed_url: 'https://www.atlasobscura.com/feeds/latest',             category: 'History & Travel' },
-  { title: 'Medium · Tech',      feed_url: 'https://medium.com/feed/tag/technology',                category: 'Technology' },
-  { title: 'Medium · Science',   feed_url: 'https://medium.com/feed/tag/science',                   category: 'Science' },
-  { title: 'Medium · History',   feed_url: 'https://medium.com/feed/tag/history',                   category: 'History' },
-  { title: 'Medium · Business',  feed_url: 'https://medium.com/feed/tag/business',                  category: 'Business' },
-  { title: 'Medium · Sports',    feed_url: 'https://medium.com/feed/tag/sports',                    category: 'Sports' },
-  { title: 'Medium · Culture',   feed_url: 'https://medium.com/feed/tag/pop-culture',               category: 'Pop Culture' },
-  { title: 'Medium · Film',      feed_url: 'https://medium.com/feed/tag/movies',                    category: 'Movies' },
-  { title: 'Medium · Shopping',  feed_url: 'https://medium.com/feed/tag/shopping',                  category: 'Shopping & Trends' },
-]
+const _ALL_CURATED = {
+  en: [
+    { title: 'JSTOR Daily',                    feed_url: 'https://daily.jstor.org/feed/',                                      category: 'Scholarship' },
+    { title: 'Public Domain Review',           feed_url: 'https://publicdomainreview.org/feed/',                               category: 'History & Art' },
+    { title: 'Aeon',                           feed_url: 'https://aeon.co/feed.rss',                                           category: 'Philosophy & Science' },
+    { title: 'NASA',                           feed_url: 'https://www.nasa.gov/feed/',                                         category: 'Space' },
+    { title: 'Quanta Magazine',                feed_url: 'https://www.quantamagazine.org/feed/',                               category: 'Science' },
+    { title: 'Nautilus',                       feed_url: 'https://nautil.us/feed/',                                            category: 'Science & Culture' },
+    { title: 'The Marginalian',                feed_url: 'https://www.themarginalian.org/feed/',                               category: 'Literature & Ideas' },
+    { title: 'Longreads',                      feed_url: 'https://longreads.com/feed/',                                        category: 'Longform' },
+    { title: 'Atlas Obscura',                  feed_url: 'https://www.atlasobscura.com/feeds/latest',                         category: 'History & Travel' },
+    { title: 'Damn Interesting',               feed_url: 'https://www.damninteresting.com/?feed=rss2',                        category: 'History & Science' },
+    { title: 'Wait But Why',                   feed_url: 'https://waitbutwhy.com/feed',                                        category: 'Essays' },
+    { title: 'Works in Progress',              feed_url: 'https://worksinprogress.co/rss/',                                    category: 'Progress Studies' },
+    { title: 'Why Is This Interesting',        feed_url: 'https://whyisthisinteresting.substack.com/feed',                    category: 'Curiosities' },
+    { title: 'Tedium',                         feed_url: 'https://readtedium.substack.com/feed',                              category: 'History & Tech' },
+    { title: 'Bird History',                   feed_url: 'https://birdhistory.substack.com/feed',                             category: 'Natural History' },
+    { title: 'Experimental History',           feed_url: 'https://experimentalhistory.substack.com/feed',                    category: 'Psychology' },
+    { title: 'Free-Range History',             feed_url: 'https://freerangehistory.substack.com/feed',                       category: 'History' },
+    { title: 'Culture Study',                  feed_url: 'https://annehelen.substack.com/feed',                               category: 'Culture' },
+    { title: '3 Quarks Daily',                 feed_url: 'https://3quarksdaily.com/feed',                                     category: 'Arts & Science' },
+    { title: 'A Collection of Unmitigated Pedantry', feed_url: 'https://acoup.blog/feed/',                                   category: 'Ancient History' },
+    { title: 'Defector',                       feed_url: 'https://defector.com/rss',                                          category: 'Sports & Culture' },
+    { title: 'Aftermath',                      feed_url: 'https://aftermath.site/rss',                                        category: 'Games & Tech' },
+    { title: 'Simon Willison',                 feed_url: 'https://simonwillison.net/atom/everything/',                        category: 'Technology' },
+    { title: 'Joel on Software',               feed_url: 'https://www.joelonsoftware.com/feed/',                              category: 'Software' },
+    { title: 'HowStuffWorks',                  feed_url: 'https://feeds.howstuffworks.com/HowStuffWorks',                    category: 'Science & Tech' },
+    { title: 'Medium · Tech',                  feed_url: 'https://medium.com/feed/tag/technology',                            category: 'Technology' },
+    { title: 'Medium · Science',               feed_url: 'https://medium.com/feed/tag/science',                               category: 'Science' },
+    { title: 'Medium · History',               feed_url: 'https://medium.com/feed/tag/history',                               category: 'History' },
+    { title: 'Medium · Culture',               feed_url: 'https://medium.com/feed/tag/pop-culture',                           category: 'Pop Culture' },
+  ],
+  fr: [
+    { title: 'Sciences et Avenir',             feed_url: 'https://www.sciencesetavenir.fr/rss.xml',                           category: 'Sciences' },
+    { title: 'Le Grand Continent',             feed_url: 'https://legrandcontinent.eu/feed/',                                  category: 'Géopolitique' },
+    { title: 'RFI Français',                   feed_url: 'https://www.rfi.fr/fr/rss',                                         category: 'Actualités' },
+  ],
+  es: [
+    { title: 'Muy Interesante',                feed_url: 'https://www.muyinteresante.es/rss/',                                category: 'Ciencia' },
+    { title: 'Jot Down',                       feed_url: 'https://www.jotdown.es/feed/',                                      category: 'Cultura' },
+    { title: 'Naukas',                         feed_url: 'https://naukas.com/feed/',                                           category: 'Ciencia' },
+  ],
+  pt: [
+    { title: 'Agência Pública',                feed_url: 'https://apublica.org/feed/',                                        category: 'Jornalismo' },
+  ],
+  de: [
+    { title: 'Spektrum der Wissenschaft',      feed_url: 'https://www.spektrum.de/alias/rss/spektrum-de-rss-feed/996406',    category: 'Wissenschaft' },
+    { title: 'Netzpolitik',                    feed_url: 'https://netzpolitik.org/feed/',                                     category: 'Digitales' },
+  ],
+  it: [
+    { title: 'Il Post',                        feed_url: 'https://www.ilpost.it/?feed=rss2',                                  category: 'Attualità' },
+    { title: 'Le Scienze',                     feed_url: 'https://www.lescienze.it/rss/',                                     category: 'Scienza' },
+    { title: 'Internazionale',                 feed_url: 'https://www.internazionale.it/rss/tutto',                           category: 'Internazionale' },
+  ],
+  ja: [
+    { title: 'Gigazine',                       feed_url: 'https://gigazine.net/news/rss_atom/',                               category: 'テクノロジー' },
+    { title: 'Rocket News 24',                 feed_url: 'https://rocketnews24.com/feed/',                                    category: 'カルチャー' },
+  ],
+  he: [
+    { title: 'הארץ',                           feed_url: 'https://www.haaretz.co.il/cmlink/1.1615254',                       category: 'חדשות' },
+  ],
+  zh: [
+    { title: 'Deutsche Welle 中文',             feed_url: 'https://rss.dw.com/rdf/rss-chi-all',                               category: '新闻' },
+  ],
+  ru: [
+    { title: 'Deutsche Welle Русский',         feed_url: 'https://rss.dw.com/rdf/rss-rus-all',                               category: 'Новости' },
+  ],
+  id: [
+    { title: 'Antara News',                    feed_url: 'https://www.antaranews.com/rss/terkini.xml',                       category: 'Berita' },
+    { title: 'DW Indonesia',                   feed_url: 'https://rss.dw.com/rdf/rss-id-all',                                category: 'Berita' },
+    { title: 'Tempo.co',                       feed_url: 'https://rss.tempo.co/',                                             category: 'Berita' },
+  ],
+  hu: [
+    { title: '444.hu',                         feed_url: 'https://444.hu/feed',                                               category: 'Hírek' },
+    { title: 'Index.hu',                       feed_url: 'https://index.hu/24ora/rss/',                                       category: 'Hírek' },
+  ],
+}
+
+const suggestedFeeds = computed(() => _ALL_CURATED[props.lang] ?? _ALL_CURATED.en)
 
 // ── Shared sub helpers ─────────────────────────────────────────
 function _readStore(key) { try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] } }
@@ -660,7 +727,7 @@ async function init(lang) {
 }
 
 onMounted(() => { if (props.lang) init(props.lang) })
-watch(() => props.lang,        lang => { if (lang) { feedItems.value = []; podcastEpisodes.value = []; todayArticle.value = null; onThisDay.value = []; init(lang) } })
+watch(() => props.lang,        lang => { if (lang) { currentEpisodes.value = []; todayArticle.value = null; onThisDay.value = []; init(lang) } })
 watch(() => props.currentUser, loadProgress)
 </script>
 
