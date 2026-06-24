@@ -117,28 +117,19 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
                 "role": "user",
                 "content": [
                     {"type": "text", "text": (
-                        f"Handwriting grader. Target word: '{word}' ({lang_name}). "
-                        + (
-                            f"The student wrote this in cursive Latin script. "
-                            f"Count the letters: '{word}' has {len(word)} letters. "
-                            f"FAIL if the written word is shorter than the target (incomplete). "
-                            f"PASS only if all {len(word)} letters are present and the word is clearly '{word}', even if messy. "
-                            f"FAIL if any letter is missing, added, or clearly wrong. "
-                            if payload.lang in _LATIN_LANGS else
-                            f"Read the characters carefully and compare to '{word}' one by one. "
-                            f"PASS only if every character matches the target. Neatness and style do not matter. "
-                            f"For Arabic/Hebrew the word must read right-to-left. "
-                            f"FAIL if any character is wrong, missing, or added. "
-                        ) +
-                        f"Reply PASS or FAIL only."
+                        f"OCR this handwritten word. "
+                        f"Read every letter exactly as written, left to right. "
+                        f"Return only the letters you see — no spaces, no punctuation, no explanation. "
+                        f"If you see nothing, return a single dash: -"
                     )},
                     {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{payload.image_b64}"}},
                 ],
             }],
-            max_tokens=5,
+            max_tokens=20,
         )
-        answer = resp.choices[0].message.content.strip().upper()
-        return {"passed": answer.startswith("PASS")}
+        ocr = resp.choices[0].message.content.strip().lower()
+        passed = ocr == word.lower()
+        return {"passed": passed}
     except Exception as e:
         import traceback, logging
         logging.error("check_handwriting error: %s\n%s", e, traceback.format_exc())
