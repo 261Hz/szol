@@ -129,12 +129,15 @@ def _score(user_raw: list, template_raw: list) -> float:
         return min(fwd, rev) * 1.5
 
 _MYSCRIPT_LANG_MAP = {
-    "ar": "ar",
-    "he": "he_IL",
-    "ru": "ru_RU",
-    "el": "el_GR",
-    "uk": "uk_UA",
-    "bg": "bg_BG",
+    # Non-Latin scripts
+    "ar": "ar",      "he": "he_IL",  "ru": "ru_RU",
+    "el": "el_GR",   "uk": "uk_UA",  "bg": "bg_BG",
+    # Latin
+    "en": "en_US",   "es": "es_ES",  "fr": "fr_FR",
+    "de": "de_DE",   "it": "it_IT",  "pt": "pt_PT",
+    "nl": "nl_NL",   "pl": "pl_PL",  "sv": "sv_SE",
+    "tr": "tr_TR",   "hu": "hu_HU",  "fi": "fi_FI",
+    "da": "da_DK",   "cs": "cs_CZ",  "ro": "ro_RO",
 }
 
 class TranscribeRequest(BaseModel):
