@@ -45,6 +45,11 @@
           :class="ignorePunct ? 'bg-gray-700 text-white' : 'bg-gray-800 text-gray-400'"
           class="text-sm px-3 py-1 rounded-full transition-all"
         >ignore punct.</button>
+        <button
+          @click="ignoreAccents = !ignoreAccents"
+          :class="ignoreAccents ? 'bg-gray-700 text-white' : 'bg-gray-800 text-gray-400'"
+          class="text-sm px-3 py-1 rounded-full transition-all"
+        >ignore accents</button>
       </div>
 
       <!-- ── Completed-sentence history ──────────────────────────────────── -->
@@ -177,7 +182,12 @@ watch([() => props.story, () => props.lang, rootHighlightOn], ([, , on]) => {
 
 const mode        = ref('native')
 const showGuide   = ref(false)
-const ignorePunct = ref(false)
+const ignorePunct   = ref(false)
+const ignoreAccents = ref(false)
+
+function stripDia(s) {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
 
 // hasFranco = true for Arabic (both varieties) and Chinese, which have Latin-script alternates.
 const hasFranco = computed(() => ['ar', 'arz', 'zh', 'zh-TW'].includes(props.lang))
@@ -267,9 +277,9 @@ function buildWords(text) {
       .map(char => [{ char, state: 'untouched' }])
   }
   return text.split(/\s+/)
-    .map(w => ignorePunct.value
-      ? w.replace(/[^\p{L}\p{N}]/gu, '')
-      : w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
+    .flatMap(w => ignorePunct.value
+      ? w.split(/[^\p{L}\p{N}]+/u).filter(Boolean)   // split on punct so "don't" → ["don","t"]
+      : [w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')])  // trim leading/trailing only
     .filter(w => w.length > 0)
     .map(word => word.split('').map(char => ({ char, state: 'untouched' })))
 }
@@ -386,11 +396,8 @@ watch([() => props.story, mode, activeText], async () => {
   }
 }, { immediate: true })
 
-// Toggling ignorePunct only rebuilds the current sentence — no progress reset.
-watch(ignorePunct, () => {
-  loadSentence(sentenceIdx.value)
-  saveLocalProgress()
-})
+watch(ignorePunct,   () => { loadSentence(sentenceIdx.value); saveLocalProgress() })
+watch(ignoreAccents, () => { loadSentence(sentenceIdx.value); saveLocalProgress() })
 
 // loadSentence() prepares the word/char structure for a given sentence index.
 function loadSentence(idx) {
@@ -480,7 +487,9 @@ function onKey(e) {
 
   // ── Character matching ─────────────────────────────────────────────────
   const expected = word[ci].char
-  const match    = e.key === expected
+  const match    = ignoreAccents.value
+    ? stripDia(e.key) === stripDia(expected)
+    : e.key === expected
 
   words.value[wi][ci].state = match ? 'correct' : 'wrong'
   currentCharIndex.value++
