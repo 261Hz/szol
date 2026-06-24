@@ -112,7 +112,7 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
         lang_name = _LANG_NAMES.get(payload.lang, payload.lang)
         word      = payload.word.strip()
         resp = client.chat.completions.create(
-            model="meta-llama/llama-4-scout-17b-16e-instruct",
+            model="meta-llama/llama-4-maverick-17b-128e-instruct",
             messages=[{
                 "role": "user",
                 "content": [
