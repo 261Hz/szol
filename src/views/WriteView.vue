@@ -115,11 +115,10 @@ import HanziWriter from 'hanzi-writer'
 import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import { compareStrokes, getHanziTemplate, PASS_THRESHOLD } from '../utils/strokeRecognizer.js'
-import { recognizeInk, transcribeInk, checkHandwriting } from '../utils/api.js'
+import { recognizeInk, transcribeInk } from '../utils/api.js'
 import { Capacitor } from '@capacitor/core'
 import { DigitalInk } from 'capacitor-mlkit-digitalink-plugin'
 
-const MYSCRIPT_LANGS = new Set(['ar', 'he', 'ru', 'el', 'uk', 'bg'])
 
 const ML_KIT_LANG = {
   'zh': 'zh-Hans-CN', 'zh-TW': 'zh-Hant-TW', 'ja': 'ja-JP', 'ko': 'ko-KR',
@@ -287,7 +286,7 @@ function endStroke() {
   autoCheckTimer = setTimeout(runCheck, 1000)
 }
 
-// ── Cropped snapshot of only the drawn strokes for LLM OCR ───────────────────
+// ── Cropped snapshot (kept for potential future use) ─────────────────────────
 function getCleanCanvasImage() {
   const PAD = 12
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
@@ -346,19 +345,12 @@ async function runCheck() {
       const template = await getHanziTemplate(currentUnit.value)
       passed = template ? compareStrokes(userStrokes, template) < PASS_THRESHOLD : userStrokes.length >= 1
     }
-  } else if (MYSCRIPT_LANGS.has(props.lang)) {
-    // Web Arabic / Hebrew / Russian / Greek → MyScript iink
+  } else {
+    // Web non-CJK: MyScript iink stroke recognition (Latin, Arabic, Hebrew, Cyrillic, Greek…)
     const result = await transcribeInk(userStrokes, props.lang)
     const got  = result?.text?.trim().toLowerCase() ?? ''
     const want = currentUnit.value.trim().toLowerCase()
     passed = got !== '' && got === want
-  } else {
-    // Web Latin → Groq vision LLM on cropped stroke image
-    const img = getCleanCanvasImage()
-    if (img) {
-      const result = await checkHandwriting(currentUnit.value, props.lang, img)
-      passed = result?.passed ?? false
-    }
   }
 
   checkResult.value = passed
