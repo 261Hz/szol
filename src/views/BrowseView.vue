@@ -101,8 +101,8 @@
         <button @click="back" class="back-link">← Archive</button>
         <span class="nav-title">{{ t(lang, 'podcasts') }}</span>
       </div>
-      <!-- JRE pinned -->
-      <div class="item-list" style="margin-bottom:0.5rem">
+      <!-- JRE pinned — English only -->
+      <div v-if="lang === 'en'" class="item-list" style="margin-bottom:0.5rem">
         <button @click="source = JRE_NAME" class="item-row">
           <span class="item-title">{{ JRE_NAME }}</span>
           <span class="item-sub" style="white-space:nowrap">Latest 3</span>
