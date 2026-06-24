@@ -629,7 +629,8 @@ async function fetchArticle() {
   importPreview.value = null
   importError.value   = ''
   try {
-    const res  = await fetch(`/api/extract?url=${encodeURIComponent(url)}`)
+    const token = localStorage.getItem('szol_token')
+    const res  = await fetch(`/api/extract?url=${encodeURIComponent(url)}`, token ? { headers: { Authorization: `Bearer ${token}` } } : {})
     const data = await res.json()
     if (data.error || !data.text) importError.value = data.error || 'Could not extract content.'
     else importPreview.value = data

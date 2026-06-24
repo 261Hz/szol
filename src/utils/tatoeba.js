@@ -38,8 +38,10 @@ export async function fetchTatoeba(word, lang) {
   // native_lang=code restricts results to sentences originally written in this language
   // (not machine translations), giving more natural example sentences.
   const url = `/api/tatoeba?query=${encodeURIComponent(word)}&from=${code}&native_lang=${code}&limit=12`
+  const token = localStorage.getItem('szol_token')
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
   try {
-    const res = await fetch(url)
+    const res = await fetch(url, { headers })
     if (!res.ok) return []
     const data = await res.json()
     const raw = data.results ?? []

@@ -2,6 +2,8 @@
 // Usage: GET /api/fetch-transcript?url=https://...
 //        GET /api/fetch-transcript?slug=joe-rogan-experience-2516-...  → ogjre.com
 
+import { requireAuth } from './_auth.js'
+
 function parseSecs(ts) {
   const s = ts.trim().replace(',', '.')
   const parts = s.split(':').map(Number)
@@ -73,6 +75,7 @@ async function handleOgjre(slug, res) {
 }
 
 export default async function handler(req, res) {
+  if (!requireAuth(req, res)) return
   if (req.query.slug) return handleOgjre(req.query.slug, res)
 
   const url = req.query.url

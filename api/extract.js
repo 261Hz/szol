@@ -3,6 +3,8 @@
 // WHY THIS EXISTS:
 // Most news and article sites block direct browser requests with CORS headers.
 // Running the extraction on Vercel's servers avoids this restriction — the server
+
+import { requireAuth } from './_auth.js'
 // fetches the page, @extractus/article-extractor strips the boilerplate (nav, ads, etc.),
 // and we return clean plain text for import as a story.
 //
@@ -43,6 +45,7 @@ function stripHtml(html) {
 // handler() is the Vercel serverless function entry point.
 // req.query contains the URL parameters (?url=...). res is the response object.
 export default async function handler(req, res) {
+  if (!requireAuth(req, res)) return
   const { url } = req.query
 
   if (!url) {

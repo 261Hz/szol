@@ -3,6 +3,8 @@
 // Fetches YouTube captions without going through Render's flagged server IPs.
 // Two-stage approach:
 //   Stage 1: Invidious public instances — dedicated /api/v1/captions/{id} endpoint.
+
+import { requireAuth } from './_auth.js'
 //   Stage 2: Direct YouTube watch-page scrape — extracts captionTracks from
 //            ytInitialPlayerResponse JSON embedded in the HTML. Works from
 //            Vercel's distributed AWS Lambda IPs even when Render's IPs are blocked.
@@ -368,6 +370,7 @@ async function tryYouTubeDirect(videoId, lang) {
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
+  if (!requireAuth(req, res)) return
   const { v: videoId, lang = 'en' } = req.query
 
   if (!videoId || !/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {

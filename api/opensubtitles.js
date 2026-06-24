@@ -3,6 +3,8 @@
 // WHY THIS EXISTS:
 // OpenSubtitles requires an API key sent in the request headers, which cannot be exposed
 // in browser-side JavaScript. Running the requests through this server-side function keeps
+
+import { requireAuth } from './_auth.js'
 // the key secret in Vercel's environment variables.
 //
 // SETUP: Add OPENSUBTITLES_API_KEY to your Vercel project environment variables.
@@ -61,6 +63,7 @@ function parseSRT(srt) {
 
 // handler() is the Vercel serverless function entry point.
 export default async function handler(req, res) {
+  if (!requireAuth(req, res)) return
   // Read the API key from environment variables — never hard-code secrets in source.
   const API_KEY = process.env.OPENSUBTITLES_API_KEY || ''
 
