@@ -125,7 +125,6 @@
         autocorrect="off"
         autocomplete="off"
         autocapitalize="off"
-        @keydown="onKey"
         @input="onMobileInput"
       />
 
@@ -543,32 +542,17 @@ function onKey(e) {
 }
 
 // ── Mobile input handler ──────────────────────────────────────────────────────
-// On mobile, the hidden input receives input events with accumulated text.
-// We need to process each character and call onKey for each one.
+// Uses e.data (the delta inserted this event) rather than reading input.value,
+// so desktop keydown + mobile @input never double-process the same character.
 function onMobileInput(e) {
-  const input = e.target
-  const text = input.value
-  
-  // Process each character in the input
-  for (const char of text) {
-    if (char === ' ' || char === '\n') {
-      // Space or Enter
-      const syntheticEvent = { key: ' ', preventDefault: () => {} }
-      onKey(syntheticEvent)
-    } else if (char === 'Backspace' || char === '\b') {
-      // Backspace
-      const syntheticEvent = { key: 'Backspace', preventDefault: () => {} }
-      onKey(syntheticEvent)
-    } else {
-      // Regular character - use the actual character as the key
-      // This preserves case information from the mobile keyboard
-      const syntheticEvent = { key: char, preventDefault: () => {} }
-      onKey(syntheticEvent)
+  if (e.inputType === 'deleteContentBackward' || e.inputType === 'deleteContentForward') {
+    onKey({ key: 'Backspace', preventDefault: () => {} })
+  } else if (e.data) {
+    for (const char of e.data) {
+      onKey({ key: char, preventDefault: () => {} })
     }
   }
-  
-  // Clear the input for next batch of characters, but keep focus
-  input.value = ''
+  e.target.value = ''
 }
 
 // ── Character / space styling ─────────────────────────────────────────────────
