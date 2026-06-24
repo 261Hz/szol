@@ -83,8 +83,9 @@
 
       <!-- ── Active sentence ─────────────────────────────────────────────── -->
       <div
-        class="cursor-text outline-none border border-ink-muted/40 rounded-lg p-4 transition-colors focus:border-ink-primary min-h-16"
+        class="leading-loose text-base cursor-text outline-none border border-ink-muted/40 rounded-lg p-4 transition-colors focus:border-ink-primary break-words min-h-16"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+        :class="isRTL(lang) ? 'text-right' : ''"
         tabindex="0"
         @keydown="onKey"
         @focus="focused = true; focusMobileInput()"
@@ -93,28 +94,25 @@
       >
         <span v-if="done" class="text-accent-red font-medium">✓ {{ t(lang, 'done') ?? 'Complete!' }}</span>
 
-        <!-- Words in a flex row so spacing is always explicit, never depends on space chars -->
-        <div v-else class="flex flex-wrap gap-x-3 gap-y-1 leading-loose text-base"
-          :class="isRTL(lang) ? 'justify-end' : ''">
-          <button
-            v-for="(word, wi) in words" :key="wi"
-            type="button"
-            class="whitespace-nowrap rounded transition-colors hover:bg-ink-primary/8 active:bg-ink-primary/8 select-none bg-transparent border-0 p-0 m-0 font-[inherit] leading-[inherit] cursor-pointer"
-            :class="[
-              savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-accent-red decoration-dotted underline-offset-2' : '',
-              awaitingSpace && wi === currentWordIndex ? 'border-r-2' : ''
-            ]"
-            :style="awaitingSpace && wi === currentWordIndex ? 'border-right-color:#2a241c' : ''"
-            @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
-          ><ruby v-if="wordNum(word)" class="szol-num"><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span><rt>{{ wordNum(word) }}</rt></ruby><template v-else><template v-for="(c, ci) in word" :key="ci"><ruby v-if="showGuide && lang === 'zh' && charRoman(c.char)"><span :class="charClass(wi, ci)">{{ c.char }}</span><rt class="text-[0.6em] text-blue-300 font-normal not-italic leading-none">{{ charRoman(c.char) }}</rt></ruby><span v-else :class="charClass(wi, ci)">{{ c.char }}</span></template></template></button>
-        </div>
+        <!-- Inline-block buttons with explicit margin-right for word spacing -->
+        <template v-else>
+          <template v-for="(word, wi) in words" :key="wi">
+            <button
+              type="button"
+              class="inline-block whitespace-nowrap rounded transition-colors hover:bg-ink-primary/8 active:bg-ink-primary/8 select-none bg-transparent border-0 p-0 font-[inherit] leading-[inherit] cursor-pointer"
+              :class="savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-accent-red decoration-dotted underline-offset-2' : ''"
+              :style="(awaitingSpace && wi === currentWordIndex ? 'border-right:2px solid #2a241c;' : '') + (wi < words.length - 1 && !isCJK ? 'margin-right:0.45em;' : '')"
+              @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
+            ><ruby v-if="wordNum(word)" class="szol-num"><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span><rt>{{ wordNum(word) }}</rt></ruby><template v-else><template v-for="(c, ci) in word" :key="ci"><ruby v-if="showGuide && lang === 'zh' && charRoman(c.char)"><span :class="charClass(wi, ci)">{{ c.char }}</span><rt class="text-[0.6em] text-blue-300 font-normal not-italic leading-none">{{ charRoman(c.char) }}</rt></ruby><span v-else :class="charClass(wi, ci)">{{ c.char }}</span></template></template></button>
+          </template>
+        </template>
       </div>
 
-      <!-- Hidden input: 1×1px (not 0×0 — zero-size inputs don't receive events on iOS/Android).  -->
-      <!-- font-size:16px prevents iOS from auto-zooming when the input is focused.               -->
+      <!-- Hidden input must sit at top:0 (within the viewport) or iOS/Android won't fire keyboard    -->
+      <!-- events on it. font-size:16px prevents iOS from auto-zooming the viewport on focus.         -->
       <input
         class="fixed pointer-events-none border-none outline-none opacity-0"
-        style="top:-40px; left:0; width:1px; height:1px; font-size:16px; caret-color:transparent;"
+        style="top:0; left:0; width:1px; height:1px; font-size:16px; caret-color:transparent;"
         ref="hiddenInput"
         type="text"
         inputmode="text"
