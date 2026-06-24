@@ -160,6 +160,7 @@ async def google_recognize(req: GoogleInkRequest):
         "ink": ink,
         "language": lang_code,
         "max_completions": 5,
+        "options": "enable_pre_space",
     }
     body_str = _json.dumps(payload)
     _log.warning("google-recognize: lang=%s strokes=%d pts=%d payload=%s", lang_code, len(ink), sum(len(s[0]) for s in ink), body_str[:400])
@@ -168,7 +169,12 @@ async def google_recognize(req: GoogleInkRequest):
             r = await c.post(
                 "https://www.google.com/inputtools/request?ime=handwriting&app=mobilesearch&cs=1&oe=UTF-8",
                 content=body_str.encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Origin": "https://www.google.com",
+                    "Referer": "https://www.google.com/inputtools/try",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                },
             )
         _log.warning("google-recognize: http=%d body=%s", r.status_code, r.text[:200])
         if r.status_code != 200:
