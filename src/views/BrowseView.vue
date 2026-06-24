@@ -58,12 +58,17 @@
         </button>
       </div>
 
-      <!-- Import URL — at the very bottom, minimal -->
+      <!-- Import URL + paste/upload text -->
       <div class="import-section">
-        <button v-if="!showImport" @click="showImport = true" class="import-toggle">
-          {{ t(lang, 'orPasteUrl') }}
-        </button>
-        <div v-else>
+
+        <!-- Entry toggles (collapsed state) -->
+        <div v-if="!showImport && !showPaste" class="flex gap-3">
+          <button @click="showImport = true" class="import-toggle">{{ t(lang, 'orPasteUrl') }}</button>
+          <button @click="showPaste = true"  class="import-toggle">Upload text</button>
+        </div>
+
+        <!-- URL import -->
+        <div v-if="showImport">
           <div class="import-row">
             <input
               v-model="importUrl"
@@ -88,6 +93,40 @@
             </div>
           </div>
         </div>
+
+        <!-- Paste / upload text (local only — never sent to server) -->
+        <div v-if="showPaste" class="flex flex-col gap-2">
+          <div class="import-row">
+            <input
+              v-model="pasteTitle"
+              type="text"
+              placeholder="Title (optional)"
+              class="import-input"
+            />
+            <button @click="showPaste = false; pasteText = ''; pasteTitle = ''" class="import-cancel">×</button>
+          </div>
+          <textarea
+            v-model="pasteText"
+            rows="7"
+            placeholder="Paste your text here…"
+            class="import-input"
+            style="resize:vertical; font-family:inherit; line-height:1.6;"
+          />
+          <div class="flex items-center gap-3">
+            <label class="import-toggle" style="cursor:pointer;">
+              Upload .txt
+              <input type="file" accept=".txt,.md" class="sr-only" @change="handleTextFile" />
+            </label>
+            <button
+              @click="confirmPaste"
+              :disabled="!pasteText.trim()"
+              class="import-btn"
+              style="opacity:1;"
+              :style="!pasteText.trim() ? 'opacity:0.4;' : ''"
+            >Read</button>
+          </div>
+        </div>
+
       </div>
 
     </template>
@@ -688,6 +727,29 @@ const importUrl     = ref('')
 const importLoading = ref(false)
 const importPreview = ref(null)
 const importError   = ref('')
+
+const showPaste  = ref(false)
+const pasteText  = ref('')
+const pasteTitle = ref('')
+
+function handleTextFile(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = ev => {
+    pasteText.value = ev.target.result
+    if (!pasteTitle.value) pasteTitle.value = file.name.replace(/\.[^.]+$/, '')
+  }
+  reader.readAsText(file)
+}
+
+function confirmPaste() {
+  const text = pasteText.value.trim()
+  if (!text) return
+  const title = pasteTitle.value.trim() || text.split('\n')[0].slice(0, 60) || 'My text'
+  pushLocal({ title, content: text })
+  pasteText.value = ''; pasteTitle.value = ''; showPaste.value = false
+}
 
 async function fetchArticle() {
   const url = importUrl.value.trim()
