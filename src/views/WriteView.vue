@@ -58,7 +58,7 @@
         >{{ u }}</span>
       </div>
 
-      <!-- ── Back link (write mode only, sits above story text) ──────────── -->
+      <!-- ── Back link ──────────────────────────────────────────────────── -->
       <div v-if="!usesHanzi">
         <button @click="emit('go', 'retype')"
           class="text-sm px-3 py-1.5 rounded-lg transition-all"
@@ -82,9 +82,7 @@
           <span v-if="checkResult === true" class="text-base font-bold" style="color:#38a169">✓</span>
           <span v-else-if="checkResult === false" class="text-base font-bold" style="color:#8b3a3a">✗</span>
           <span v-else-if="checking" class="text-xs" style="color:#8c7a66;">…</span>
-          <span v-else class="text-xs" style="color:rgba(140,122,102,0.5);">
-            {{ hwApiAvailable ? 'write the word' : 'write for practice' }}
-          </span>
+          <span v-else class="text-xs" style="color:rgba(140,122,102,0.5);">write the word</span>
         </div>
         <div class="flex items-center gap-3">
           <span class="text-xs" style="color:rgba(140,122,102,0.5);">{{ progressLabel }}</span>
@@ -114,17 +112,16 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import HanziWriter from 'hanzi-writer'
-import { isRTL }  from '../utils/rtl.js'
-import { t }      from '../utils/i18n.js'
+import { isRTL } from '../utils/rtl.js'
+import { t }     from '../utils/i18n.js'
+import { compareStrokes, getHanziTemplate, PASS_THRESHOLD } from '../utils/strokeRecognizer.js'
 
 const props = defineProps({ story: Object, lang: String })
 const emit  = defineEmits(['go'])
 
 const isCJK = computed(() => ['zh', 'zh-TW', 'ja'].includes(props.lang))
 
-// ── Single source of truth: all units the user must write, in order ──────────
-// CJK = every letter character; Latin/RTL = whitespace-split words with
-// leading/trailing punctuation stripped (mirrors RetypeView's buildWords).
+// ── Single source of truth ────────────────────────────────────────────────────
 const rewriteUnits = computed(() => {
   if (!props.story) return []
   const text = props.story.content.trim()
@@ -132,25 +129,15 @@ const rewriteUnits = computed(() => {
   return text.split(/\s+/).map(w => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')).filter(Boolean)
 })
 
-// ── Single index ─────────────────────────────────────────────────────────────
 const unitIdx = ref(0)
 
 const currentUnit = computed(() => rewriteUnits.value[unitIdx.value] ?? '')
-
-const isFirst = computed(() => unitIdx.value === 0)
-
-const isLast = computed(() => unitIdx.value >= rewriteUnits.value.length - 1)
+const isFirst     = computed(() => unitIdx.value === 0)
+const isLast      = computed(() => unitIdx.value >= rewriteUnits.value.length - 1)
 
 const progressLabel = computed(() => `${unitIdx.value + 1} / ${rewriteUnits.value.length}`)
 
-function goNext() {
-  if (!isLast.value) unitIdx.value++
-}
-
-function advanceManual() {
-  clearCanvas()
-  if (!isLast.value) goNext()
-}
+function goNext() { if (!isLast.value) unitIdx.value++ }
 
 // ── Story text colour helpers ────────────────────────────────────────────────
 const DONE_STYLE    = 'color:#8c7a66;'
@@ -171,28 +158,9 @@ function scrollToCurrent() {
     const el = document.querySelector('[data-current="1"]')
     if (!el) return
     const rect = el.getBoundingClientRect()
-    const vh   = window.innerHeight
-    const usable = vh - CANVAS_TOTAL_H
-    const targetScroll = window.scrollY + rect.top - usable * 0.35
-    window.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' })
+    const usable = window.innerHeight - CANVAS_TOTAL_H
+    window.scrollTo({ top: Math.max(0, window.scrollY + rect.top - usable * 0.35), behavior: 'smooth' })
   })
-}
-
-// ── Chrome Handwriting Recognition API ──────────────────────────────────────
-const hwApiAvailable = 'createHandwritingRecognizer' in navigator
-let hwRecognizer = null
-let hwDrawing    = null
-let hwCurStroke  = null
-
-async function initHW() {
-  if (!hwApiAvailable) return
-  if (hwRecognizer) { try { hwRecognizer.finish() } catch {} hwRecognizer = null; hwDrawing = null }
-  try {
-    hwRecognizer = await navigator.createHandwritingRecognizer({
-      languages: [props.lang === 'zh-TW' ? 'zh-TW' : props.lang === 'zh' ? 'zh' : props.lang]
-    })
-    hwDrawing = hwRecognizer.startDrawing({ alternatives: 8 })
-  } catch (err) { console.error('HW init:', err) }
 }
 
 // ── Canvas ───────────────────────────────────────────────────────────────────
@@ -202,9 +170,12 @@ const checkResult = ref(null)
 const failCount   = ref(0)
 let ctx            = null
 let autoCheckTimer = null
-let strokeCount    = 0
 let drawing        = false
 let canvasCssWidth = 0
+
+// Stroke data collected locally — no dependency on Chrome HW API
+let userStrokes        = []   // completed strokes: {x,y}[][]
+let currentStrokePts   = []   // points in the stroke being drawn
 
 const CANVAS_HEIGHT = 160
 const INK_COLOR     = '#1a1a2e'
@@ -228,21 +199,20 @@ function setupCanvas() {
 
 function clearCanvas() {
   clearTimeout(autoCheckTimer)
+  userStrokes = []; currentStrokePts = []
   if (!ctx || !canvasEl.value) return
   const w = canvasCssWidth || window.innerWidth
-  const h = CANVAS_HEIGHT
-  ctx.clearRect(0, 0, w, h)
+  ctx.clearRect(0, 0, w, CANVAS_HEIGHT)
   if (currentUnit.value) {
     ctx.save()
-    ctx.font = `bold ${Math.min(h * 0.7, 100)}px serif`
+    ctx.font = `bold ${Math.min(CANVAS_HEIGHT * 0.7, 100)}px serif`
     ctx.fillStyle = 'rgba(139,58,58,0.07)'
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText(currentUnit.value, w / 2, h / 2)
+    ctx.fillText(currentUnit.value, w / 2, CANVAS_HEIGHT / 2)
     ctx.restore()
   }
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
-  checkResult.value = null; strokeCount = 0
-  if (hwDrawing) { try { hwDrawing.clear() } catch {} }
+  checkResult.value = null
 }
 
 function getXY(e) {
@@ -258,10 +228,7 @@ function startStroke(e) {
   clearTimeout(autoCheckTimer)
   checkResult.value = null
   const { x, y } = getXY(e)
-  if (hwDrawing && typeof HandwritingStroke !== 'undefined') {
-    hwCurStroke = new HandwritingStroke()
-    hwCurStroke.addPoint({ x, y, t: Date.now() })
-  }
+  currentStrokePts = [{ x, y }]
   ctx.beginPath()
   ctx.moveTo(x, y)
 }
@@ -269,7 +236,7 @@ function startStroke(e) {
 function extendStroke(e) {
   if (!drawing || !ctx) return
   const { x, y } = getXY(e)
-  hwCurStroke?.addPoint({ x, y, t: Date.now() })
+  currentStrokePts.push({ x, y })
   ctx.lineTo(x, y)
   ctx.stroke()
   ctx.beginPath()
@@ -279,49 +246,32 @@ function extendStroke(e) {
 function endStroke() {
   if (!drawing) return
   drawing = false
-  strokeCount++
-  if (hwCurStroke && hwDrawing) {
-    try { hwDrawing.addStroke(hwCurStroke) } catch {}
-    hwCurStroke = null
-  }
+  if (currentStrokePts.length > 1) userStrokes.push([...currentStrokePts])
+  currentStrokePts = []
   clearTimeout(autoCheckTimer)
   autoCheckTimer = setTimeout(runCheck, 1000)
 }
 
 // ── Recognition ──────────────────────────────────────────────────────────────
-function norm(s) {
-  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
-}
-
-function levenshtein(a, b) {
-  const m = a.length, n = b.length
-  const d = Array.from({ length: m + 1 }, (_, i) => Array(n + 1).fill(0).map((_, j) => i || j))
-  for (let i = 1; i <= m; i++)
-    for (let j = 1; j <= n; j++)
-      d[i][j] = a[i-1] === b[j-1] ? d[i-1][j-1] : 1 + Math.min(d[i-1][j], d[i][j-1], d[i-1][j-1])
-  return d[m][n]
-}
-
-function isMatch(got, expected) {
-  if (isCJK.value) return got.trim() === expected
-  const g = norm(got), t = norm(expected)
-  return levenshtein(g, t) <= Math.max(1, Math.floor(t.length / 4))
-}
-
 async function runCheck() {
-  if (checking.value || checkResult.value === true || strokeCount === 0) return
+  if (checking.value || checkResult.value === true || userStrokes.length === 0) return
   checking.value = true
   let passed = false
 
-  if (hwDrawing) {
-    try {
-      const preds = await hwDrawing.getPrediction()
-      passed = preds.some(p => isMatch(p.text ?? '', currentUnit.value))
-      if (passed) hwDrawing.clear()
-    } catch (err) { console.error('HW recognition:', err) }
+  if (isCJK.value) {
+    const template = await getHanziTemplate(currentUnit.value)
+    if (template) {
+      const score = compareStrokes(userStrokes, template)
+      passed = score < PASS_THRESHOLD
+    } else {
+      // No template data (rare) — accept any drawing
+      passed = userStrokes.length >= 1
+    }
   } else {
-    // HW recognition API unavailable — any drawing counts as correct (motor practice).
-    passed = strokeCount >= 2
+    // Latin / RTL: no geometric templates available.
+    // Pass when stroke count is proportional to word length.
+    const minStrokes = Math.max(1, Math.ceil(currentUnit.value.length / 4))
+    passed = userStrokes.length >= minStrokes
   }
 
   checkResult.value = passed
@@ -342,7 +292,7 @@ const quizDone       = ref(false)
 const charError      = ref(false)
 let writer = null
 
-const usesHanzi = computed(() => isCJK.value && (mode.value === 'guided' || !hwApiAvailable))
+const usesHanzi = computed(() => isCJK.value && mode.value === 'guided')
 
 function setMode(m) {
   mode.value = m
@@ -385,8 +335,7 @@ function onResize() { if (!usesHanzi.value) setupCanvas() }
 // ── Lifecycle ────────────────────────────────────────────────────────────────
 watch(canvasEl, (el) => { if (el) setupCanvas() })
 
-onMounted(async () => {
-  await initHW()
+onMounted(() => {
   if (isCJK.value) nextTick(initWriter)
   else             setupCanvas()
   window.addEventListener('resize', onResize)
@@ -395,7 +344,6 @@ onMounted(async () => {
 onUnmounted(() => {
   clearTimeout(autoCheckTimer)
   window.removeEventListener('resize', onResize)
-  if (hwRecognizer) { try { hwRecognizer.finish() } catch {} }
 })
 
 watch(unitIdx, () => {
@@ -404,11 +352,10 @@ watch(unitIdx, () => {
   else                 nextTick(() => { clearCanvas(); scrollToCurrent() })
 })
 
-watch([() => props.lang, () => props.story], async () => {
+watch([() => props.lang, () => props.story], () => {
   unitIdx.value = 0
   mode.value = 'guided'; quizActive.value = false; quizDone.value = false
   charError.value = false; writer = null; checkResult.value = null; failCount.value = 0
-  await initHW()
   if (isCJK.value) nextTick(initWriter)
   else             setupCanvas()
 })
