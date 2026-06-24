@@ -183,26 +183,17 @@
         <button @click="back" class="back-link">← Archive</button>
         <span class="nav-title">{{ t(lang, 'articles') }}</span>
       </div>
-      <div v-if="!articleShows.length" class="status-text italic-muted">No feeds yet.</div>
-      <div v-else class="item-list">
-        <button
-          v-for="sub in articleShows"
-          :key="sub.feed_url"
-          @click="source = sub.feed_url"
-          class="item-row"
-        >
-          <span class="item-title">{{ sub.title }}</span>
-        </button>
-      </div>
-      <!-- Search / RSS import -->
-      <div class="import-section" style="margin-top:1rem">
+
+      <!-- Search box — always on top -->
+      <div class="import-section" style="margin-bottom:1.25rem">
         <div class="import-row">
           <input
             v-model="artUrl"
             type="text"
-            placeholder="Search or paste feed URL…"
+            placeholder="Search publications or paste feed URL…"
             @keydown.enter="importArticleRss"
             class="import-input"
+            autofocus
           />
           <span v-if="artSearchLoading" class="import-spinner" />
           <button v-if="isUrl(artUrl)" @click="importArticleRss" :disabled="artUrlLoading" class="import-btn">
@@ -225,6 +216,36 @@
           </div>
         </div>
       </div>
+
+      <!-- Subscribed feeds -->
+      <div v-if="articleShows.length" class="item-list">
+        <button
+          v-for="sub in articleShows"
+          :key="sub.feed_url"
+          @click="source = sub.feed_url"
+          class="item-row"
+        >
+          <span class="item-title">{{ sub.title }}</span>
+        </button>
+      </div>
+
+      <!-- Suggested feeds (hidden while searching) -->
+      <template v-if="!artUrl">
+        <div class="section-label" style="margin:1.5rem 0 0.625rem">Suggested</div>
+        <div class="item-list">
+          <div v-for="f in CURATED_FEEDS" :key="f.feed_url" class="item-row" style="cursor:default">
+            <div>
+              <div class="item-title">{{ f.title }}</div>
+              <div class="item-sub">{{ f.category }}</div>
+            </div>
+            <button
+              @click="subscribeArticle(f.feed_url, f.title, null)"
+              :disabled="articleShows.some(s => s.feed_url === f.feed_url)"
+              class="import-btn"
+            >{{ articleShows.some(s => s.feed_url === f.feed_url) ? '✓' : 'Add' }}</button>
+          </div>
+        </div>
+      </template>
     </template>
 
     <!-- ARTICLES — items in feed -->
@@ -356,6 +377,19 @@ async function loadStories(lang) {
 }
 
 const isUrl = (s) => /^https?:\/\//i.test(s.trim())
+
+const CURATED_FEEDS = [
+  { title: 'HowStuffWorks',      feed_url: 'https://feeds.howstuffworks.com/HowStuffWorks',        category: 'Science & Tech' },
+  { title: 'Atlas Obscura',      feed_url: 'https://www.atlasobscura.com/feeds/latest',             category: 'History & Travel' },
+  { title: 'Medium · Tech',      feed_url: 'https://medium.com/feed/tag/technology',                category: 'Technology' },
+  { title: 'Medium · Science',   feed_url: 'https://medium.com/feed/tag/science',                   category: 'Science' },
+  { title: 'Medium · History',   feed_url: 'https://medium.com/feed/tag/history',                   category: 'History' },
+  { title: 'Medium · Business',  feed_url: 'https://medium.com/feed/tag/business',                  category: 'Business' },
+  { title: 'Medium · Sports',    feed_url: 'https://medium.com/feed/tag/sports',                    category: 'Sports' },
+  { title: 'Medium · Culture',   feed_url: 'https://medium.com/feed/tag/pop-culture',               category: 'Pop Culture' },
+  { title: 'Medium · Film',      feed_url: 'https://medium.com/feed/tag/movies',                    category: 'Movies' },
+  { title: 'Medium · Shopping',  feed_url: 'https://medium.com/feed/tag/shopping',                  category: 'Shopping & Trends' },
+]
 
 // ── Shared sub helpers ─────────────────────────────────────────
 function _readStore(key) { try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] } }
