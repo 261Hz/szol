@@ -36,10 +36,12 @@ jobs:
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
+          echo "=== APK search ==="
+          find . -name "*.apk" 2>/dev/null
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: szol-android-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/**/*.apk
           retention-days: 14
