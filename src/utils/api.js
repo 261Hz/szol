@@ -120,18 +120,6 @@ export function logout() {
   localStorage.removeItem('szol_token')
 }
 
-export async function createGuestAccount(turnstileToken) {
-  const res = await fetch(`${API_URL}/auth/guest`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ turnstile_token: turnstileToken, website: '' }),
-  })
-  if (!res.ok) {
-    const json = await res.json().catch(() => ({}))
-    throw new Error(json.detail || 'Could not create session')
-  }
-  return await res.json() // { access_token, token_type, is_guest, trust_level }
-}
 
 export async function updateSettings(settings) {
   const res = await apiFetch(`${API_URL}/users/me`, {
