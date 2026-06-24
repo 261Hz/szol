@@ -82,49 +82,46 @@
       </div>
 
       <!-- ── Active sentence ─────────────────────────────────────────────── -->
-      <!-- This is the div the user focuses to type.                          -->
-      <!-- tabindex="0" = makes a non-input element keyboard-focusable.       -->
-      <!-- @keydown = captures every keypress while focused.                  -->
-      <!-- @focus/@blur = show/hide the "click to type" hint.                 -->
-      <!-- break-words = long words (URLs, German compounds) wrap gracefully.  -->
       <div
-        class="leading-loose text-base cursor-text outline-none border border-ink-muted/40 rounded-lg p-4 transition-colors focus:border-ink-primary break-words min-h-16"
+        class="cursor-text outline-none border border-ink-muted/40 rounded-lg p-4 transition-colors focus:border-ink-primary min-h-16"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
-        :class="isRTL(lang) ? 'text-right' : ''"
         tabindex="0"
         @keydown="onKey"
         @focus="focused = true; focusMobileInput()"
         @blur="focused = false"
         ref="overlayEl"
       >
-        <!-- Done state: all sentences completed. -->
         <span v-if="done" class="text-accent-red font-medium">✓ {{ t(lang, 'done') ?? 'Complete!' }}</span>
 
-        <!-- Active sentence: render each word and space with color-coded state. -->
-        <!-- Each word is wrapped in a clickable span: click speaks + saves to vocab. -->
-        <template v-else>
-          <template v-for="(word, wi) in words" :key="wi">
-            <button
-              type="button"
-              class="inline whitespace-nowrap rounded transition-colors hover:bg-ink-primary/8 active:bg-ink-primary/8 select-none bg-transparent border-0 p-0 m-0 font-[inherit] leading-[inherit] cursor-pointer"
-              :class="savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-accent-red decoration-dotted underline-offset-2' : ''"
-              @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
-            ><ruby v-if="wordNum(word)" class="szol-num"><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span><rt>{{ wordNum(word) }}</rt></ruby><template v-else><template v-for="(c, ci) in word" :key="ci"><ruby v-if="showGuide && lang === 'zh' && charRoman(c.char)"><span :class="charClass(wi, ci)">{{ c.char }}</span><rt class="text-[0.6em] text-blue-300 font-normal not-italic leading-none">{{ charRoman(c.char) }}</rt></ruby><span v-else :class="charClass(wi, ci)">{{ c.char }}</span></template></template></button>
-            <span v-if="wi < words.length - 1 && !isCJK" :class="spaceClass(wi)">{{ ' ' }}</span>
-          </template>
-        </template>
+        <!-- Words in a flex row so spacing is always explicit, never depends on space chars -->
+        <div v-else class="flex flex-wrap gap-x-[0.4em] gap-y-1 leading-loose text-base"
+          :class="isRTL(lang) ? 'justify-end' : ''">
+          <button
+            v-for="(word, wi) in words" :key="wi"
+            type="button"
+            class="whitespace-nowrap rounded transition-colors hover:bg-ink-primary/8 active:bg-ink-primary/8 select-none bg-transparent border-0 p-0 m-0 font-[inherit] leading-[inherit] cursor-pointer"
+            :class="[
+              savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-accent-red decoration-dotted underline-offset-2' : '',
+              awaitingSpace && wi === currentWordIndex ? 'border-r-2' : ''
+            ]"
+            :style="awaitingSpace && wi === currentWordIndex ? 'border-right-color:#2a241c' : ''"
+            @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
+          ><ruby v-if="wordNum(word)" class="szol-num"><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span><rt>{{ wordNum(word) }}</rt></ruby><template v-else><template v-for="(c, ci) in word" :key="ci"><ruby v-if="showGuide && lang === 'zh' && charRoman(c.char)"><span :class="charClass(wi, ci)">{{ c.char }}</span><rt class="text-[0.6em] text-blue-300 font-normal not-italic leading-none">{{ charRoman(c.char) }}</rt></ruby><span v-else :class="charClass(wi, ci)">{{ c.char }}</span></template></template></button>
+        </div>
       </div>
 
-      <!-- Hidden input triggers the on-screen keyboard on mobile devices. -->
-      <!-- fixed+top-0+left-0 prevents the browser from scroll-jumping to reveal it on focus. -->
+      <!-- Hidden input: 1×1px (not 0×0 — zero-size inputs don't receive events on iOS/Android).  -->
+      <!-- font-size:16px prevents iOS from auto-zooming when the input is focused.               -->
       <input
-        class="fixed top-0 left-0 w-0 h-0 opacity-0 pointer-events-none border-none outline-none"
+        class="fixed pointer-events-none border-none outline-none opacity-0"
+        style="top:-40px; left:0; width:1px; height:1px; font-size:16px; caret-color:transparent;"
         ref="hiddenInput"
         type="text"
         inputmode="text"
         autocorrect="off"
         autocomplete="off"
         autocapitalize="off"
+        spellcheck="false"
         @input="onMobileInput"
       />
 
@@ -542,15 +539,17 @@ function onKey(e) {
 }
 
 // ── Mobile input handler ──────────────────────────────────────────────────────
-// Uses e.data (the delta inserted this event) rather than reading input.value,
-// so desktop keydown + mobile @input never double-process the same character.
+// e.target.value holds only the characters typed since the last clear (we clear after each event).
+// This is more reliable than e.data which is null on many Android composition keyboards.
 function onMobileInput(e) {
   if (e.inputType === 'deleteContentBackward' || e.inputType === 'deleteContentForward') {
     onKey({ key: 'Backspace', preventDefault: () => {} })
-  } else if (e.data) {
-    for (const char of e.data) {
-      onKey({ key: char, preventDefault: () => {} })
-    }
+    e.target.value = ''
+    return
+  }
+  const text = e.target.value
+  for (const char of text) {
+    onKey({ key: char === '\n' ? ' ' : char, preventDefault: () => {} })
   }
   e.target.value = ''
 }
@@ -574,18 +573,6 @@ function charClass(wi, ci) {
   }
 }
 
-// spaceClass() styles the space between words.
-function spaceClass(wi) {
-  const word     = words.value[wi]
-  const done     = word.every(c => c.state === 'correct')
-  const isActive = wi === currentWordIndex.value
-
-  // Show cursor underline on the space when awaiting Space to advance.
-  if (awaitingSpace.value && isActive) return 'border-b-2 border-ink-primary'
-  if (done)          return 'text-ink-primary'
-  if (wi > currentWordIndex.value) return 'text-ink-muted'
-  return 'text-ink-soft'
-}
 
 // ── Progress ──────────────────────────────────────────────────────────────────
 
