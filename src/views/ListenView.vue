@@ -509,7 +509,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, watchEffect } from 'vue'
 import Fuse from 'fuse.js'
 import { LANGS } from '../data/stories.js'
-import { fetchListenStories, fetchPodcasts, searchPodcasts, subscribePodcast, checkTranslation, fetchPodcastTranscript, fetchOgjreTranscript, savePodcastTranscript } from '../utils/api.js'
+import { fetchListenStories, checkTranslation, fetchPodcastTranscript, fetchOgjreTranscript, savePodcastTranscript } from '../utils/api.js'
 import { t } from '../utils/i18n.js'
 import { isRTL } from '../utils/rtl.js'
 import { spokenNumbers } from '../utils/spokenNumbers.js'
@@ -807,10 +807,12 @@ async function tryFetchTranscript(storyId, title, podcastName) {
         return
       }
     }
-    // All other sources: backend fetches from the appropriate transcript source
-    const data = await fetchPodcastTranscript(storyId)
-    if (data?.segments?.length) {
-      segments.value = data.segments
+    // Backend transcript fetch only works for DB-stored episodes (UUID, not a URL)
+    if (storyId && !storyId.startsWith('http')) {
+      const data = await fetchPodcastTranscript(storyId)
+      if (data?.segments?.length) {
+        segments.value = data.segments
+      }
     }
   } catch {}
   transcriptLoading.value = false
