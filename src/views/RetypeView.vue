@@ -94,7 +94,7 @@
         <span v-if="done" class="text-accent-red font-medium">✓ {{ t(lang, 'done') ?? 'Complete!' }}</span>
 
         <!-- Words in a flex row so spacing is always explicit, never depends on space chars -->
-        <div v-else class="flex flex-wrap gap-x-[0.4em] gap-y-1 leading-loose text-base"
+        <div v-else class="flex flex-wrap gap-x-3 gap-y-1 leading-loose text-base"
           :class="isRTL(lang) ? 'justify-end' : ''">
           <button
             v-for="(word, wi) in words" :key="wi"
