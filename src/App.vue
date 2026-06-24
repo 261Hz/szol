@@ -255,8 +255,12 @@ async function initGuestAccount() {
   if (!window.turnstile) return
 
   return new Promise((resolve) => {
+    const done = () => { clearTimeout(fallback); resolve() }
+    // Safety net: never block app loading for more than 8s regardless of Turnstile state
+    const fallback = setTimeout(done, 8000)
+
     const el = document.getElementById('szol-turnstile-guest')
-    if (!el) return resolve()
+    if (!el) return done()
     window.turnstile.render(el, {
       sitekey:            TURNSTILE_SITE_KEY,
       appearance:         'interaction-only',
@@ -269,10 +273,10 @@ async function initGuestAccount() {
         } catch {
           // Guest creation failed — app still works, just no account
         }
-        resolve()
+        done()
       },
-      'error-callback':   () => resolve(),
-      'expired-callback': () => resolve(),
+      'error-callback':   done,
+      'expired-callback': done,
     })
   })
 }
