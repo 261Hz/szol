@@ -221,7 +221,7 @@ const ZERO = {
   arz:'صفر', el:'μηδέν', hu:'nulla', pt:'zero', id:'nol',
 }
 
-const HANDLERS = { en, es, fr, de, it, ja, zh, ru, el, hu, he, ar, arz, pt, id }
+const HANDLERS = { en, es, fr, de, it, ja, zh, 'zh-TW': zh, ru, el, hu, he, ar, arz, pt, id }
 
 export function numToWords(n, lang) {
   if (!Number.isInteger(n) || n < 0 || n > 9999) return null

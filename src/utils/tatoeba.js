@@ -14,7 +14,8 @@ const TATOEBA_LANG = {
   ar:  'ara',
   arz: 'ara', // Egyptian Arabic uses the Modern Arabic Tatoeba corpus
   ja:  'jpn',
-  zh:  'cmn', // Mandarin Chinese (cmn = standard Chinese)
+  zh:      'cmn', // Simplified Mandarin Chinese
+  'zh-TW': 'cmn', // Traditional Mandarin Chinese (same corpus)
   hu:  'hun',
   el:  'ell',
 }

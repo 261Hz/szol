@@ -24,7 +24,8 @@ const PROMPT = {
   fr:  w => `Explique la signification de « ${w} » en français en une phrase.`,
   de:  w => `Erkläre die Bedeutung von „${w}" auf Deutsch in einem Satz.`,
   it:  w => `Spiega il significato di «${w}» in italiano in una frase.`,
-  zh:  w => `用中文一句话解释"${w}"的意思。`,
+  zh:     w => `用中文一句话解释"${w}"的意思。`,
+  'zh-TW': w => `請用繁體中文一句話解釋「${w}」的意思。`,
   ko:  w => `"${w}"의 의미를 한국어로 한 문장으로 설명해 주세요.`,
 }
 

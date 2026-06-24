@@ -55,9 +55,14 @@ export const SEO = {
     description: '本物の日本語記事を読み、文章を入力練習し、発音を鍛えることで語学力を向上させましょう。毎日新しいコンテンツを配信。',
   },
   zh: {
-    htmlLang: 'zh',
+    htmlLang: 'zh-Hans',
     title: 'Szól — 阅读、默写和口语练习，轻松学外语',
     description: '通过阅读真实文章、默写句子和发音练习，全面提高你的语言能力。每天更新内容，持续进步。',
+  },
+  'zh-TW': {
+    htmlLang: 'zh-Hant',
+    title: 'Szól — 閱讀、默寫和口語練習，輕鬆學外語',
+    description: '透過閱讀真實文章、默寫句子和發音練習，全面提升你的語言能力。每天更新內容，持續進步。',
   },
   hu: {
     htmlLang: 'hu',

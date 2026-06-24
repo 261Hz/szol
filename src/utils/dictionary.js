@@ -142,9 +142,12 @@ export async function lookupWord(word, lang) {
   // We use functions here (not direct calls) so we can try them one at a time lazily.
   const chain = []
 
-  if (lang === 'zh') {
-    // For Chinese: try MOEDict first, then Chinese Wiktionary.
+  if (lang === 'zh-TW') {
+    // Traditional Chinese: MOEDict (Taiwan Ministry of Education) first, then Wiktionary.
     chain.push(() => fromMoedict(word))
+    chain.push(() => fromWiktionary(word, 'zh'))
+  } else if (lang === 'zh') {
+    // Simplified Chinese: Chinese Wiktionary.
     chain.push(() => fromWiktionary(word, 'zh'))
   } else if (lang === 'en') {
     // For English: Free Dictionary API first, then English Wiktionary.

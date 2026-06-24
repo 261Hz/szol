@@ -853,7 +853,8 @@ const TRANSLATE_TO_OPTIONS = [
   { code: 'ar', label: 'Arabic' },
   { code: 'ru', label: 'Russian' },
   { code: 'ja', label: 'Japanese' },
-  { code: 'zh', label: 'Chinese' },
+  { code: 'zh',    label: 'Chinese (Simplified)' },
+  { code: 'zh-TW', label: 'Chinese (Traditional)' },
 ]
 
 const sameLang = computed(() => props.lang === translateTo.value)

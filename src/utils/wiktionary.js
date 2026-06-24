@@ -6,7 +6,7 @@
 // ar/he Wiktionary REST endpoint returns 501 — omitted intentionally
 const WIKT_CODE = {
   arz: 'ar', de: 'de', fr: 'fr', es: 'es',
-  it: 'it', pt: 'pt', ru: 'ru', ja: 'ja', zh: 'zh', ko: 'ko',
+  it: 'it', pt: 'pt', ru: 'ru', ja: 'ja', zh: 'zh', 'zh-TW': 'zh', ko: 'ko',
   nl: 'nl', pl: 'pl', sv: 'sv', el: 'el', hu: 'hu', cs: 'cs',
   tr: 'tr', en: 'en',
 }

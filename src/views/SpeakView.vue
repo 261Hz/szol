@@ -211,7 +211,7 @@ const sentences = computed(() => {
 //   spaces between words -- splitting by whitespace gives just one giant "word".
 // For all other languages: split by whitespace into words.
 function splitUnits(text) {
-  if (['zh', 'ja'].includes(props.lang)) {
+  if (['zh', 'zh-TW', 'ja'].includes(props.lang)) {
     // [...text] spreads the string into characters. filter keeps only letters (not punctuation/spaces).
     return [...text].filter(c => /\p{L}/u.test(c))
   }

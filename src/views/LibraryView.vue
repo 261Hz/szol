@@ -507,7 +507,7 @@ const viewMode = ref('list')
 const LANG_COLORS = {
   en: '#3b82f6', es: '#ef4444', fr: '#6366f1', de: '#71717a',
   it: '#22c55e', ru: '#dc2626', he: '#3b82f6', ar: '#16a34a',
-  arz: '#0d9488', ja: '#ef4444', zh: '#dc2626', hu: '#f59e0b', el: '#8b5cf6',
+  arz: '#0d9488', ja: '#ef4444', zh: '#dc2626', 'zh-TW': '#0ea5e9', hu: '#f59e0b', el: '#8b5cf6',
 }
 
 function connectionScore(story) {
@@ -965,6 +965,9 @@ const SUGGESTED_SOURCES = {
     { name: 'La Vanguardia',   url: 'https://www.lavanguardia.com',           lang: 'es' },
     { name: 'Xinhua',          url: 'https://www.xinhuanet.com',              lang: 'zh' },
     { name: '人民日報',        url: 'https://www.people.com.cn',              lang: 'zh' },
+    { name: '聯合新聞網',      url: 'https://udn.com',                        lang: 'zh-TW' },
+    { name: '自由時報',        url: 'https://www.ltn.com.tw',                 lang: 'zh-TW' },
+    { name: '中央社',          url: 'https://www.cna.com.tw',                 lang: 'zh-TW' },
     { name: 'Kompas',          url: 'https://www.kompas.com',                 lang: 'id' },
     { name: 'BBC Indonesia',   url: 'https://www.bbc.com/indonesia',          lang: 'id' },
     { name: 'Tempo.co',        url: 'https://www.tempo.co',                   lang: 'id' },
@@ -982,6 +985,7 @@ const SUGGESTED_SOURCES = {
     { name: 'Sport.hu',        url: 'https://sport.hu',                       lang: 'hu' },
     { name: 'NHK Sports',      url: 'https://www3.nhk.or.jp/sports/',         lang: 'ja' },
     { name: 'Sina Sports',     url: 'https://sports.sina.com.cn',             lang: 'zh' },
+    { name: '運動視界',        url: 'https://www.sportsv.net',                lang: 'zh-TW' },
     { name: 'Bola.com',        url: 'https://www.bola.com',                   lang: 'id' },
   ],
   Tech: [
@@ -991,6 +995,7 @@ const SUGGESTED_SOURCES = {
     { name: 'Tom\'s Hardware IT', url: 'https://www.tomshw.it',               lang: 'it' },
     { name: 'Hi-Tech Mail',    url: 'https://hi-tech.mail.ru',                lang: 'ru' },
     { name: 'IT之家',          url: 'https://www.ithome.com',                 lang: 'zh' },
+    { name: 'iThome TW',      url: 'https://www.ithome.com.tw',              lang: 'zh-TW' },
     { name: 'Detikinet',       url: 'https://inet.detik.com',                 lang: 'id' },
   ],
   'Animals & Nature': [
@@ -1229,7 +1234,7 @@ function resumeStory(progress) {
 // For all other languages: split by whitespace and count the chunks.
 function wordCount(story) {
   const text = story.content ?? story.text ?? ''
-  if (['zh', 'ja'].includes(story.lang)) {
+  if (['zh', 'zh-TW', 'ja'].includes(story.lang)) {
     return [...text].filter(c => /\p{L}/u.test(c)).length
   }
   return text.split(/\s+/).filter(Boolean).length

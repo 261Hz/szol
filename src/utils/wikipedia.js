@@ -11,7 +11,7 @@
 const WIKI_LANG = {
   en: 'en', es: 'es', fr: 'fr', de: 'de', it: 'it',
   ru: 'ru', he: 'he', ar: 'ar', arz: 'ar',
-  ja: 'ja', zh: 'zh', hu: 'hu', el: 'el',
+  ja: 'ja', zh: 'zh', 'zh-TW': 'zh', hu: 'hu', el: 'el',
 }
 
 function wl(lang) {
