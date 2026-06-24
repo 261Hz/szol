@@ -298,27 +298,25 @@ function endStroke() {
 // ── Cropped snapshot of only the drawn strokes for LLM OCR ───────────────────
 function getCleanCanvasImage() {
   const PAD = 12
-  // Compute bounding box of all stroke points
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
   for (const stroke of userStrokes) {
     for (const p of stroke) {
-      if (p.x < minX) minX = p.x
-      if (p.y < minY) minY = p.y
-      if (p.x > maxX) maxX = p.x
-      if (p.y > maxY) maxY = p.y
+      if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y
+      if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y
     }
   }
-  if (!isFinite(minX)) return null  // nothing drawn
+  if (!isFinite(minX)) return null
   const cropX = Math.max(0, minX - PAD)
   const cropY = Math.max(0, minY - PAD)
-  const cropW = Math.min((canvasCssWidth || window.innerWidth) - cropX, maxX - minX + PAD * 2)
-  const cropH = Math.min(CANVAS_HEIGHT - cropY, maxY - minY + PAD * 2)
+  const cropW = maxX - minX + PAD * 2
+  const cropH = maxY - minY + PAD * 2
   const dpr = window.devicePixelRatio || 1
   const off = document.createElement('canvas')
   off.width  = Math.round(cropW * dpr)
   off.height = Math.round(cropH * dpr)
   const c = off.getContext('2d')
-  c.setTransform(dpr, 0, 0, dpr, -cropX, -cropY)
+  c.scale(dpr, dpr)
+  c.translate(-cropX, -cropY)
   c.fillStyle = '#ffffff'
   c.fillRect(cropX, cropY, cropW, cropH)
   c.strokeStyle = '#000000'
