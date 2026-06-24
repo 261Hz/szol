@@ -78,7 +78,7 @@
       <!-- @focus/@blur = show/hide the "click to type" hint.                 -->
       <!-- break-words = long words (URLs, German compounds) wrap gracefully.  -->
       <div
-        class="leading-loose text-base cursor-text outline-none border border-gray-700 rounded-lg p-4 transition-colors focus:border-green-600 break-words min-h-16"
+        class="leading-loose text-base cursor-text outline-none border border-ink-muted/40 rounded-lg p-4 transition-colors focus:border-ink-primary break-words min-h-16"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right' : ''"
         tabindex="0"
@@ -88,7 +88,7 @@
         ref="overlayEl"
       >
         <!-- Done state: all sentences completed. -->
-        <span v-if="done" class="text-green-400 font-medium">✓ {{ t(lang, 'done') ?? 'Complete!' }}</span>
+        <span v-if="done" class="text-accent-red font-medium">✓ {{ t(lang, 'done') ?? 'Complete!' }}</span>
 
         <!-- Active sentence: render each word and space with color-coded state. -->
         <!-- Each word is wrapped in a clickable span: click speaks + saves to vocab. -->
@@ -96,8 +96,8 @@
           <template v-for="(word, wi) in words" :key="wi">
             <button
               type="button"
-              class="inline whitespace-nowrap rounded transition-colors hover:bg-green-950 active:bg-green-950 select-none bg-transparent border-0 p-0 m-0 font-[inherit] leading-[inherit] cursor-pointer"
-              :class="savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-green-500 decoration-dotted underline-offset-2' : ''"
+              class="inline whitespace-nowrap rounded transition-colors hover:bg-ink-primary/8 active:bg-ink-primary/8 select-none bg-transparent border-0 p-0 m-0 font-[inherit] leading-[inherit] cursor-pointer"
+              :class="savedWords.has(normalize(word.map(c => c.char).join(''))) ? 'underline decoration-accent-red decoration-dotted underline-offset-2' : ''"
               @click.stop="tapWord(word.map(c => c.char).join(''), sentences[sentenceIdx])"
             ><ruby v-if="wordNum(word)" class="szol-num"><span v-for="(c, ci) in word" :key="ci" :class="charClass(wi, ci)">{{ c.char }}</span><rt>{{ wordNum(word) }}</rt></ruby><template v-else><template v-for="(c, ci) in word" :key="ci"><ruby v-if="showGuide && lang === 'zh' && charRoman(c.char)"><span :class="charClass(wi, ci)">{{ c.char }}</span><rt class="text-[0.6em] text-blue-300 font-normal not-italic leading-none">{{ charRoman(c.char) }}</rt></ruby><span v-else :class="charClass(wi, ci)">{{ c.char }}</span></template></template></button>
             <span v-if="wi < words.length - 1 && !isCJK" :class="spaceClass(wi)">{{ ' ' }}</span>
@@ -555,11 +555,11 @@ function charClass(wi, ci) {
   const isFuture = wi > currentWordIndex.value
 
   return {
-    'text-green-400':          state === 'correct',
-    'text-purple-400':           state === 'wrong',
-    'text-gray-100':             state === 'untouched' && !isFuture,
-    'text-gray-600':             isFuture,
-    'border-b-2 border-gray-700': isCurrent,
+    'text-ink-primary':            state === 'correct',
+    'text-accent-red':             state === 'wrong',
+    'text-ink-soft':               state === 'untouched' && !isFuture,
+    'text-ink-muted':              isFuture,
+    'border-b-2 border-ink-primary': isCurrent,
   }
 }
 
@@ -570,11 +570,10 @@ function spaceClass(wi) {
   const isActive = wi === currentWordIndex.value
 
   // Show cursor underline on the space when awaiting Space to advance.
-  if (awaitingSpace.value && isActive) return 'border-b-2 border-gray-700'
-  // Space after a completed word inherits the "done" color; space before future words is dim.
-  if (done)          return 'text-gray-100'
-  if (wi > currentWordIndex.value) return 'text-gray-600'
-  return 'text-gray-100'
+  if (awaitingSpace.value && isActive) return 'border-b-2 border-ink-primary'
+  if (done)          return 'text-ink-primary'
+  if (wi > currentWordIndex.value) return 'text-ink-muted'
+  return 'text-ink-soft'
 }
 
 // ── Progress ──────────────────────────────────────────────────────────────────
