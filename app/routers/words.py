@@ -112,19 +112,20 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
         lang_name = _LANG_NAMES.get(payload.lang, payload.lang)
         word      = payload.word.strip()
         resp = client.chat.completions.create(
-            model="meta-llama/llama-4-maverick-17b-128e-instruct",
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": (
-                        f"OCR this handwritten word. "
-                        f"Read every letter exactly as written, left to right. "
-                        f"Return only the letters you see — no spaces, no punctuation, no explanation. "
-                        f"If you see nothing, return a single dash: -"
-                    )},
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{payload.image_b64}"}},
-                ],
-            }],
+            model="llama-3.2-90b-vision-preview",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert OCR engine. Transcribe the handwritten word in the image exactly as it appears, letter by letter. Output only the transcribed letters — no spaces, no punctuation, no explanation.",
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{payload.image_b64}"}},
+                        {"type": "text",      "text": "Transcribe the handwritten word."},
+                    ],
+                },
+            ],
             max_tokens=20,
         )
         import re as _re
