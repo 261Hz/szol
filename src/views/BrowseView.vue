@@ -162,7 +162,7 @@
       <div class="nav-bar">
         <button @click="source = null" class="back-link">← Podcasts</button>
         <span class="nav-title">{{ source }}</span>
-        <button v-if="source !== JRE_NAME" @click="removePodcast(podcastShows.find(s => s.podcast_name === source)?.feed_url)" class="remove-pod-btn">Remove</button>
+        <button v-if="podcastShows.some(s => s.podcast_name === source)" @click="removePodcast(podcastShows.find(s => s.podcast_name === source)?.feed_url)" class="remove-pod-btn">Remove</button>
       </div>
       <div v-if="episodesLoading" class="status-text">{{ t(lang, 'loading') }}</div>
       <div v-else-if="!currentEpisodes.length" class="status-text italic-muted">No episodes found.</div>
@@ -467,8 +467,10 @@ async function importRss() {
 
 watch(source, async (name) => {
   if (!name || level.value !== 'podcasts') { currentEpisodes.value = []; return }
-  const isJre = name === JRE_NAME
-  const feedUrl = isJre ? JRE_FEED : podcastShows.value.find(s => s.podcast_name === name)?.feed_url
+  const sub = podcastShows.value.find(s => s.podcast_name === name)
+  // pinned JRE = named JRE but NOT manually subscribed; subscribed copy shows all episodes
+  const isPinnedJre = name === JRE_NAME && !sub
+  const feedUrl = isPinnedJre ? JRE_FEED : sub?.feed_url
   if (!feedUrl) { currentEpisodes.value = []; return }
   episodesLoading.value = true
   const data = await fetchPodcastRss(feedUrl)
@@ -479,7 +481,7 @@ watch(source, async (name) => {
     duration_sec: ep.duration_sec ?? null, transcript_url: ep.transcript_url ?? null,
     source_type: 'podcast',
   }))
-  currentEpisodes.value = isJre ? eps.slice(0, 3) : eps
+  currentEpisodes.value = isPinnedJre ? eps.slice(0, 3) : eps
 })
 
 function listenEpisode(ep) {

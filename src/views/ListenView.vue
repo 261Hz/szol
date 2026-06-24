@@ -438,29 +438,30 @@
 
         <!-- Paste mode -->
         <template v-if="pasteMode">
+          <div class="text-xs text-stone-500 mb-1">Paste an SRT, VTT, or plain-text transcript below.</div>
           <textarea
             v-model="pasteText"
-            rows="7"
+            rows="10"
             :placeholder="t(lang, 'srtPaste')"
-            class="w-full text-xs bg-stone-800 border border-stone-700 rounded-lg px-3 py-2 text-stone-200 placeholder-stone-600 resize-none focus:outline-none focus:border-emerald-700 font-mono leading-relaxed"
+            class="w-full text-sm bg-stone-800 border border-stone-600 rounded-lg px-3 py-2.5 text-stone-100 placeholder-stone-600 resize-y focus:outline-none focus:border-emerald-600 leading-relaxed"
           />
-          <div v-if="pasteError" class="text-xs text-red-400">{{ pasteError }}</div>
-          <div class="flex items-center gap-2">
+          <div v-if="pasteError" class="text-sm text-red-400">{{ pasteError }}</div>
+          <div class="flex items-center gap-3 mt-1">
             <button
               @click="applyPastedTranscript"
               :disabled="!pasteText.trim()"
-              class="text-xs px-3 py-1 rounded border border-emerald-700 text-emerald-400 hover:bg-emerald-900 disabled:opacity-40 transition-all"
+              class="px-4 py-1.5 rounded border border-emerald-600 text-emerald-400 text-sm hover:bg-emerald-900 disabled:opacity-40 transition-all"
             >{{ t(lang, 'useTranscript') }}</button>
-            <button @click="pasteMode = false; pasteText = ''; pasteError = ''" class="text-xs text-stone-500 hover:text-stone-300 transition-all">{{ t(lang, 'cancel') }}</button>
+            <button @click="pasteMode = false; pasteText = ''; pasteError = ''" class="text-sm text-stone-500 hover:text-stone-300 transition-all">{{ t(lang, 'cancel') }}</button>
           </div>
         </template>
 
         <!-- Idle -->
         <template v-else>
-          <div class="text-xs text-stone-600">{{ t(lang, 'noTranscript') }}</div>
+          <div class="text-sm text-stone-500">{{ t(lang, 'noTranscript') }}</div>
           <button
             @click="pasteMode = true"
-            class="text-xs px-3 py-1 self-start rounded border border-stone-600 text-stone-300 hover:border-stone-400 transition-all"
+            class="text-sm px-4 py-1.5 self-start rounded border border-stone-600 text-stone-300 hover:border-stone-400 transition-all"
           >{{ t(lang, 'pasteTranscript') }}</button>
         </template>
 
