@@ -84,7 +84,6 @@
       <!-- ── Active sentence ─────────────────────────────────────────────── -->
       <div
         class="leading-[1.8] text-base cursor-text outline-none"
-        style="color:#2a241c;"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right' : ''"
         tabindex="0"
@@ -127,14 +126,7 @@
         spellcheck="false"
         @keydown="onHiddenKeydown"
         @input="onMobileInput"
-        @focus="dbg('input:focus')"
-        @blur="dbg('input:blur')"
       />
-
-      <!-- ── Debug strip (remove after input confirmed working) ───────────── -->
-      <div
-        style="font-family:monospace; font-size:11px; color:#8c7a66; border-top:1px solid rgba(140,122,102,0.2); padding-top:4px; margin-top:2px; white-space:pre;"
-      >{{ debugLog }}</div>
 
       <!-- Arabic franco guide: full sentence transliteration shown below the box. -->
       <div
@@ -470,7 +462,6 @@ async function advanceSentence() {
 // ── Keyboard handler ──────────────────────────────────────────────────────────
 
 function onKey(e) {
-  dbg(`onKey key=${JSON.stringify(e.key)} words=${words.value.length} wi=${currentWordIndex.value} ci=${currentCharIndex.value}`)
   if (done.value || !words.value.length) return
 
   const wi   = currentWordIndex.value
@@ -563,7 +554,6 @@ function onKey(e) {
 // e.target.value holds only the characters typed since the last clear (we clear after each event).
 // This is more reliable than e.data which is null on many Android composition keyboards.
 function onMobileInput(e) {
-  dbg(`input type=${e.inputType} val=${JSON.stringify(e.target.value)} keydownHandled=${keydownHandled}`)
   if (keydownHandled) {
     keydownHandled = false
     e.target.value = ''
@@ -624,27 +614,16 @@ function wordNum(word) {
   return numToWords(parseInt(text, 10), props.lang)
 }
 
-// ── Debug ──────────────────────────────────────────────────────────────────────
-const debugLog = ref('waiting for input…')
-const debugLines = []
-function dbg(msg) {
-  debugLines.unshift(`${new Date().toISOString().slice(11,23)} ${msg}`)
-  if (debugLines.length > 6) debugLines.pop()
-  debugLog.value = debugLines.join('\n')
-}
-
 // ── Mobile keyboard helper ────────────────────────────────────────────────────
 
 function focusMobileInput() {
   hiddenInput.value?.focus()
-  dbg(`focusMobile → active=${document.activeElement?.tagName}`)
 }
 
 // Primary path for physical keyboards. @keydown on the hidden input fires before the
 // character is inserted, so e.preventDefault() stops @input from firing (no double-process).
 let keydownHandled = false
 function onHiddenKeydown(e) {
-  dbg(`keydown key=${JSON.stringify(e.key)}`)
   if (e.key.length > 1 && e.key !== 'Backspace') return
   keydownHandled = true
   onKey(e)
