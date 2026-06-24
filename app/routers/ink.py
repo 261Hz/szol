@@ -151,8 +151,8 @@ async def google_recognize(req: GoogleInkRequest):
     for stroke in req.strokes:
         if not stroke:
             continue
-        xs = [p.x for p in stroke]
-        ys = [p.y for p in stroke]
+        xs = [int(round(p.x)) for p in stroke]
+        ys = [int(round(p.y)) for p in stroke]
         ts = [t_offset + i * 50 for i in range(len(stroke))]
         t_offset = ts[-1] + 200
         ink.append([xs, ys, ts])
@@ -160,17 +160,16 @@ async def google_recognize(req: GoogleInkRequest):
     if not ink:
         return {"text": None, "candidates": []}
     payload = {
-        "writing_guide": {"writing_area_width": req.width, "writing_area_height": req.height},
+        "writing_guide": {"writing_area_width": int(req.width), "writing_area_height": int(req.height)},
         "ink": ink,
         "language": lang_code,
         "max_completions": 5,
-        "pre_context": "",
     }
     try:
         async with httpx.AsyncClient(timeout=5.0) as c:
             r = await c.post(
                 "https://www.google.com/inputtools/request?ime=handwriting&app=mobilesearch&cs=1&oe=UTF-8",
-                json=payload,
+                content=_json.dumps(payload).encode("utf-8"),
                 headers={"Content-Type": "application/json"},
             )
         _log.warning("google-recognize: http=%d body=%s", r.status_code, r.text[:200])
