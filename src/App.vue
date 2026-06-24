@@ -60,6 +60,7 @@
         :saved-words="savedWordsForLang"
         :current-user="currentUser"
         @save-word="addToVocab"
+        @go="activeTab = $event"
       />
 
       <ContentView
@@ -87,6 +88,7 @@
         v-if="activeTab === 'write'"
         :story="currentStory"
         :lang="activeLang"
+        @go="activeTab = $event"
       />
 
       <LibraryView
