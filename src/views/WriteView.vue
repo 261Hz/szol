@@ -7,24 +7,8 @@
 
     <template v-else>
 
-      <!-- ── Story text ────────────────────────────────────────────────── -->
-      <div class="rounded-2xl px-5 py-4" style="background:#fefce8; border:1px solid #e8dcc8;">
-        <div class="font-serif leading-relaxed text-base select-none"
-          :dir="isRTL(lang) ? 'rtl' : 'ltr'" style="color:#2a241c;">
-          <template v-if="isCJK">
-            <span v-for="(ch, ci) in cjkChars" :key="ci" :style="charStyle(ci)">{{ ch }}</span>
-          </template>
-          <template v-else>
-            <template v-for="(sent, si) in sentences" :key="si">
-              <span v-for="(word, wi) in sentenceWords(sent)" :key="si + '-' + wi"
-                :style="wordStyle(si, wi)">{{ word }} </span>
-            </template>
-          </template>
-        </div>
-      </div>
-
       <!-- ── CJK mode toggle ───────────────────────────────────────────── -->
-      <div v-if="isCJK" class="flex gap-0.5 self-start">
+      <div v-if="isCJK" class="flex gap-0.5">
         <button @click="setMode('guided')"
           class="text-xs px-2 py-0.5 rounded-full transition-all"
           :style="mode === 'guided' ? 'background:#2a2018; color:#e8dcc4;' : 'color:rgba(26,26,46,0.38);'">
@@ -37,10 +21,17 @@
         </button>
       </div>
 
-      <!-- ── HanziWriter (CJK guided OR write-mode fallback on non-Chrome) -->
+      <!-- ── HanziWriter (CJK guided, or write-mode on non-Chrome) ─────── -->
       <div v-if="isCJK && (mode === 'guided' || !hwApiAvailable)"
-        class="rounded-2xl overflow-hidden shadow-xl flex flex-col items-center gap-3 py-5 px-5"
+        class="rounded-2xl flex flex-col items-center gap-3 py-5 px-5"
         style="background:#fefce8; border:1px solid #e8dcc8;">
+
+        <!-- mini story progress text above HanziWriter -->
+        <div class="self-stretch font-serif text-sm leading-relaxed select-none"
+          :dir="isRTL(lang) ? 'rtl' : 'ltr'" style="color:#2a241c; max-height:80px; overflow:hidden;">
+          <span v-for="(ch, ci) in cjkChars" :key="ci" :style="charStyle(ci)">{{ ch }}</span>
+        </div>
+
         <div ref="hanziContainer" class="hanzi-container rounded-xl" />
         <div v-if="charError" class="text-xs text-amber-700/60">Stroke data unavailable.</div>
         <div v-if="quizDone" class="text-green-700 font-medium text-sm">✓ Done</div>
@@ -56,34 +47,36 @@
         </div>
       </div>
 
-      <!-- ── Canvas writing area (Chrome HW API) ───────────────────────── -->
-      <div v-else class="rounded-2xl overflow-hidden shadow-xl"
+      <!-- ── Story text + canvas overlay ───────────────────────────────── -->
+      <div v-else class="relative rounded-2xl overflow-hidden"
         style="background:#fefce8; border:1px solid #e8dcc8;">
 
-        <!-- Target + controls row -->
-        <div class="px-5 pt-4 pb-2 flex items-center justify-between"
-          style="border-bottom:1px solid #e8dcc8;">
-          <div class="select-none leading-none font-serif" :style="targetStyle" :dir="isRTL(lang) ? 'rtl' : 'ltr'">
-            {{ currentUnit }}
-          </div>
-          <div class="flex items-center gap-3">
-            <span v-if="checkResult !== null" class="text-lg font-bold"
-              :style="checkResult ? 'color:#38a169' : 'color:#8b3a3a'">
-              {{ checkResult ? '✓' : '✗' }}
-            </span>
-            <span v-else-if="checking" class="text-xs" style="color:#8c7a66;">…</span>
-            <button @click="clearCanvas" class="text-xs px-3 py-1 rounded-full transition-all"
-              style="color:rgba(26,26,46,0.38); border:1px solid rgba(140,122,102,0.3);">
-              clear
-            </button>
-          </div>
+        <!-- Scrollable story text (behind canvas) -->
+        <div ref="storyScroll"
+          class="font-serif leading-relaxed px-5 py-4 overflow-y-auto select-none"
+          style="max-height:52vh; color:#2a241c;"
+          :dir="isRTL(lang) ? 'rtl' : 'ltr'">
+          <template v-if="isCJK">
+            <span v-for="(ch, ci) in cjkChars" :key="ci"
+              :data-current="ci === unitIdx ? '1' : undefined"
+              :style="charStyle(ci)">{{ ch }}</span>
+          </template>
+          <template v-else>
+            <template v-for="(sent, si) in sentences" :key="si">
+              <span v-for="(word, wi) in sentenceWords(sent)" :key="si+'-'+wi"
+                :data-current="si === sentenceIdx && wi === wordIdx ? '1' : undefined"
+                :style="wordStyle(si, wi)">{{ word }} </span>
+            </template>
+          </template>
+          <!-- extra bottom padding so last words scroll above canvas -->
+          <div style="height:4rem;" />
         </div>
 
-        <!-- Canvas (all browsers — Chrome API used when available, stroke-count heuristic otherwise) -->
+        <!-- Canvas overlay — transparent so story text shows through -->
         <canvas
           ref="canvasEl"
-          class="w-full touch-none block"
-          style="cursor:crosshair; background:#fefce8;"
+          class="absolute bottom-0 left-0 w-full touch-none"
+          style="cursor:crosshair;"
           @pointerdown.prevent="startStroke"
           @pointermove="extendStroke"
           @pointerup="endStroke"
@@ -91,9 +84,25 @@
           @pointerleave="endStroke"
         />
 
+        <!-- Top controls row (result + clear) -->
+        <div class="absolute top-2 right-3 flex items-center gap-2 z-10">
+          <span v-if="checkResult !== null" class="text-base font-bold"
+            :style="checkResult ? 'color:#38a169' : 'color:#8b3a3a'">
+            {{ checkResult ? '✓' : '✗' }}
+          </span>
+          <span v-else-if="checking" class="text-xs" style="color:#8c7a66;">…</span>
+          <button @click="clearCanvas"
+            class="text-xs px-2 py-0.5 rounded-full"
+            style="color:rgba(26,26,46,0.38); border:1px solid rgba(140,122,102,0.3); background:rgba(254,252,232,0.8);">
+            clear
+          </button>
+        </div>
+
+        <!-- Hint after 2 fails -->
         <div v-if="failCount >= 2"
-          class="text-center text-xs pb-3" style="color:rgba(140,122,102,0.5);">
-          expected: {{ currentUnit }}
+          class="absolute bottom-1 left-0 w-full text-center text-xs pointer-events-none"
+          style="color:rgba(140,122,102,0.5);">
+          {{ currentUnit }}
         </div>
       </div>
 
@@ -183,9 +192,9 @@ function goPrev() {
   }
 }
 
-// ── Story text colours ───────────────────────────────────────────────────────────
+// ── Story text colour helpers ────────────────────────────────────────────────────
 const DONE_STYLE    = 'color:#8c7a66;'
-const CURRENT_STYLE = 'color:#2a241c; font-weight:600; border-bottom:2px solid #8b3a3a; padding-bottom:1px;'
+const CURRENT_STYLE = 'color:#2a241c; font-weight:700; border-bottom:2px solid #8b3a3a; padding-bottom:1px;'
 const FUTURE_STYLE  = 'color:rgba(140,122,102,0.35);'
 
 function charStyle(ci) {
@@ -200,14 +209,19 @@ function wordStyle(si, wi) {
   return past ? DONE_STYLE : curr ? CURRENT_STYLE : FUTURE_STYLE
 }
 
-// Large target above canvas, sized to fit without dominating
-const targetStyle = computed(() => {
-  const base = isCJK.value ? { fontFamily: props.lang === 'ja' ? "'Kaisei Tokumin', serif" : "'Zhi Mang Xing', cursive" }
-    : ['ar', 'arz'].includes(props.lang) ? { fontFamily: "'Amiri', serif" }
-    : props.lang === 'he'                ? { fontFamily: "'Playpen Sans Hebrew', cursive" }
-    : { fontFamily: "'Patrick Hand', cursive" }
-  return { ...base, fontSize: isCJK.value ? '3.5rem' : '2.5rem', color: '#1a1a2e' }
-})
+// ── Auto-scroll current word into view above the canvas strip ────────────────────
+const storyScroll = ref(null)
+
+function scrollToCurrent() {
+  const container = storyScroll.value
+  if (!container) return
+  const el = container.querySelector('[data-current="1"]')
+  if (!el) return
+  const cRect = container.getBoundingClientRect()
+  const eRect = el.getBoundingClientRect()
+  const relTop = eRect.top - cRect.top + container.scrollTop
+  container.scrollTo({ top: Math.max(0, relTop - 40), behavior: 'smooth' })
+}
 
 // ── Chrome Handwriting Recognition API ──────────────────────────────────────────
 const hwApiAvailable = 'createHandwritingRecognizer' in navigator
@@ -216,10 +230,7 @@ let hwDrawing    = null
 let hwCurStroke  = null
 
 function hwLang(lang) {
-  if (lang === 'zh-TW') return 'zh-TW'
-  if (lang === 'zh')    return 'zh'
-  if (lang === 'ja')    return 'ja'
-  return lang
+  return lang === 'zh-TW' ? 'zh-TW' : lang === 'zh' ? 'zh' : lang === 'ja' ? 'ja' : lang
 }
 
 async function initHW() {
@@ -238,12 +249,10 @@ const checkResult = ref(null)
 const failCount   = ref(0)
 let ctx            = null
 let autoCheckTimer = null
-let strokeCount    = 0   // number of completed strokes this attempt
+let strokeCount    = 0
 
-const CANVAS_HEIGHT = 200   // px (CSS)
+const CANVAS_HEIGHT = 160   // px — strip at bottom of story card
 const INK_COLOR     = '#1a1a2e'
-const PAPER_COLOR   = '#fefce8'
-const GUIDE_COLOR   = '#e8dcc8'
 
 function setupCanvas() {
   if (!canvasEl.value) return
@@ -265,11 +274,12 @@ function clearCanvas() {
   if (!ctx || !canvasEl.value) return
   const w = parseInt(canvasEl.value.style.width)
   const h = parseInt(canvasEl.value.style.height)
-  ctx.save(); ctx.fillStyle = PAPER_COLOR; ctx.fillRect(0, 0, w, h); ctx.restore()
-  // single baseline
-  ctx.save(); ctx.strokeStyle = GUIDE_COLOR; ctx.lineWidth = 0.75
-  const y = h * 0.78
-  ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke()
+  // Transparent clear — story text shows through
+  ctx.clearRect(0, 0, w, h)
+  // Subtle top border line so user knows where the canvas starts
+  ctx.save()
+  ctx.strokeStyle = 'rgba(140,122,102,0.25)'; ctx.lineWidth = 1
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(w, 0); ctx.stroke()
   ctx.restore()
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
   checkResult.value = null; failCount.value = 0; strokeCount = 0
@@ -281,9 +291,9 @@ function drawTraceGuide() {
   const w = parseInt(canvasEl.value.style.width)
   const h = parseInt(canvasEl.value.style.height)
   ctx.save()
-  ctx.font = `bold ${Math.min(w * 0.6, h * 0.7)}px ${targetStyle.value.fontFamily}`
-  ctx.fillStyle = 'rgba(150,100,40,0.09)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.direction = isRTL(props.lang) ? 'rtl' : 'ltr'
+  ctx.font = `bold ${h * 0.65}px serif`
+  ctx.fillStyle = 'rgba(139,58,58,0.08)'
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
   ctx.fillText(currentUnit.value, w / 2, h / 2)
   ctx.restore()
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
@@ -322,12 +332,11 @@ function endStroke() {
     try { hwDrawing.addStroke(hwCurStroke) } catch {}
     hwCurStroke = null
   }
-  // Auto-check after 1.2 s of no new strokes
   clearTimeout(autoCheckTimer)
   autoCheckTimer = setTimeout(runCheck, 1200)
 }
 
-// ── Recognition & comparison ─────────────────────────────────────────────────────
+// ── Recognition ──────────────────────────────────────────────────────────────────
 function norm(s) {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
 }
@@ -342,18 +351,14 @@ function levenshtein(a, b) {
 }
 
 function isMatch(got, expected) {
-  // CJK: exact single-char match; Latin: normalised Levenshtein tolerance
   if (isCJK.value) return got.trim() === expected
-  const g = norm(got); const t = norm(expected)
+  const g = norm(got), t = norm(expected)
   return levenshtein(g, t) <= Math.max(1, Math.floor(t.length / 4))
 }
 
-// Rough expected stroke count — 1–2 strokes per letter/char is typical print handwriting
 function minExpectedStrokes(target) {
   if (isCJK.value) return Math.max(1, Math.round(target.length * 2))
-  // For scripts: count non-space chars × ~1.5
-  const letters = target.replace(/\s/g, '').length
-  return Math.max(1, Math.round(letters * 1.2))
+  return Math.max(1, Math.round(target.replace(/\s/g, '').length * 1.2))
 }
 
 async function runCheck() {
@@ -363,14 +368,10 @@ async function runCheck() {
   if (hwDrawing) {
     try {
       const preds = await hwDrawing.getPrediction()
-      // Snap-to-expected: pass if ANY alternative matches — constrained problem space
       passed = preds.some(p => isMatch(p.text ?? '', currentUnit.value))
       if (passed) hwDrawing.clear()
     } catch {}
   } else {
-    // No Chrome API — use stroke count as a proxy for genuine effort.
-    // If the user drew at least as many strokes as a minimal hand-written version,
-    // accept it. They can see the target and self-correct.
     passed = strokeCount >= minExpectedStrokes(currentUnit.value)
   }
   checkResult.value = passed
@@ -439,11 +440,12 @@ onUnmounted(() => {
   if (hwRecognizer) { try { hwRecognizer.finish() } catch {} }
 })
 
+const usesHanzi = computed(() => isCJK.value && (mode.value === 'guided' || !hwApiAvailable))
+
 watch([unitIdx, wordIdx, sentenceIdx], () => {
   quizDone.value = false; checkResult.value = null; failCount.value = 0
-  const usesHanzi = isCJK.value && (mode.value === 'guided' || !hwApiAvailable)
-  if (usesHanzi) nextTick(initWriter)
-  else           nextTick(clearCanvas)
+  if (usesHanzi.value) nextTick(initWriter)
+  else                 nextTick(() => { clearCanvas(); nextTick(scrollToCurrent) })
 })
 
 watch([() => props.lang, () => props.story], async () => {
