@@ -113,6 +113,7 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
         word      = payload.word.strip()
         resp = client.chat.completions.create(
             model="qwen/qwen3.6-27b",
+            reasoning_effort="none",
             messages=[
                 {
                     "role": "system",
