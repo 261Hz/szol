@@ -48,7 +48,7 @@
       <div v-else
         class="font-serif leading-relaxed select-none"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
-        style="color:#2a241c; font-size:1.15rem; padding-bottom:220px; display:flex; flex-wrap:wrap; gap:0.2em 0.35em; align-items:baseline;">
+        style="color:#2a241c; font-size:1.15rem; padding-bottom:280px; display:flex; flex-wrap:wrap; gap:0.2em 0.35em; align-items:baseline;">
         <span
           v-for="(u, i) in rewriteUnits"
           :key="i"
@@ -165,7 +165,7 @@ function unitStyle(i) {
 }
 
 // ── Auto-scroll current word into view above the canvas strip ────────────────
-const CANVAS_TOTAL_H = 200
+const CANVAS_TOTAL_H = 260
 
 function scrollToCurrent() {
   nextTick(() => {
@@ -210,7 +210,7 @@ let canvasCssWidth = 0
 let userStrokes        = []   // completed strokes: {x,y}[][]
 let currentStrokePts   = []   // points in the stroke being drawn
 
-const CANVAS_HEIGHT = 160
+const CANVAS_HEIGHT = 220
 const INK_COLOR     = '#1a1a2e'
 
 function setupCanvas() {
@@ -237,14 +237,6 @@ function clearCanvas() {
   if (!ctx || !canvasEl.value) return
   const w = canvasCssWidth || window.innerWidth
   ctx.clearRect(0, 0, w, CANVAS_HEIGHT)
-  if (currentUnit.value) {
-    ctx.save()
-    ctx.font = `bold ${Math.min(CANVAS_HEIGHT * 0.7, 100)}px serif`
-    ctx.fillStyle = 'rgba(139,58,58,0.07)'
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText(currentUnit.value, w / 2, CANVAS_HEIGHT / 2)
-    ctx.restore()
-  }
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
   checkResult.value = null
 }
