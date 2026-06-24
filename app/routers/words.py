@@ -112,7 +112,7 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
         lang_name = _LANG_NAMES.get(payload.lang, payload.lang)
         word      = payload.word.strip()
         resp = client.chat.completions.create(
-            model="llama-3.2-90b-vision-preview",
+            model="qwen/qwen3.6-27b",
             messages=[
                 {
                     "role": "system",
