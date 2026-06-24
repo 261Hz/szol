@@ -58,17 +58,12 @@
         >{{ u }}</span>
       </div>
 
-      <!-- ── Navigation ─────────────────────────────────────────────────── -->
-      <div v-if="!usesHanzi" class="flex justify-between items-center">
+      <!-- ── Back link (write mode only, sits above story text) ──────────── -->
+      <div v-if="!usesHanzi">
         <button @click="emit('go', 'retype')"
           class="text-sm px-3 py-1.5 rounded-lg transition-all"
           style="color:#8c7a66; border:1px solid rgba(140,122,102,0.3);">
           ← retype
-        </button>
-        <button v-if="!hwApiAvailable" @click="advanceManual"
-          class="text-sm px-4 py-1.5 rounded-lg transition-all"
-          style="background:#2a241c; color:#e8dcc4;">
-          Next →
         </button>
       </div>
 
@@ -92,13 +87,16 @@
           </span>
         </div>
         <div class="flex items-center gap-3">
-          <span v-if="!isFirst" class="text-xs" style="color:rgba(140,122,102,0.5);">
-            {{ progressLabel }}
-          </span>
+          <span class="text-xs" style="color:rgba(140,122,102,0.5);">{{ progressLabel }}</span>
           <button @click="clearCanvas"
             class="text-xs px-2 py-0.5 rounded-full"
             style="color:rgba(26,26,46,0.38); border:1px solid rgba(140,122,102,0.3);">
             clear
+          </button>
+          <button @click="advanceManual"
+            class="text-xs px-3 py-0.5 rounded-full transition-all"
+            style="background:#2a241c; color:#e8dcc4;">
+            next →
           </button>
         </div>
       </div>
