@@ -38,6 +38,15 @@ export default defineConfig({
             },
           },
           {
+            // HanziWriter stroke data — cache forever after first load (data never changes)
+            urlPattern: /cdn\.jsdelivr\.net\/npm\/hanzi-writer-data/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'hanzi-stroke-cache',
+              expiration: { maxEntries: 10000, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+          {
             // Google Fonts + web fonts
             urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\//,
             handler: 'CacheFirst',
