@@ -105,12 +105,12 @@ _LATIN_LANGS = {"en", "es", "fr", "de", "it", "pt", "nl", "pl", "tr", "sv", "hu"
 @router.post("/write/check")
 def check_handwriting(payload: schemas.HandwritingCheckIn):
     """Use a vision LLM to evaluate the user's handwritten attempt."""
-    from groq import Groq
-    from ..config import settings
-    client    = Groq(api_key=settings.GROQ_API_KEY)
-    lang_name = _LANG_NAMES.get(payload.lang, payload.lang)
-    word      = _normalize(payload.lang, payload.word)
     try:
+        from groq import Groq
+        from ..config import settings
+        client    = Groq(api_key=settings.GROQ_API_KEY)
+        lang_name = _LANG_NAMES.get(payload.lang, payload.lang)
+        word      = _normalize(payload.lang, payload.word)
         resp = client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
             messages=[{
@@ -139,6 +139,8 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
         answer = resp.choices[0].message.content.strip().upper()
         return {"passed": answer.startswith("PASS")}
     except Exception as e:
+        import traceback, logging
+        logging.error("check_handwriting error: %s\n%s", e, traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 
