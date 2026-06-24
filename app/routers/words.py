@@ -117,13 +117,12 @@ def check_handwriting(payload: schemas.HandwritingCheckIn):
                 {
                     "role": "system",
                     "content": (
-                        "You are an OCR engine.\n"
-                        "Task: Return ONLY the handwritten word shown in the image.\n"
+                        "You are a strict OCR engine. Transcribe EXACTLY what is handwritten — do NOT autocorrect or guess the intended word.\n"
                         "Rules:\n"
-                        "- Output exactly one word.\n"
-                        "- No explanation. No punctuation. No markdown.\n"
-                        "- If uncertain, return your best guess.\n"
-                        f"Expected language: {lang_name}"
+                        "- Output only the letters you actually see, nothing else.\n"
+                        "- If a letter looks like 'a', write 'a' even if the word would be misspelled.\n"
+                        "- No explanation. No punctuation. No markdown. No spaces.\n"
+                        f"The writer is practising {lang_name} handwriting."
                     ),
                 },
                 {
