@@ -610,6 +610,26 @@ export async function transcribeInk(strokes, lang) {
   }
 }
 
+export async function googleRecognizeInk(strokes, lang, width, height) {
+  try {
+    const res = await fetch(`${API_URL}/ink/google-recognize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        strokes: strokes.map(s => s.map(p => ({ x: p.x, y: p.y }))),
+        lang,
+        width,
+        height,
+      }),
+      signal: AbortSignal.timeout(6000),
+    })
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
 // strokes: {x,y}[][] — array of strokes, each stroke is array of points
 // Returns { match: bool, score: float } or null if the backend is unreachable.
 export async function recognizeInk(strokes, lang, expected) {
