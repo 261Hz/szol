@@ -255,19 +255,24 @@ const failCount   = ref(0)
 let ctx            = null
 let autoCheckTimer = null
 let strokeCount    = 0
+let drawing        = false
+let canvasCssWidth = 0
 
 const CANVAS_HEIGHT = 160
 const INK_COLOR     = '#1a1a2e'
 
 function setupCanvas() {
   const el = canvasEl.value
-  if (!el) return   // will be called again by the canvasEl watcher when the element mounts
+  if (!el) return
   const dpr      = window.devicePixelRatio || 1
-  const cssWidth = window.innerWidth
-  el.width        = cssWidth      * dpr
-  el.height       = CANVAS_HEIGHT * dpr
-  el.style.width  = cssWidth      + 'px'
-  el.style.height = CANVAS_HEIGHT + 'px'
+  // Use the element's actual laid-out width so pointer coords and canvas coords agree.
+  // window.innerWidth drifts when the fixed container has scrollbars or padding.
+  const rect     = el.getBoundingClientRect()
+  canvasCssWidth = rect.width || window.innerWidth
+  el.width        = canvasCssWidth * dpr
+  el.height       = CANVAS_HEIGHT  * dpr
+  el.style.width  = canvasCssWidth + 'px'
+  el.style.height = CANVAS_HEIGHT  + 'px'
   ctx = el.getContext('2d')
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR
@@ -278,7 +283,7 @@ function setupCanvas() {
 function clearCanvas() {
   clearTimeout(autoCheckTimer)
   if (!ctx || !canvasEl.value) return
-  const w = parseInt(canvasEl.value.style.width) || window.innerWidth
+  const w = canvasCssWidth || window.innerWidth
   const h = CANVAS_HEIGHT
   ctx.clearRect(0, 0, w, h)
   // Ghost trace guide: always show target word faintly
@@ -287,7 +292,7 @@ function clearCanvas() {
     ctx.font = `bold ${Math.min(h * 0.7, 100)}px serif`
     ctx.fillStyle = 'rgba(139,58,58,0.07)'
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText(currentUnit.value, w / 2, h / 2)
+    ctx.fillText(currentUnit.value, (canvasCssWidth || window.innerWidth) / 2, h / 2)
     ctx.restore()
   }
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
@@ -303,6 +308,7 @@ function getXY(e) {
 function startStroke(e) {
   if (!ctx) setupCanvas()
   if (!ctx) return
+  drawing = true
   canvasEl.value.setPointerCapture(e.pointerId)
   clearTimeout(autoCheckTimer)
   checkResult.value = null
@@ -311,21 +317,23 @@ function startStroke(e) {
     hwCurStroke = new HandwritingStroke()
     hwCurStroke.addPoint({ x, y, t: Date.now() })
   }
-  ctx.beginPath(); ctx.moveTo(x, y)
-  ctx.arc(x, y, ctx.lineWidth / 2, 0, Math.PI * 2); ctx.fill()
-  ctx.beginPath(); ctx.moveTo(x, y)
+  ctx.beginPath()
+  ctx.moveTo(x, y)
 }
 
 function extendStroke(e) {
-  if (!ctx) return
-  if (!(e.buttons & 1) && e.pointerType === 'mouse') return
+  if (!drawing || !ctx) return
   const { x, y } = getXY(e)
   hwCurStroke?.addPoint({ x, y, t: Date.now() })
-  ctx.lineTo(x, y); ctx.stroke()
-  ctx.beginPath(); ctx.moveTo(x, y)
+  ctx.lineTo(x, y)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.moveTo(x, y)
 }
 
 function endStroke() {
+  if (!drawing) return
+  drawing = false
   strokeCount++
   if (hwCurStroke && hwDrawing) {
     try { hwDrawing.addStroke(hwCurStroke) } catch {}
@@ -333,7 +341,6 @@ function endStroke() {
   }
   clearTimeout(autoCheckTimer)
   if (hwApiAvailable) autoCheckTimer = setTimeout(runCheck, 1200)
-  // No auto-check without HW API — user taps "Next →" manually
 }
 
 // ── Recognition ──────────────────────────────────────────────────────────────
@@ -364,7 +371,7 @@ async function runCheck() {
     const preds = await hwDrawing.getPrediction()
     passed = preds.some(p => isMatch(p.text ?? '', currentUnit.value))
     if (passed) hwDrawing.clear()
-  } catch {}
+  } catch (err) { console.error('HW recognition:', err) }
   checkResult.value = passed
   checking.value    = false
   if (passed) {
@@ -427,7 +434,7 @@ function onResize() { if (!usesHanzi.value) setupCanvas() }
 
 // Teleported canvas appears asynchronously after the component mounts.
 // Watch the ref so setupCanvas runs the moment the DOM element is available.
-watch(canvasEl, (el) => { if (el && !ctx) setupCanvas() })
+watch(canvasEl, (el) => { if (el) setupCanvas() })
 
 onMounted(async () => {
   await initHW()
