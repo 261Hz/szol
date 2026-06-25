@@ -332,7 +332,7 @@ export async function fetchConceptTranslations(concept, category, lang) {
 }
 
 export async function fetchListenStories(lang) {
-  const r = await fetch(`${API_URL}/listen-stories?lang=${lang}`)
+  const r = await fetch(`${API_URL}/listen-stories/?lang=${lang}`)
   return await r.json().catch(() => [])
 }
 
@@ -402,7 +402,7 @@ export async function searchYouTube(query, lang, maxResults = 8) {
 }
 
 export async function fetchCommunityStories(lang) {
-  const r = await fetch(`${API_URL}/stories/community?lang=${lang}`)
+  const r = await fetch(`${API_URL}/stories/community/?lang=${lang}`)
   return await r.json().catch(() => [])
 }
 
