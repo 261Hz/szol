@@ -502,7 +502,7 @@ const _ALL_CURATED = {
   ],
 }
 
-const suggestedFeeds = computed(() => _ALL_CURATED[props.lang] ?? _ALL_CURATED.en)
+const suggestedFeeds = computed(() => _ALL_CURATED[props.lang] ?? [])
 
 // ── Shared sub helpers ─────────────────────────────────────────
 function _readStore(key) { try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] } }
