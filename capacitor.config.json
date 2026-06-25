@@ -1,5 +1,9 @@
 {
   "appId": "app.szol.szol",
   "appName": "Szol",
-  "webDir": "dist"
+  "webDir": "dist",
+  "server": {
+    "url": "https://szol.vercel.app",
+    "cleartext": false
+  }
 }
