@@ -46,26 +46,13 @@
 
       <!-- ── Arabic guided mode ───────────────────────────────────────── -->
       <div v-else-if="usesArabicGuide"
-        class="rounded-2xl flex flex-col items-center gap-4 py-5 px-5"
+        class="rounded-2xl flex flex-col items-center gap-2 py-4 px-5"
         style="background:#fefce8; border:1px solid #e8dcc8;">
-        <!-- Story context line -->
         <div class="self-stretch font-serif text-sm leading-relaxed select-none text-right"
-          dir="rtl" style="color:#2a241c; max-height:80px; overflow:hidden;">
+          dir="rtl" style="color:#2a241c; max-height:72px; overflow:hidden;">
           <span v-for="(u, i) in rewriteUnits" :key="i" :style="unitStyle(i)">{{ u }} </span>
         </div>
-        <!-- Full word in large Amiri -->
-        <div dir="rtl" style="font-family:'Amiri',serif; font-size:3.5rem; line-height:1.3; color:#1a1a2e; letter-spacing:0.04em; text-align:center; user-select:none;">
-          {{ currentUnit }}
-        </div>
-        <!-- Individual letters spaced for reference -->
-        <div dir="rtl" class="flex gap-3 flex-wrap justify-center">
-          <span
-            v-for="(letter, i) in arabicLetters"
-            :key="i"
-            style="font-family:'Amiri',serif; font-size:1.6rem; color:rgba(26,26,46,0.5); border-bottom:1px solid rgba(140,122,102,0.3); padding-bottom:2px; min-width:1.8rem; text-align:center;"
-          >{{ letter }}</span>
-        </div>
-        <div class="text-xs" style="color:rgba(140,122,102,0.45);">write on the canvas below ←</div>
+        <div class="text-xs" style="color:rgba(140,122,102,0.45);">trace the outline on the canvas below</div>
       </div>
 
       <!-- ── Full-page story text (write mode) ─────────────────────────── -->
@@ -314,6 +301,23 @@ function setupCanvas() {
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR
   ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'
   clearCanvas()
+  if (usesArabicGuide.value) drawArabicTemplate()
+}
+
+function drawArabicTemplate() {
+  if (!ctx || !currentUnit.value) return
+  const w = canvasCssWidth || window.innerWidth
+  ctx.save()
+  ctx.direction   = 'rtl'
+  ctx.textAlign   = 'center'
+  ctx.textBaseline = 'middle'
+  const fontSize  = Math.round(CANVAS_HEIGHT * 0.58)
+  ctx.font        = `bold ${fontSize}px "Amiri", serif`
+  ctx.lineWidth   = fontSize * 0.08
+  ctx.strokeStyle = 'rgba(140,122,102,0.22)'
+  ctx.strokeText(currentUnit.value, w / 2, CANVAS_HEIGHT / 2)
+  ctx.restore()
+  ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
 }
 
 function clearCanvas() {
@@ -327,6 +331,7 @@ function clearCanvas() {
   ctx.clearRect(0, 0, w, CANVAS_HEIGHT)
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
   checkResult.value = null
+  if (usesArabicGuide.value) drawArabicTemplate()
 }
 
 function getXY(e) {
@@ -456,7 +461,8 @@ async function runCheck() {
   } else {
     // Web non-CJK fallback: Google Handwriting Input via backend proxy
     const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth, CANVAS_HEIGHT)
-    const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, 3)
+    const limit      = isArabic.value ? 1 : 3
+    const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, limit)
     const want       = normWord(currentUnit.value)
     const isNumeric  = /^\p{N}+$/u.test(want)
     const minStrokes = (isArabic.value && !isNumeric) ? want.length * 2 : want.length
