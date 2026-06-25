@@ -157,10 +157,15 @@ const DONE_STYLE    = 'color:#8c7a66;'
 const CURRENT_STYLE = 'color:#2a241c; font-weight:700; border-bottom:2px solid #8b3a3a; padding-bottom:1px;'
 const FUTURE_STYLE  = 'color:rgba(140,122,102,0.3);'
 
+const hwFont = computed(() =>
+  props.lang === 'he' ? 'font-family:"Playpen Sans Hebrew",serif;' : ''
+)
+
 function unitStyle(i) {
-  if (i < unitIdx.value)   return DONE_STYLE
-  if (i === unitIdx.value) return CURRENT_STYLE
-  return FUTURE_STYLE
+  const f = hwFont.value
+  if (i < unitIdx.value)   return f + DONE_STYLE
+  if (i === unitIdx.value) return f + CURRENT_STYLE
+  return f + FUTURE_STYLE
 }
 
 // ── Auto-scroll current word into view above the canvas strip ────────────────
@@ -385,17 +390,17 @@ async function runCheck() {
   } else if (hwDrawing) {
     // Web non-CJK: W3C Handwriting Recognition API (Chromium, on-device, zero deps)
     const predictions = await hwDrawing.getPrediction().catch(() => null)
-    const got  = (predictions?.[0]?.text ?? '').toLowerCase().replace(/[^\p{L}]/gu, '')
-    const want = currentUnit.value.toLowerCase().replace(/[^\p{L}]/gu, '')
+    const got  = (predictions?.[0]?.text ?? '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+    const want = currentUnit.value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
     const dist = levenshtein(got, want)
     passed = got !== '' && dist <= (want.length >= 5 ? 1 : 0)
   } else {
     // Web non-CJK fallback: Google Handwriting Input via backend proxy
     const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth, CANVAS_HEIGHT)
     const candidates = result?.candidates ?? (result?.text ? [result.text] : [])
-    const want = currentUnit.value.toLowerCase().replace(/[^\p{L}]/gu, '')
+    const want = currentUnit.value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
     passed = candidates.some(c => {
-      const got  = c.toLowerCase().replace(/[^\p{L}]/gu, '')
+      const got  = c.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
       const dist = levenshtein(got, want)
       return got !== '' && dist <= (want.length >= 5 ? 1 : 0)
     })
