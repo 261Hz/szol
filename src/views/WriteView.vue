@@ -425,8 +425,8 @@ async function runCheck() {
 
   checkResult.value = passed
   checking.value    = false
-  if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = 0
   if (passed) {
+    if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = 0
     failCount.value = 0
     if (!isLast.value) setTimeout(() => { clearCanvas(); goNext(); scrollToCurrent() }, 600)
   } else {
