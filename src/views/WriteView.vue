@@ -44,19 +44,8 @@
         </div>
       </div>
 
-      <!-- ── Arabic guided mode ───────────────────────────────────────── -->
-      <div v-else-if="usesArabicGuide"
-        class="rounded-2xl flex flex-col items-center gap-2 py-4 px-5"
-        style="background:#fefce8; border:1px solid #e8dcc8;">
-        <div class="self-stretch font-serif text-sm leading-relaxed select-none text-right"
-          dir="rtl" style="color:#2a241c; max-height:72px; overflow:hidden; word-spacing:0.4em;">
-          <span v-for="(u, i) in rewriteUnits" :key="i" :style="unitStyle(i)">{{ u }}</span>
-        </div>
-        <div class="text-xs" style="color:rgba(140,122,102,0.45);">trace the outline on the canvas below</div>
-      </div>
-
-      <!-- ── Full-page story text (write mode) ─────────────────────────── -->
-      <div v-else
+      <!-- ── Full-page story text (write + Arabic practice mode) ────────── -->
+      <div v-else-if="!usesHanzi"
         class="font-serif leading-relaxed select-none"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         style="color:#2a241c; font-size:1.15rem; padding-bottom:280px; display:flex; flex-wrap:wrap; gap:0.2em 0.35em; align-items:baseline;">
