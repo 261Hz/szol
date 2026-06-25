@@ -152,6 +152,7 @@ export const UI = {
   orPasteUrl:       'or paste a URL to import',
   // ── Navigation ──────────────────────────────────────────────────────────────
   browse:           'Browse',
+  messages:         'Messages',
   // ── Listen view — podcast discovery ─────────────────────────────────────────
   searchPodcasts:       'Search episodes or find a podcast…',
   inYourLibrary:        'In your library',
