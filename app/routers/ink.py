@@ -134,6 +134,7 @@ _GOOGLE_LANG_MAP = {
     "hu": "hu", "fi": "fi", "da": "da", "cs": "cs", "ro": "ro",
     "ar": "ar", "arz": "ar", "he": "iw", "ru": "ru", "el": "el",
     "uk": "uk", "bg": "bg",
+    "zh": "zh-Hans", "zh-TW": "zh-Hant", "ja": "ja", "ko": "ko",
 }
 
 class GoogleInkRequest(BaseModel):
