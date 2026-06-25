@@ -310,7 +310,7 @@ export async function getProgress(storyId, tab) {
 // ── Stories ───────────────────────────────────────────────────────────────────
 
 export async function fetchCuratedStories(lang) {
-  const r = await fetch(`${API_URL}/stories?lang=${lang}`)
+  const r = await fetch(`${API_URL}/stories/?lang=${lang}`)
   return await r.json().catch(() => [])
 }
 
