@@ -5,9 +5,9 @@
       {{ t(lang, 'noStory') }}
     </div>
 
-    <div v-else-if="!hasRecognition" class="text-center py-12 flex flex-col gap-2">
+    <div v-else-if="!hasRecognition && !whisperEnabled" class="text-center py-12 flex flex-col gap-2">
       <div class="text-sm" style="color:rgba(31,27,23,0.5);">Speech recognition not supported in this browser.</div>
-      <div class="text-xs" style="color:rgba(31,27,23,0.35);">Try Chrome or Edge.</div>
+      <div class="text-xs" style="color:rgba(31,27,23,0.35);">Try Chrome or Edge, or download the on-device model below.</div>
     </div>
 
     <div v-else class="flex flex-col gap-4">
@@ -47,13 +47,20 @@
         >{{ word }}</span>
       </div>
 
-      <!-- Live interim transcript (while recording) -->
+      <!-- Live interim transcript (Web Speech API only) -->
       <div
         v-if="recording && liveTranscript"
         class="text-sm px-1 leading-snug"
         style="color:rgba(31,27,23,0.65); min-height:1.25rem;"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
       >{{ liveTranscript }}</div>
+
+      <!-- Transcribing indicator (Whisper path) -->
+      <div
+        v-else-if="isTranscribing"
+        class="text-sm px-1"
+        style="color:rgba(31,27,23,0.4); font-style:italic;"
+      >Transcribing…</div>
 
       <!-- Final heard text (after scoring) -->
       <div
@@ -67,7 +74,7 @@
       <div class="flex gap-2 flex-wrap">
         <button
           @click="speakSentence"
-          :disabled="recording"
+          :disabled="recording || isTranscribing"
           class="flex items-center gap-1.5 px-3 py-2 text-sm transition-all disabled:opacity-40"
           style="border:1px solid rgba(31,27,23,0.18); border-radius:3px; color:rgba(31,27,23,0.6);"
         >
@@ -77,7 +84,8 @@
 
         <button
           @click="recording ? stopRecording() : startRecording()"
-          class="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all"
+          :disabled="isTranscribing || (whisperEnabled && !whisperReady && !hasRecognition)"
+          class="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all disabled:opacity-40"
           :style="recording
             ? 'background:#8b3a3a; color:#e8dcc4; border-radius:3px;'
             : 'border:1px solid rgba(31,27,23,0.18); border-radius:3px; color:rgba(31,27,23,0.7);'"
@@ -93,6 +101,13 @@
           class="px-3 py-2 text-sm transition-all"
           style="border:1px solid rgba(31,27,23,0.15); border-radius:3px; color:rgba(31,27,23,0.5);"
         >Try again</button>
+
+        <!-- Engine indicator -->
+        <span
+          v-if="whisperReady"
+          class="self-center text-xs px-2"
+          style="color:rgba(31,27,23,0.3);"
+        >Whisper</span>
       </div>
 
       <!-- Score -->
@@ -125,12 +140,63 @@
         >{{ currentIdx < sentences.length - 1 ? 'Next' : 'Done' }}</button>
       </div>
 
+      <!-- ── Whisper download section ── -->
+      <div class="mt-2" style="border-top:1px solid rgba(31,27,23,0.08); padding-top:1rem;">
+
+        <!-- Downloading progress -->
+        <div v-if="whisperDownloading" class="flex flex-col gap-1">
+          <div class="flex items-center justify-between text-xs" style="color:rgba(31,27,23,0.4);">
+            <span>Downloading speech model…</span>
+            <span>{{ whisperPct }}%</span>
+          </div>
+          <div class="h-0.5 rounded-full overflow-hidden" style="background:rgba(31,27,23,0.1);">
+            <div class="h-full rounded-full transition-all duration-300" style="background:#8b3a3a;" :style="{ width: whisperPct + '%' }" />
+          </div>
+        </div>
+
+        <!-- Download error -->
+        <div v-else-if="whisperError" class="flex flex-col gap-1.5">
+          <div class="text-xs" style="color:#8b3a3a;">Download failed — check connection or storage.</div>
+          <button @click="downloadWhisper" class="self-start text-xs px-2.5 py-1 transition-all" style="border:1px solid rgba(31,27,23,0.2); border-radius:2px; color:rgba(31,27,23,0.55);">Retry</button>
+        </div>
+
+        <!-- Prompt: not yet decided -->
+        <div v-else-if="whisperEnabled === null" class="flex flex-col gap-2">
+          <div class="text-xs" style="color:rgba(31,27,23,0.5);">Download Whisper for better recognition — especially for Arabic &amp; Hebrew (~150 MB).</div>
+          <div class="flex gap-2">
+            <button
+              @click="downloadWhisper"
+              class="text-xs px-2.5 py-1 transition-all"
+              style="border:1px solid rgba(31,27,23,0.2); border-radius:2px; color:rgba(31,27,23,0.6);"
+            >Download</button>
+            <button
+              @click="skipWhisper"
+              class="text-xs transition-all"
+              style="color:rgba(31,27,23,0.3);"
+            >Use browser recognition</button>
+          </div>
+        </div>
+
+        <!-- Whisper ready -->
+        <div v-else-if="whisperReady && whisperEnabled === 'on'" class="flex items-center justify-between">
+          <span class="text-xs" style="color:rgba(31,27,23,0.35);">On-device speech model active.</span>
+          <button @click="skipWhisper" class="text-xs transition-all" style="color:rgba(31,27,23,0.3);">Switch to browser</button>
+        </div>
+
+        <!-- Whisper opted out -->
+        <div v-else-if="whisperEnabled === 'off'" class="flex items-center gap-2">
+          <span class="text-xs" style="color:rgba(31,27,23,0.3);">Using browser recognition.</span>
+          <button @click="downloadWhisper" class="text-xs transition-all" style="color:rgba(31,27,23,0.4); text-decoration:underline;">Switch to Whisper</button>
+        </div>
+
+      </div>
+
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { LANGS } from '../data/stories.js'
 import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
@@ -138,6 +204,8 @@ import { rootHighlightOn, applyRoots, clearRoots } from '../utils/rootHighlight.
 import { normalize, scoreWords } from '../utils/scoring.js'
 import { useVoiceList, pickVoice } from '../utils/voices.js'
 import { saveProgress, getProgress } from '../utils/api.js'
+import { transcribe, preloadSpeech, onSpeechProgress } from '../utils/localSpeech.js'
+import { blobToWhisperBuffer } from '../utils/audioUtils.js'
 
 const props = defineProps({
   story:       Object,
@@ -155,7 +223,52 @@ const liveTranscript = ref('')
 const result         = ref(null)
 const scored         = ref(false)
 const recording      = ref(false)
-let   recognition    = null
+const isTranscribing = ref(false)
+
+// Whisper state
+const whisperEnabled    = ref(localStorage.getItem('szol_whisper') ?? null) // 'on' | 'off' | null
+const whisperReady      = ref(false)
+const whisperDownloading = ref(false)
+const whisperPct        = ref(0)
+const whisperError      = ref(false)
+
+let recognition  = null
+let mediaRecorder = null
+let audioChunks  = []
+
+// Track Whisper download progress
+let _pendingFiles = 0, _doneFiles = 0
+const _removeProgress = onSpeechProgress((info) => {
+  if (info.status === 'initiate') {
+    _pendingFiles++
+    whisperDownloading.value = true
+  } else if (info.status === 'progress') {
+    whisperDownloading.value = true
+    whisperPct.value = Math.round(info.progress ?? 0)
+  } else if (info.status === 'done' || info.status === 'ready') {
+    _doneFiles++
+    if (_doneFiles >= _pendingFiles && _pendingFiles > 0) {
+      whisperPct.value = 100
+      setTimeout(() => {
+        whisperDownloading.value = false
+        _pendingFiles = 0; _doneFiles = 0
+      }, 600)
+    }
+  }
+})
+onUnmounted(() => _removeProgress())
+
+// If already opted in, silently load from cache on mount
+onMounted(async () => {
+  if (whisperEnabled.value === 'on') {
+    try {
+      await preloadSpeech()
+      whisperReady.value = true
+    } catch {
+      whisperReady.value = false
+    }
+  }
+})
 
 watch([() => props.story, () => props.lang, rootHighlightOn], ([, , on]) => {
   nextTick(() => on ? applyRoots(sentenceEl.value, props.lang) : clearRoots())
@@ -189,8 +302,6 @@ const sentenceWords = computed(() =>
   splitUnits(sentences.value[currentIdx.value] ?? '')
 )
 
-// LCS alignment: marks which target words appear in the spoken sequence in order.
-// Better than positional comparison — handles recognizer insertions and omissions gracefully.
 function alignWords(target, spoken) {
   const t = target.map(w => normalize(w))
   const s = spoken.map(w => normalize(w))
@@ -233,8 +344,49 @@ function speakSentence() {
   speechSynthesis.speak(utt)
 }
 
-function startRecording() {
+// ── Whisper path ──────────────────────────────────────────────────────────────
+
+async function startRecordingWhisper() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    audioChunks = []
+    mediaRecorder = new MediaRecorder(stream)
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data) }
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop())
+      if (!audioChunks.length) return
+      isTranscribing.value = true
+      try {
+        const blob  = new Blob(audioChunks, { type: mediaRecorder.mimeType })
+        const audio = await blobToWhisperBuffer(blob)
+        transcript.value = await transcribe(audio, props.lang)
+        result.value     = scoreWords(sentences.value[currentIdx.value] ?? '', transcript.value)
+        scored.value     = true
+      } catch {
+        // silent — user can retry
+      } finally {
+        isTranscribing.value = false
+      }
+    }
+    mediaRecorder.start()
+    recording.value = true
+  } catch {
+    recording.value = false
+  }
+}
+
+function stopRecordingWhisper() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop()
+  }
+  recording.value = false
+}
+
+// ── Web Speech API path ───────────────────────────────────────────────────────
+
+function startRecordingWebSpeech() {
   const SR    = window.SpeechRecognition || window.webkitSpeechRecognition
+  if (!SR) return
   recognition = new SR()
   recognition.lang            = LANGS[props.lang]?.bcp47 ?? props.lang
   recognition.interimResults  = true
@@ -252,7 +404,6 @@ function startRecording() {
     }
   }
 
-  // If recognition ends without a final result (silence / timeout), use last interim
   recognition.onend = () => {
     recording.value = false
     if (liveTranscript.value && !scored.value) {
@@ -270,10 +421,49 @@ function startRecording() {
   recognition.start()
 }
 
-function stopRecording() {
+function stopRecordingWebSpeech() {
   recognition?.stop()
   recording.value = false
 }
+
+// ── Unified entry points ──────────────────────────────────────────────────────
+
+function startRecording() {
+  if (whisperReady.value) startRecordingWhisper()
+  else startRecordingWebSpeech()
+}
+
+function stopRecording() {
+  if (whisperReady.value) stopRecordingWhisper()
+  else stopRecordingWebSpeech()
+}
+
+// ── Whisper download ──────────────────────────────────────────────────────────
+
+async function downloadWhisper() {
+  localStorage.setItem('szol_whisper', 'on')
+  whisperEnabled.value    = 'on'
+  whisperError.value      = false
+  whisperDownloading.value = true
+  whisperPct.value        = 0
+  _pendingFiles = 0; _doneFiles = 0
+  try {
+    await preloadSpeech()
+    whisperReady.value = true
+  } catch {
+    whisperError.value = true
+  } finally {
+    whisperDownloading.value = false
+  }
+}
+
+function skipWhisper() {
+  localStorage.setItem('szol_whisper', 'off')
+  whisperEnabled.value = 'off'
+  whisperReady.value   = false
+}
+
+// ── Shared helpers ────────────────────────────────────────────────────────────
 
 function reset() {
   transcript.value     = ''
@@ -281,6 +471,7 @@ function reset() {
   result.value         = null
   scored.value         = false
   recording.value      = false
+  isTranscribing.value = false
   recognition?.stop()
   speechSynthesis.cancel()
 }
@@ -300,6 +491,7 @@ function prev() {
 
 onUnmounted(() => {
   recognition?.stop()
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop()
   speechSynthesis.cancel()
 })
 </script>
