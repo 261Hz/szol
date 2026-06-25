@@ -306,16 +306,27 @@ function setupCanvas() {
 
 function drawArabicTemplate() {
   if (!ctx || !currentUnit.value) return
-  const w = canvasCssWidth || window.innerWidth
+  const vw       = window.innerWidth
+  const baseline = Math.round(CANVAS_HEIGHT * 0.65)
+  const fontSize = Math.round(CANVAS_HEIGHT * 0.52)
+
+  // Baseline rule across visible width
   ctx.save()
-  ctx.direction   = 'rtl'
-  ctx.textAlign   = 'center'
-  ctx.textBaseline = 'middle'
-  const fontSize  = Math.round(CANVAS_HEIGHT * 0.58)
-  ctx.font        = `bold ${fontSize}px "Amiri", serif`
-  ctx.fillStyle = 'rgba(140,122,102,0.2)'
-  ctx.fillText(currentUnit.value, window.innerWidth / 2, CANVAS_HEIGHT / 2)
+  ctx.strokeStyle = 'rgba(140,122,102,0.3)'
+  ctx.lineWidth   = 1
+  ctx.beginPath(); ctx.moveTo(20, baseline); ctx.lineTo(vw - 20, baseline); ctx.stroke()
   ctx.restore()
+
+  // Faded word sitting on baseline
+  ctx.save()
+  ctx.direction    = 'rtl'
+  ctx.textAlign    = 'center'
+  ctx.textBaseline = 'alphabetic'
+  ctx.font         = `bold ${fontSize}px "Amiri", serif`
+  ctx.fillStyle    = 'rgba(140,122,102,0.2)'
+  ctx.fillText(currentUnit.value, vw / 2, baseline)
+  ctx.restore()
+
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
 }
 
