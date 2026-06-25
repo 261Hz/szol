@@ -5,11 +5,10 @@
 // clean() removes HTML tags and extra spaces from a string.
 // Some dictionary APIs return text wrapped in HTML like <b>word</b> -- this strips that out.
 function clean(str) {
-  // First .replace() removes everything inside < > brackets (HTML tags like <b>, <em>, <span>).
-  // <[^>]+> means: < followed by one or more characters that aren't >, followed by >
-  // Then the second .replace() collapses multiple spaces/tabs into a single space.
-  // .trim() removes spaces at the very start and end.
-  return str.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+  let out = str
+  let prev
+  do { prev = out; out = out.replace(/<[^<>]*>/g, '') } while (out !== prev)
+  return out.replace(/\s+/g, ' ').trim()
 }
 
 // isUseful() checks whether a dictionary result is worth showing to the user.
@@ -104,8 +103,8 @@ async function fromWiktionary(word, lang) {
     word,
     pos:        entry.partOfSpeech || '',
     // Remove HTML tags from the definition and example text.
-    definition: def?.definition?.replace(/<[^>]+>/g, '') || '',
-    example:    def?.examples?.[0]?.replace(/<[^>]+>/g, '') || '',
+    definition: def?.definition ? clean(def.definition) : '' || '',
+    example:    def?.examples?.[0] ? clean(def.examples[0]) : '' || '',
     source:     `wiktionary-${wikiLang}`, // e.g. 'wiktionary-es' for Spanish Wiktionary
   }
 }

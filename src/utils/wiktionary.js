@@ -12,7 +12,10 @@ const WIKT_CODE = {
 }
 
 function stripHtml(s) {
-  return (s ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+  let out = s ?? ''
+  let prev
+  do { prev = out; out = out.replace(/<[^<>]*>/g, '') } while (out !== prev)
+  return out.replace(/\s+/g, ' ').trim()
 }
 
 const JUNK_RE = /\bISO\s*\d|\bISO\s*639|\bISO\s*3166|language code|country code|\babbreviation\b|\binitialism\b/i

@@ -37,7 +37,9 @@ function parseTranscript(text) {
     if (parts.length < 2) continue
     const start = parseSecs(parts[0].trim())
     const end   = parseSecs(parts[1].split(/\s/)[0].trim())
-    const body  = lines.slice(arrow + 1).join(' ').replace(/<[^>]+>/g, '').trim()
+    let body = lines.slice(arrow + 1).join(' ')
+    let _bp; do { _bp = body; body = body.replace(/<[^<>]*>/g, '') } while (body !== _bp)
+    body = body.trim()
     if (body) segs.push({ start, end, text: body })
   }
   return segs

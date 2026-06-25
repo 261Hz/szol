@@ -22,22 +22,20 @@ import { extract } from '@extractus/article-extractor'
 // then decodes HTML entities (&amp; → &), and finally collapses excess blank lines.
 function stripHtml(html) {
   if (!html) return ''
-  return html
-    // Convert block-level closing tags to newlines before stripping, to preserve paragraph breaks.
+  let out = html
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi,      '\n')
     .replace(/<\/div>/gi,    '\n')
     .replace(/<\/li>/gi,     '\n')
-    // Strip all remaining HTML tags (anything between < and >).
-    .replace(/<[^>]+>/g, '')
-    // Decode common HTML entities so the text reads naturally.
+  let prev
+  do { prev = out; out = out.replace(/<[^<>]*>/g, '') } while (out !== prev)
+  return out
     .replace(/&nbsp;/g,  ' ')
-    .replace(/&amp;/g,   '&')
     .replace(/&lt;/g,    '<')
     .replace(/&gt;/g,    '>')
     .replace(/&quot;/g,  '"')
     .replace(/&#39;/g,   "'")
-    // Collapse 3+ consecutive blank lines into a single blank line.
+    .replace(/&amp;/g,   '&')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }

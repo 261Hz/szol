@@ -48,10 +48,9 @@ function parseVTT(vtt) {
       if (!/^\d+$/.test(l)) textLines.push(l)
       i++
     }
-    const text = textLines.join(' ')
-      .replace(/<[^>]+>/g, '')
-      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
-      .trim()
+    let text = textLines.join(' ')
+    let _p; do { _p = text; text = text.replace(/<[^<>]*>/g, '') } while (text !== _p)
+    text = text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').trim()
     if (text && end > start) entries.push({ text, start, duration: end - start })
   }
   return entries
@@ -69,10 +68,11 @@ function parseJson3(data) {
 
 function decodeHtmlEntities(str) {
   return str
-    .replace(/&#(\d+);/g,       (_, n) => String.fromCharCode(n))
+    .replace(/&#(\d+);/g,         (_, n) => String.fromCharCode(n))
     .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
 }
 
 // Normalise the diverse response shapes returned by RapidAPI caption services.

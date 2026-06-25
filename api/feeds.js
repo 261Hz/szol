@@ -8,9 +8,15 @@
 
 const CDATA_RE = /<!\[CDATA\[([\s\S]*?)\]\]>/g
 const stripCdata = s => s.replace(CDATA_RE, '$1').trim()
-const stripTags  = s => s.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
-  .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#(\d+);/g, (_, n) => String.fromCharCode(n))
-  .replace(/&apos;/g, "'").replace(/\s+/g, ' ').trim()
+const stripTags = s => {
+  let out = s ?? ''
+  let prev
+  do { prev = out; out = out.replace(/<[^<>]*>/g, ' ') } while (out !== prev)
+  return out
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(n))
+    .replace(/&apos;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
+}
 
 function textNode(xml, tag) {
   const m = xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i'))

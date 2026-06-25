@@ -258,7 +258,7 @@ export async function preFetchRoots(words, lang) {
 // ── CSS Custom Highlight API (root consonant highlighting) ────────────────────
 // Used in VocabView for consonant-level marking within words.
 
-const WORD_RE_HE    = /[א-תװ-״יִ-פֿ]+/g
+const WORD_RE_HE    = /[א-תװ-ײ]+/g
 const WORD_RE_AR    = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]+/g
 const HE_VOWEL      = /[ְ-ׇ]/
 const AR_VOWEL      = /[ً-ٰٟ]/

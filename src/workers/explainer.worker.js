@@ -30,7 +30,8 @@ const PROMPT = {
 }
 
 function makeMessages(word, lang) {
-  const user = (PROMPT[lang] ?? (w => `Define "${w}" in one concise sentence in the same language as the word.`))(word)
+  const fn   = Object.hasOwn(PROMPT, lang) ? PROMPT[lang] : (w => `Define "${w}" in one concise sentence in the same language as the word.`)
+  const user = fn(word)
   return [
     { role: 'system', content: 'You are a monolingual dictionary. Respond only in the target language. One sentence only. No translation.' },
     { role: 'user',   content: user },

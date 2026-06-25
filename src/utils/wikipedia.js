@@ -36,7 +36,9 @@ export async function fetchFeaturedArticle(lang) {
     if (!tfa) return null
 
     const rawExtract = tfa.extract ?? tfa.description ?? ''
-    const extract    = rawExtract.replace(/<[^>]+>/g, '').trim()
+    let extract = rawExtract
+    let _p; do { _p = extract; extract = extract.replace(/<[^<>]*>/g, '') } while (extract !== _p)
+    extract = extract.trim()
 
     return {
       title:     tfa.title,

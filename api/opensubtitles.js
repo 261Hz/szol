@@ -39,24 +39,24 @@ const OS_LANG = {
 //
 // We strip sequence numbers, timestamps, and styling tags, leaving only dialogue.
 // Lines are joined into a single paragraph for use as a reading story.
+function stripTags(s) {
+  let out = s, prev
+  do { prev = out; out = out.replace(/<[^<>]*>/g, '') } while (out !== prev)
+  return out
+}
+
 function parseSRT(srt) {
-  return srt
-    // Remove lines that are only digits (sequence numbers like "1", "2", "123").
-    // ^...$gm = ^ start of line, $ end of line, g = all matches, m = multiline mode.
-    .replace(/^\d+\s*$/gm, '')
-    // Remove timestamp lines: "00:00:01,500 --> 00:00:04,000"
-    // Handles both comma and period as the millisecond separator (format varies by tool).
-    .replace(/\d{2}:\d{2}:\d{2}[,.:]\d{2,3}\s*-->\s*\d{2}:\d{2}:\d{2}[,.:]\d{2,3}/g, '')
-    // Strip HTML-style italic/bold tags some SRT files use: <i>...</i>, <b>...</b>
-    .replace(/<[^>]+>/g, '')
-    // Strip ASS/SSA override tags like {\an8} used by some subtitle authoring tools.
+  const stripped = stripTags(
+    srt
+      .replace(/^\d+\s*$/gm, '')
+      .replace(/\d{2}:\d{2}:\d{2}[,.:]\d{2,3}\s*-->\s*\d{2}:\d{2}:\d{2}[,.:]\d{2,3}/g, '')
+  )
+  return stripped
     .replace(/\{[^}]+\}/g, '')
-    // Split into lines, trim whitespace, remove blanks, then join into one paragraph.
     .split('\n')
     .map(l => l.trim())
     .filter(Boolean)
     .join(' ')
-    // Collapse any double spaces that result from removing tags mid-line.
     .replace(/\s{2,}/g, ' ')
     .trim()
 }

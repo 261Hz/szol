@@ -47,7 +47,7 @@ export async function searchWikivoyage(query, lang) {
       pageid:  r.pageid,
       // snippet contains matched context but wrapped in HTML <span> tags for highlighting.
       // .replace(/<[^>]+>/g, '') strips those tags to get plain text.
-      snippet: r.snippet.replace(/<[^>]+>/g, ''),
+      snippet: (() => { let s = r.snippet, p; do { p = s; s = s.replace(/<[^<>]*>/g, '') } while (s !== p); return s })(),
     }))
   } catch {
     return []

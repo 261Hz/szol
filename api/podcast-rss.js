@@ -8,7 +8,12 @@
 
 const CDATA_RE = /<!\[CDATA\[([\s\S]*?)\]\]>/g
 function stripCdata(s) { return s.replace(CDATA_RE, '$1').trim() }
-function stripTags(s) { return s.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim() }
+function stripTags(s) {
+  let out = s ?? ''
+  let prev
+  do { prev = out; out = out.replace(/<[^<>]*>/g, '') } while (out !== prev)
+  return out.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').trim()
+}
 
 function attr(tag, name) {
   const m = tag.match(new RegExp(`${name}="([^"]*)"`, 'i'))
