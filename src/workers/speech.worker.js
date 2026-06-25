@@ -17,7 +17,7 @@ self.onmessage = async ({ data }) => {
           encoder_model: 'fp32',
           decoder_model_merged: 'q4',
         },
-        device: 'wasm',
+        device: navigator.gpu ? 'webgpu' : 'wasm',
         progress_callback: info => self.postMessage({ id, type: 'progress', info }),
       })
     }
