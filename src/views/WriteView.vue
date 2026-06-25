@@ -137,6 +137,10 @@ const isNative = computed(() => Capacitor.isNativePlatform())
 const rewriteUnits = computed(() => {
   if (!props.story) return []
   const text = props.story.content.trim()
+  if (props.lang === 'ja') {
+    const seg = new Intl.Segmenter('ja', { granularity: 'word' })
+    return [...seg.segment(text)].filter(s => s.isWordLike).map(s => s.segment)
+  }
   if (isCJK.value) return [...text].filter(c => /\p{L}/u.test(c))
   return text.split(/\s+/).map(w => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')).filter(Boolean)
 })
