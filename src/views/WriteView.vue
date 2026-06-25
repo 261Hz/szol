@@ -198,7 +198,11 @@ const isLast      = computed(() => unitIdx.value >= rewriteUnits.value.length - 
 const progressLabel = computed(() => `${unitIdx.value + 1} / ${rewriteUnits.value.length}`)
 
 function normWord(s) {
-  return s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+  return s
+    .replace(/[٠-٩]/g, d => d.charCodeAt(0) - 0x0660) // Eastern Arabic-Indic → 0-9
+    .replace(/[۰-۹]/g, d => d.charCodeAt(0) - 0x06F0) // Extended Arabic-Indic (Persian) → 0-9
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, '')
 }
 
 
@@ -432,7 +436,8 @@ async function runCheck() {
     }).catch(() => null)
     const top  = normWord(result?.results?.candidates?.[0] ?? '')
     const want = normWord(currentUnit.value)
-    const minStrokes = isCJK.value ? 1 : isArabic.value ? want.length * 2 : want.length
+    const isNumeric  = /^\p{N}+$/u.test(want)
+    const minStrokes = isCJK.value ? 1 : (isArabic.value && !isNumeric) ? want.length * 2 : want.length
     passed = top !== '' && top === want && userStrokes.length >= minStrokes
   } else if (isCJK.value) {
     // CJK freeform: Google Handwriting Input
@@ -443,16 +448,18 @@ async function runCheck() {
   } else if (hwDrawing) {
     // Web non-CJK: W3C Handwriting Recognition API (Chromium, on-device, zero deps)
     const predictions = await hwDrawing.getPrediction().catch(() => null)
-    const got  = normWord(predictions?.[0]?.text ?? '')
-    const want = normWord(currentUnit.value)
-    const minStrokes = isArabic.value ? want.length * 2 : want.length
+    const got        = normWord(predictions?.[0]?.text ?? '')
+    const want       = normWord(currentUnit.value)
+    const isNumeric  = /^\p{N}+$/u.test(want)
+    const minStrokes = (isArabic.value && !isNumeric) ? want.length * 2 : want.length
     passed = got !== '' && got === want && userStrokes.length >= minStrokes
   } else {
     // Web non-CJK fallback: Google Handwriting Input via backend proxy
     const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth, CANVAS_HEIGHT)
     const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, 3)
-    const want = normWord(currentUnit.value)
-    const minStrokes = isArabic.value ? want.length * 2 : want.length
+    const want       = normWord(currentUnit.value)
+    const isNumeric  = /^\p{N}+$/u.test(want)
+    const minStrokes = (isArabic.value && !isNumeric) ? want.length * 2 : want.length
     passed = want !== '' && userStrokes.length >= minStrokes && candidates.some(c => normWord(c) === want)
   }
 
