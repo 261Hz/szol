@@ -370,9 +370,10 @@ async function runCheck() {
       model: mlkitLang(),
       writingArea: { w: canvasCssWidth || window.innerWidth, h: CANVAS_HEIGHT },
     }).catch(() => null)
-    const top  = (result?.results?.candidates?.[0] ?? '').trim().toLowerCase()
-    const want = currentUnit.value.trim().toLowerCase()
-    passed = top !== '' && top === want
+    const top  = normWord(result?.results?.candidates?.[0] ?? '')
+    const want = normWord(currentUnit.value)
+    const minStrokes = isCJK.value ? 1 : want.length
+    passed = top !== '' && top === want && userStrokes.length >= minStrokes
   } else if (isCJK.value) {
     // CJK freeform: Google Handwriting Input
     const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth, CANVAS_HEIGHT)
