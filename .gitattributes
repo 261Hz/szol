@@ -1,0 +1,15 @@
+# Normalize line endings to LF in the repo for all text files.
+* text=auto eol=lf
+
+# Patch files must always be LF — CRLF context lines break patch-package on Linux.
+*.patch text eol=lf
+
+# Binary files — no conversion.
+*.wasm binary
+*.apk  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.ico  binary
+*.woff binary
+*.woff2 binary
