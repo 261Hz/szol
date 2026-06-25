@@ -438,10 +438,9 @@ async function runCheck() {
       model: mlkitLang(),
       writingArea: { w: canvasCssWidth || window.innerWidth, h: CANVAS_HEIGHT },
     }).catch(() => null)
-    const top  = normWord(result?.results?.candidates?.[0] ?? '')
-    const want = normWord(currentUnit.value)
-    const isNumeric  = /^\p{N}+$/u.test(want)
-    const minStrokes = isCJK.value ? 1 : (isArabic.value && !isNumeric) ? want.length * 2 : want.length
+    const top        = normWord(result?.results?.candidates?.[0] ?? '')
+    const want       = normWord(currentUnit.value)
+    const minStrokes = isCJK.value || isArabic.value ? 1 : want.length
     passed = top !== '' && top === want && userStrokes.length >= minStrokes
   } else if (isCJK.value) {
     // CJK freeform: Google Handwriting Input
@@ -454,8 +453,7 @@ async function runCheck() {
     const predictions = await hwDrawing.getPrediction().catch(() => null)
     const got        = normWord(predictions?.[0]?.text ?? '')
     const want       = normWord(currentUnit.value)
-    const isNumeric  = /^\p{N}+$/u.test(want)
-    const minStrokes = want.length
+    const minStrokes = isArabic.value ? 1 : want.length
     passed = got !== '' && got === want && userStrokes.length >= minStrokes
   } else {
     // Web non-CJK fallback: Google Handwriting Input via backend proxy
@@ -463,8 +461,7 @@ async function runCheck() {
     const limit      = isArabic.value ? 1 : 3
     const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, limit)
     const want       = normWord(currentUnit.value)
-    const isNumeric  = /^\p{N}+$/u.test(want)
-    const minStrokes = want.length
+    const minStrokes = isArabic.value ? 1 : want.length
     passed = want !== '' && userStrokes.length >= minStrokes && candidates.some(c => normWord(c) === want)
   }
 
