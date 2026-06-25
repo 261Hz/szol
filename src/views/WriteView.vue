@@ -49,8 +49,8 @@
         class="rounded-2xl flex flex-col items-center gap-2 py-4 px-5"
         style="background:#fefce8; border:1px solid #e8dcc8;">
         <div class="self-stretch font-serif text-sm leading-relaxed select-none text-right"
-          dir="rtl" style="color:#2a241c; max-height:72px; overflow:hidden;">
-          <span v-for="(u, i) in rewriteUnits" :key="i" :style="unitStyle(i)">{{ u }} </span>
+          dir="rtl" style="color:#2a241c; max-height:72px; overflow:hidden; word-spacing:0.4em;">
+          <span v-for="(u, i) in rewriteUnits" :key="i" :style="unitStyle(i)">{{ u }}</span>
         </div>
         <div class="text-xs" style="color:rgba(140,122,102,0.45);">trace the outline on the canvas below</div>
       </div>
@@ -455,7 +455,7 @@ async function runCheck() {
     const got        = normWord(predictions?.[0]?.text ?? '')
     const want       = normWord(currentUnit.value)
     const isNumeric  = /^\p{N}+$/u.test(want)
-    const minStrokes = (isArabic.value && !isNumeric) ? want.length * 2 : want.length
+    const minStrokes = want.length
     passed = got !== '' && got === want && userStrokes.length >= minStrokes
   } else {
     // Web non-CJK fallback: Google Handwriting Input via backend proxy
@@ -464,7 +464,7 @@ async function runCheck() {
     const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, limit)
     const want       = normWord(currentUnit.value)
     const isNumeric  = /^\p{N}+$/u.test(want)
-    const minStrokes = (isArabic.value && !isNumeric) ? want.length * 2 : want.length
+    const minStrokes = want.length
     passed = want !== '' && userStrokes.length >= minStrokes && candidates.some(c => normWord(c) === want)
   }
 
