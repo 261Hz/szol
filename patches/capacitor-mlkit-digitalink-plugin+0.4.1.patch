@@ -10,3 +10,12 @@ index 44ea582..59a9bbf 100644
      compileSdkVersion project.hasProperty('compileSdkVersion') ? rootProject.ext.compileSdkVersion : 32
      defaultConfig {
          minSdkVersion project.hasProperty('minSdkVersion') ? rootProject.ext.minSdkVersion : 22
+diff --git a/node_modules/capacitor-mlkit-digitalink-plugin/android/src/main/AndroidManifest.xml b/node_modules/capacitor-mlkit-digitalink-plugin/android/src/main/AndroidManifest.xml
+index ec3ed01..a2f47b6 100644
+--- a/node_modules/capacitor-mlkit-digitalink-plugin/android/src/main/AndroidManifest.xml
++++ b/node_modules/capacitor-mlkit-digitalink-plugin/android/src/main/AndroidManifest.xml
+@@ -1,3 +1,2 @@
+-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+-    package="com.spoken.app.digitalink">
++<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ </manifest>
