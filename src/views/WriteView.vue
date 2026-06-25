@@ -269,7 +269,7 @@ function setupCanvas() {
   const dpr       = window.devicePixelRatio || 1
   const viewportW = window.innerWidth
   const wordLen   = currentUnit.value.length || 1
-  canvasCssWidth  = Math.max(viewportW, wordLen * 90 + 60)
+  canvasCssWidth  = Math.max(viewportW * 2, wordLen * 90 + 60)
   el.width        = canvasCssWidth * dpr
   el.height       = CANVAS_HEIGHT  * dpr
   el.style.width  = canvasCssWidth + 'px'
@@ -425,6 +425,7 @@ async function runCheck() {
 
   checkResult.value = passed
   checking.value    = false
+  if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = 0
   if (passed) {
     failCount.value = 0
     if (!isLast.value) setTimeout(() => { clearCanvas(); goNext(); scrollToCurrent() }, 600)
