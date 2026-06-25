@@ -196,6 +196,30 @@ async def google_recognize(req: GoogleInkRequest):
         _log.warning("google-recognize: exception %s", e)
         return {"text": None, "candidates": []}
 
+_ja_tagger = None
+
+@router.get("/tokenize")
+async def tokenize_text(text: str, lang: str):
+    if lang != "ja":
+        return {"tokens": []}
+    import asyncio, logging as _log
+    def _run():
+        global _ja_tagger
+        if _ja_tagger is None:
+            from janome.tokenizer import Tokenizer
+            _ja_tagger = Tokenizer()
+        skip = {"記号", "補助記号", "空白"}
+        result = []
+        for tok in _ja_tagger.tokenize(text):
+            pos = tok.part_of_speech.split(",")[0]
+            if pos not in skip and tok.surface.strip():
+                result.append({"surface": tok.surface, "pos": pos})
+        return result
+    loop = asyncio.get_event_loop()
+    tokens = await loop.run_in_executor(None, _run)
+    _log.warning("tokenize ja: %d tokens for %d chars", len(tokens), len(text))
+    return {"tokens": [t["surface"] for t in tokens], "rich": tokens}
+
 _MYSCRIPT_LANG_MAP = {
     # Non-Latin scripts
     "ar": "ar",      "he": "he_IL",  "ru": "ru_RU",
