@@ -1,12 +1,21 @@
 export const config = { runtime: 'edge' }
 
-// Hebrew: Dicta Nakdan (direct, CORS-blocked from browser) → HebSpacy on Render for misses.
-// Arabic: CAMeL Tools on Render backend (no usable public CORS-friendly Arabic API).
+// Hebrew: Dicta Nakdan (CORS-blocked from browser, proxied here) → DictaBERT-lex on
+//         Hugging Face for words Dicta misses.
+// Arabic: local ar-roots.json dict only (handled in the browser; no usable keyless
+//         REST endpoint returns actual Arabic triliteral roots).
 
-const DICTA_URL  = 'https://nakdan-u1-0.loadbalancer.dicta.org.il/api'
-const RENDER_URL = 'https://szol.onrender.com'
+const DICTA_URL    = 'https://nakdan-u1-0.loadbalancer.dicta.org.il/api'
+const HF_DICTABERT = 'https://api-inference.huggingface.co/models/dicta-il/dictabert-lex'
 
 function stripNiqqud(s) { return s.replace(/[֑-ׇ]/g, '') }
+
+function hfHeaders() {
+  const tok = process.env.HF_TOKEN
+  return tok
+    ? { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` }
+    : { 'Content-Type': 'application/json' }
+}
 
 async function hebrewRootsBatch(words) {
   let res
@@ -59,39 +68,59 @@ async function hebrewRootsBatch(words) {
     }
   }
 
-  console.log('[roots-dicta] roots found:', Object.keys(roots).length, '/', items.length)
+  console.log('[roots-dicta] roots found:', Object.keys(roots).length, '/', words.length)
   return roots
 }
 
-async function renderRootsBatch(words, lang) {
+// DictaBERT-lex: token classification model — entity label IS the Hebrew lemma.
+// Batch mode: one request for all missed words, returns [[preds], [preds], ...].
+async function dictaBertHebrewBatch(words) {
+  if (!words.length) return {}
   try {
-    const res = await fetch(`${RENDER_URL}/roots/analyze`, {
+    const res = await fetch(HF_DICTABERT, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ words, lang }),
-      signal:  AbortSignal.timeout(8000),
+      headers: hfHeaders(),
+      body:    JSON.stringify({ inputs: words }),
+      signal:  AbortSignal.timeout(10000),
     })
-    const data = res.ok ? await res.json() : {}
-    return data.roots ?? {}
+    if (!res.ok) {
+      console.error('[roots-hf-he] HTTP', res.status)
+      return {}
+    }
+    const data = await res.json()
+    // data: [ [predsForWord0], [predsForWord1], ... ]
+    // Each inner array is token-level predictions; entity = Hebrew lemma string.
+    const results = {}
+    for (let i = 0; i < words.length; i++) {
+      const preds = Array.isArray(data[i]) ? data[i] : []
+      if (!preds.length) continue
+      const best = [...preds].sort((a, b) => (b.score || 0) - (a.score || 0))[0]
+      if (!best?.entity) continue
+      const lemma = stripNiqqud(best.entity)
+      const chars = [...lemma].filter(c => 'א' <= c && c <= 'ת')
+      if (chars.length >= 2) results[words[i]] = chars
+    }
+    console.log('[roots-hf-he] found:', Object.keys(results).length, '/', words.length)
+    return results
   } catch (e) {
-    console.error(`[roots-render/${lang}]`, e.message)
+    console.error('[roots-hf-he]', e.message)
     return {}
   }
 }
 
-const json = (data) =>
+const jsonRes = (data) =>
   new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } })
 
 export default async function handler(req) {
   if (req.method !== 'POST') return new Response(null, { status: 405 })
 
   let body
-  try { body = await req.json() } catch { return json({ root: null, roots: {} }) }
+  try { body = await req.json() } catch { return jsonRes({ root: null, roots: {} }) }
 
   const { lang } = body
 
   try {
-    const words = Array.isArray(body.words) ? body.words : [body.word ?? '']
+    const words  = Array.isArray(body.words) ? body.words : [body.word ?? '']
     const single = !Array.isArray(body.words)
 
     let roots = {}
@@ -100,17 +129,16 @@ export default async function handler(req) {
       roots = await hebrewRootsBatch(words)
       const missed = words.filter(w => !roots[w])
       if (missed.length) {
-        const fallback = await renderRootsBatch(missed, 'he')
-        Object.assign(roots, fallback)
+        const hfRoots = await dictaBertHebrewBatch(missed)
+        Object.assign(roots, hfRoots)
       }
-    } else if (lang === 'ar') {
-      roots = await renderRootsBatch(words, 'ar')
     }
+    // Arabic: local dict in the browser handles it; no server-side lookup needed.
 
-    if (single) return json({ root: roots[body.word] ?? null })
-    return json({ roots })
+    if (single) return jsonRes({ root: roots[body.word] ?? null })
+    return jsonRes({ roots })
   } catch (e) {
     console.error('[roots] error:', e.message)
-    return json({ root: null, roots: {} })
+    return jsonRes({ root: null, roots: {} })
   }
 }

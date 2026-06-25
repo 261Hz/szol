@@ -4,7 +4,7 @@
  * Lookup order:
  *   1. In-memory session cache (Map)  — instant
  *   2. localStorage cache (~500 entries LRU) — persists session
- *   3. Backend /roots/analyze endpoint — proxies Dicta (Hebrew) and CAMeL Tools (Arabic)
+ *   3. /api/roots-analyze (Vercel edge) — Dicta Nakdan + DictaBERT-lex fallback (Hebrew only)
  *   4. Null (graceful degradation)
  *
  * rootMode drives the visual layer:
@@ -171,9 +171,8 @@ function dictLookup(word, lang, dict) {
   return null
 }
 // ── Roots API via Vercel proxy ────────────────────────────────────────────────
-// Hebrew: Dicta (direct to Nakdan, CORS-blocked from browser) + HebSpacy fallback.
-// Arabic: CAMeL Tools via Render backend.
-// Both routed through /api/roots-analyze (same-origin proxy).
+// Hebrew: Dicta Nakdan + DictaBERT-lex HuggingFace fallback, via /api/roots-analyze.
+// Arabic: local dict only (no REST API exposes triliteral roots keylessly).
 
 async function rootsBatch(words, lang) {
   try {
@@ -242,8 +241,6 @@ export async function preFetchRoots(words, lang) {
   // 2. API for words not in local dict
   if (stillUncached.length) {
     try {
-      // Hebrew: Dicta Nakdan + HebSpacy fallback (via Vercel proxy)
-      // Arabic: CAMeL Tools on Render backend (via Vercel proxy)
       const batchFn = lang === 'he' ? dictaHebrewBatch : rootsBatch
       const roots   = await batchFn(stillUncached, lang)
       for (const word of stillUncached) {
