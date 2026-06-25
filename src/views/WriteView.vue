@@ -9,15 +9,15 @@
 
       <!-- ── CJK mode toggle ───────────────────────────────────────────── -->
       <div v-if="isCJK" class="flex gap-0.5">
-        <button @click="setMode('guided')"
-          class="text-xs px-2 py-0.5 rounded-full transition-all"
-          :style="mode === 'guided' ? 'background:#2a2018; color:#e8dcc4;' : 'color:rgba(26,26,46,0.38);'">
-          guided
-        </button>
         <button @click="setMode('write')"
           class="text-xs px-2 py-0.5 rounded-full transition-all"
           :style="mode !== 'guided' ? 'background:#2a2018; color:#e8dcc4;' : 'color:rgba(26,26,46,0.38);'">
           write
+        </button>
+        <button @click="setMode('guided')"
+          class="text-xs px-2 py-0.5 rounded-full transition-all"
+          :style="mode === 'guided' ? 'background:#2a2018; color:#e8dcc4;' : 'color:rgba(26,26,46,0.38);'">
+          practice
         </button>
       </div>
 
@@ -114,8 +114,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import HanziWriter from 'hanzi-writer'
 import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
-import { compareStrokes, getHanziTemplate, PASS_THRESHOLD } from '../utils/strokeRecognizer.js'
-import { recognizeInk, googleRecognizeInk } from '../utils/api.js'
+import { googleRecognizeInk } from '../utils/api.js'
 import { Capacitor } from '@capacitor/core'
 import { DigitalInk } from 'capacitor-mlkit-digitalink-plugin'
 
@@ -375,14 +374,11 @@ async function runCheck() {
     const want = currentUnit.value.trim().toLowerCase()
     passed = top !== '' && top === want
   } else if (isCJK.value) {
-    // Web CJK: backend per-stroke geometric comparison; fall back to local $1
-    const result = await recognizeInk(userStrokes, props.lang, currentUnit.value)
-    if (result !== null) {
-      passed = result.match
-    } else {
-      const template = await getHanziTemplate(currentUnit.value)
-      passed = template ? compareStrokes(userStrokes, template) < PASS_THRESHOLD : userStrokes.length >= 1
-    }
+    // CJK freeform: Google Handwriting Input
+    const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth, CANVAS_HEIGHT)
+    const candidates = result?.candidates ?? (result?.text ? [result.text] : [])
+    const want = normWord(currentUnit.value)
+    passed = want !== '' && candidates.some(c => normWord(c) === want)
   } else if (hwDrawing) {
     // Web non-CJK: W3C Handwriting Recognition API (Chromium, on-device, zero deps)
     const predictions = await hwDrawing.getPrediction().catch(() => null)
@@ -408,7 +404,7 @@ async function runCheck() {
 }
 
 // ── HanziWriter ──────────────────────────────────────────────────────────────
-const mode           = ref('guided')
+const mode           = ref('write')
 const hanziContainer = ref(null)
 const quizActive     = ref(false)
 const quizDone       = ref(false)
@@ -480,7 +476,7 @@ watch(unitIdx, () => {
 
 watch([() => props.lang, () => props.story], () => {
   unitIdx.value = 0
-  mode.value = 'guided'; quizActive.value = false; quizDone.value = false
+  mode.value = 'write'; quizActive.value = false; quizDone.value = false
   charError.value = false; writer = null; checkResult.value = null; failCount.value = 0
   if (isCJK.value) nextTick(initWriter)
   else             setupCanvas()
