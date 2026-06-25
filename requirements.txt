@@ -1,4 +1,7 @@
 janome>=0.5.0
+camel-tools>=1.5.0
+spacy>=3.7.0
+he_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/he_core_news_sm-3.7.0/he_core_news_sm-3.7.0.tar.gz
 httpx==0.28.1
 youtube-transcript-api==0.6.2
 yt-dlp
