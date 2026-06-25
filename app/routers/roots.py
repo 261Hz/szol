@@ -12,9 +12,12 @@ def _load_ar():
     global _ar_analyzer
     if _ar_analyzer is None:
         from camel_tools.morphology.database import MorphologyDB
-        from camel_tools.morphology.analyzer import MorphAnalyzer
+        try:
+            from camel_tools.morphology.analyzer import MorphAnalyzer as _Cls
+        except ImportError:
+            from camel_tools.morphology.analyzer import Analyzer as _Cls
         db = MorphologyDB.builtin_db()
-        _ar_analyzer = MorphAnalyzer(db)
+        _ar_analyzer = _Cls(db)
     return _ar_analyzer
 
 def _load_he():
@@ -24,6 +27,11 @@ def _load_he():
         _he_nlp = spacy.load("he_core_news_sm")
     return _he_nlp
 
+def _get_root(analysis) -> str | None:
+    if isinstance(analysis, dict):
+        return analysis.get("root")
+    return getattr(analysis, "root", None)
+
 def _ar_roots_sync(words: list) -> dict:
     try:
         az = _load_ar()
@@ -32,7 +40,7 @@ def _ar_roots_sync(words: list) -> dict:
             analyses = az.analyze(w)
             if not analyses:
                 continue
-            root = analyses[0].get("root")
+            root = _get_root(analyses[0])
             if not root or root in ("NOAN", "----", ""):
                 continue
             chars = [c for c in root.replace(".", "").replace("_", "")
