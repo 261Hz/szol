@@ -366,7 +366,7 @@ async function startRecordingWhisper() {
       try {
         const blob  = new Blob(audioChunks, { type: mediaRecorder.mimeType })
         const audio = await blobToWhisperBuffer(blob)
-        transcript.value = await transcribe(audio, props.lang)
+        transcript.value = await transcribe(audio, props.lang, sentences.value[currentIdx.value])
         scored.value     = true
         result.value     = lcsScore()
       } catch {

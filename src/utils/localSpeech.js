@@ -37,10 +37,11 @@ export function preloadSpeech() {
 }
 
 // audio must be a Float32Array at 16 kHz (from blobToWhisperBuffer)
-export function transcribe(audio, lang) {
+// hint: the target sentence text, passed to Whisper as initial_prompt
+export function transcribe(audio, lang, hint) {
   return new Promise((resolve, reject) => {
     const id = seq++
     pending.set(id, { resolve, reject })
-    getWorker().postMessage({ id, msgType: 'transcribe', audio, lang }, [audio.buffer])
+    getWorker().postMessage({ id, msgType: 'transcribe', audio, lang, hint }, [audio.buffer])
   })
 }

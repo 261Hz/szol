@@ -9,7 +9,7 @@ const LANG = { 'zh-TW': 'zh', 'arz': 'ar' }
 let pipe = null
 
 self.onmessage = async ({ data }) => {
-  const { id, msgType, audio, lang } = data
+  const { id, msgType, audio, lang, hint } = data
   try {
     if (!pipe) {
       pipe = await pipeline('automatic-speech-recognition', 'onnx-community/whisper-small', {
@@ -29,6 +29,7 @@ self.onmessage = async ({ data }) => {
       language: LANG[lang] ?? lang,
       task: 'transcribe',
       chunk_length_s: 30,
+      ...(hint ? { prompt_ids: hint } : {}),
     })
     self.postMessage({ id, type: 'result', result: out.text.trim() })
   } catch (e) {
