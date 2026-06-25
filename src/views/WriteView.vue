@@ -388,13 +388,13 @@ async function runCheck() {
     const predictions = await hwDrawing.getPrediction().catch(() => null)
     const got  = normWord(predictions?.[0]?.text ?? '')
     const want = normWord(currentUnit.value)
-    passed = got !== '' && got === want
+    passed = got !== '' && got === want && userStrokes.length >= want.length
   } else {
     // Web non-CJK fallback: Google Handwriting Input via backend proxy
     const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth, CANVAS_HEIGHT)
     const candidates = result?.candidates ?? (result?.text ? [result.text] : [])
     const want = normWord(currentUnit.value)
-    passed = want !== '' && candidates.some(c => normWord(c) === want)
+    passed = want !== '' && userStrokes.length >= want.length && candidates.some(c => normWord(c) === want)
   }
 
   checkResult.value = passed
