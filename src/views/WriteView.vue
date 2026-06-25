@@ -188,8 +188,10 @@ function normWord(s) {
   return s
     .replace(/[٠-٩]/g, d => d.charCodeAt(0) - 0x0660) // Eastern Arabic-Indic → 0-9
     .replace(/[۰-۹]/g, d => d.charCodeAt(0) - 0x06F0) // Extended Arabic-Indic (Persian) → 0-9
+    .replace(/ة/g, 'ه')  // ta marbuta ≡ ha — identical in Naskh handwriting
+    .replace(/ى/g, 'ي')  // alef maqsura ≡ ya — identical without dots
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}]/gu, '')
+    .replace(/[^\p{L}\p{N}\p{M}]/gu, '')
 }
 
 
@@ -469,7 +471,7 @@ async function runCheck() {
   } else {
     // Web non-CJK fallback: Google Handwriting Input via backend proxy
     const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth, CANVAS_HEIGHT)
-    const limit      = isArabic.value ? 1 : 3
+    const limit      = 3
     const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, limit)
     const want       = normWord(currentUnit.value)
     const minStrokes = isArabic.value ? 1 : want.length
