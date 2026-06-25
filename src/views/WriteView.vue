@@ -354,6 +354,10 @@ function getCleanCanvasImage() {
   return off.toDataURL('image/png').split(',')[1]
 }
 
+function normWord(s) {
+  return s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[^\p{L}\p{N}]/gu, '')
+}
+
 function levenshtein(a, b) {
   const dp = Array.from({ length: a.length + 1 }, (_, i) => [i])
   for (let j = 0; j <= b.length; j++) dp[0][j] = j
@@ -390,17 +394,17 @@ async function runCheck() {
   } else if (hwDrawing) {
     // Web non-CJK: W3C Handwriting Recognition API (Chromium, on-device, zero deps)
     const predictions = await hwDrawing.getPrediction().catch(() => null)
-    const got  = (predictions?.[0]?.text ?? '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
-    const want = currentUnit.value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+    const got  = normWord(predictions?.[0]?.text ?? '')
+    const want = normWord(currentUnit.value)
     const dist = levenshtein(got, want)
     passed = got !== '' && dist <= (want.length >= 5 ? 1 : 0)
   } else {
     // Web non-CJK fallback: Google Handwriting Input via backend proxy
     const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth, CANVAS_HEIGHT)
     const candidates = result?.candidates ?? (result?.text ? [result.text] : [])
-    const want = currentUnit.value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+    const want = normWord(currentUnit.value)
     passed = candidates.some(c => {
-      const got  = c.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+      const got  = normWord(c)
       const dist = levenshtein(got, want)
       return got !== '' && dist <= (want.length >= 5 ? 1 : 0)
     })
