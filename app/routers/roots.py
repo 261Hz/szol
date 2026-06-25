@@ -1,7 +1,12 @@
 import asyncio
 import logging as _log
+import os
 from fastapi import APIRouter
 from pydantic import BaseModel
+
+# Point CAMeL Tools at the project-relative cache dir so Render's build cache preserves it.
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+os.environ.setdefault("CAMEL_DATA_PATH", os.path.join(_project_root, ".camel_data"))
 
 router = APIRouter(prefix="/roots", tags=["roots"])
 
