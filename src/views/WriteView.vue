@@ -94,17 +94,19 @@
         </div>
       </div>
 
-      <!-- The canvas itself -->
-      <canvas
-        ref="canvasEl"
-        class="w-full block touch-none"
-        style="cursor:crosshair; display:block;"
-        @pointerdown.prevent="startStroke"
-        @pointermove="extendStroke"
-        @pointerup="endStroke"
-        @pointercancel="endStroke"
-        @pointerleave="endStroke"
-      />
+      <!-- The canvas itself (wider than viewport for long words; auto-scrolls while drawing) -->
+      <div ref="scrollContainerEl" style="overflow-x:hidden; overflow-y:hidden;">
+        <canvas
+          ref="canvasEl"
+          class="block touch-none"
+          style="cursor:crosshair; display:block;"
+          @pointerdown.prevent="startStroke"
+          @pointermove="extendStroke"
+          @pointerup="endStroke"
+          @pointercancel="endStroke"
+          @pointerleave="endStroke"
+        />
+      </div>
     </div>
   </teleport>
 </template>
@@ -220,7 +222,8 @@ async function ensureMLKitModel() {
   finally { mlkitDownloading.value = false }
 }
 
-const canvasEl    = ref(null)
+const canvasEl         = ref(null)
+const scrollContainerEl = ref(null)
 const checking    = ref(false)
 const checkResult = ref(null)
 const failCount   = ref(0)
@@ -263,9 +266,10 @@ const INK_COLOR     = '#1a1a2e'
 function setupCanvas() {
   const el = canvasEl.value
   if (!el) return
-  const dpr      = window.devicePixelRatio || 1
-  const rect     = el.getBoundingClientRect()
-  canvasCssWidth = rect.width || window.innerWidth
+  const dpr       = window.devicePixelRatio || 1
+  const viewportW = window.innerWidth
+  const wordLen   = currentUnit.value.length || 1
+  canvasCssWidth  = Math.max(viewportW, wordLen * 55 + 40)
   el.width        = canvasCssWidth * dpr
   el.height       = CANVAS_HEIGHT  * dpr
   el.style.width  = canvasCssWidth + 'px'
@@ -280,6 +284,7 @@ function setupCanvas() {
 function clearCanvas() {
   clearTimeout(autoCheckTimer)
   userStrokes = []; currentStrokePts = []
+  if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = 0
   if (Capacitor.isNativePlatform()) DigitalInk.erase().catch(() => {})
   if (hwRecognizer) resetHwDrawing()
   if (!ctx || !canvasEl.value) return
@@ -308,8 +313,16 @@ function startStroke(e) {
   if (hwDrawing) { hwStroke = new HandwritingStroke(); hwStroke.addPoint({ x, y, t: Date.now() - hwStartTime }) }
 }
 
+function autoScrollCanvas(clientX) {
+  const container = scrollContainerEl.value
+  if (!container) return
+  const right = window.innerWidth - clientX
+  if (right < 80) container.scrollLeft += Math.ceil((80 - right) * 0.4)
+}
+
 function extendStroke(e) {
   if (!drawing || !ctx) return
+  autoScrollCanvas(e.clientX)
   const { x, y } = getXY(e)
   currentStrokePts.push({ x, y })
   ctx.lineTo(x, y)
