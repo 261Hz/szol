@@ -114,7 +114,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import HanziWriter from 'hanzi-writer'
 import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
-import { googleRecognizeInk } from '../utils/api.js'
+import { googleRecognizeInk, tokenizeJapanese } from '../utils/api.js'
 import { Capacitor } from '@capacitor/core'
 import { DigitalInk } from 'capacitor-mlkit-digitalink-plugin'
 
@@ -133,14 +133,25 @@ const emit  = defineEmits(['go'])
 const isCJK    = computed(() => ['zh', 'zh-TW', 'ja'].includes(props.lang))
 const isNative = computed(() => Capacitor.isNativePlatform())
 
+// ── Japanese morpheme tokenization ───────────────────────────────────────────
+const jaTokens = ref(null)
+
+async function fetchJaTokens() {
+  if (props.lang !== 'ja' || !props.story) { jaTokens.value = null; return }
+  const res = await tokenizeJapanese(props.story.content)
+  jaTokens.value = res?.tokens ?? null
+}
+
+function jaSegment(text) {
+  const seg = new Intl.Segmenter('ja', { granularity: 'word' })
+  return [...seg.segment(text)].filter(s => s.isWordLike).map(s => s.segment)
+}
+
 // ── Single source of truth ────────────────────────────────────────────────────
 const rewriteUnits = computed(() => {
   if (!props.story) return []
   const text = props.story.content.trim()
-  if (props.lang === 'ja') {
-    const seg = new Intl.Segmenter('ja', { granularity: 'word' })
-    return [...seg.segment(text)].filter(s => s.isWordLike).map(s => s.segment)
-  }
+  if (props.lang === 'ja') return jaTokens.value ?? jaSegment(text)
   if (isCJK.value) return [...text].filter(c => /\p{L}/u.test(c))
   return text.split(/\s+/).map(w => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')).filter(Boolean)
 })
@@ -465,6 +476,7 @@ onMounted(() => {
   window.addEventListener('resize', onResize)
   ensureMLKitModel()
   initHandwritingRecognizer()
+  fetchJaTokens()
 })
 
 onUnmounted(() => {
@@ -487,6 +499,7 @@ watch([() => props.lang, () => props.story], () => {
   else             setupCanvas()
   ensureMLKitModel()
   nextTick(initHandwritingRecognizer)
+  fetchJaTokens()
 })
 </script>
 

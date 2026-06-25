@@ -610,6 +610,17 @@ export async function transcribeInk(strokes, lang) {
   }
 }
 
+export async function tokenizeJapanese(text) {
+  try {
+    const res = await fetch(
+      `${API_URL}/ink/tokenize?${new URLSearchParams({ text, lang: 'ja' })}`,
+      { signal: AbortSignal.timeout(8000) }
+    )
+    if (!res.ok) return null
+    return await res.json()
+  } catch { return null }
+}
+
 export async function googleRecognizeInk(strokes, lang, width, height) {
   try {
     const res = await fetch(`${API_URL}/ink/google-recognize`, {
