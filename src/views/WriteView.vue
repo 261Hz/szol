@@ -313,9 +313,8 @@ function drawArabicTemplate() {
   ctx.textBaseline = 'middle'
   const fontSize  = Math.round(CANVAS_HEIGHT * 0.58)
   ctx.font        = `bold ${fontSize}px "Amiri", serif`
-  ctx.lineWidth   = fontSize * 0.08
-  ctx.strokeStyle = 'rgba(140,122,102,0.22)'
-  ctx.strokeText(currentUnit.value, window.innerWidth / 2, CANVAS_HEIGHT / 2)
+  ctx.fillStyle = 'rgba(140,122,102,0.2)'
+  ctx.fillText(currentUnit.value, window.innerWidth / 2, CANVAS_HEIGHT / 2)
   ctx.restore()
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
 }
