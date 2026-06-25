@@ -26,6 +26,7 @@
     "@capacitor/cli": "^8.4.1",
     "@tailwindcss/vite": "^4.2.4",
     "@vitejs/plugin-vue": "^6.0.6",
+    "esbuild": "^0.28.1",
     "patch-package": "^8.0.1",
     "playwright": "^1.60.0",
     "tailwindcss": "^4.2.4",

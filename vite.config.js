@@ -59,9 +59,6 @@ export default defineConfig({
       },
     }),
   ],
-  build: {
-    cssMinify: 'esbuild',
-  },
   optimizeDeps: {
     exclude: ['@huggingface/transformers'],
   },
