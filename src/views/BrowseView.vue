@@ -361,7 +361,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { fetchCuratedStories, fetchFeedArticle, fetchPodcastRss, fetchArticleRss, searchPodcasts, searchFeeds, getAllProgress } from '../utils/api.js'
+import { fetchCuratedStories, fetchFeedArticle, fetchPodcastRss, fetchArticleRss, searchPodcasts, searchFeeds, getAllProgress, fetchPodcasts } from '../utils/api.js'
 import { fetchFeaturedArticle, fetchOnThisDay } from '../utils/wikipedia.js'
 import { isRTL } from '../utils/rtl.js'
 import { t } from '../utils/i18n.js'
@@ -579,22 +579,31 @@ watch(source, async (name) => {
   const feedUrl = isPinnedJre ? JRE_FEED : sub?.feed_url
   if (!feedUrl) { currentEpisodes.value = []; return }
   episodesLoading.value = true
-  const data = await fetchPodcastRss(feedUrl)
+  const [data, dbEps] = await Promise.all([
+    fetchPodcastRss(feedUrl),
+    fetchPodcasts(props.lang),
+  ])
   episodesLoading.value = false
-  const eps = (data?.episodes ?? []).map(ep => ({
-    id: ep.audio_url, title: ep.title, lang: props.lang,
-    podcast_name: name, audio_url: ep.audio_url,
-    duration_sec: ep.duration_sec ?? null, transcript_url: ep.transcript_url ?? null,
-    source_type: 'podcast',
-  }))
+  const dbByAudio = Object.fromEntries((dbEps ?? []).map(e => [e.audio_url, e]))
+  const eps = (data?.episodes ?? []).map(ep => {
+    const db = dbByAudio[ep.audio_url]
+    return {
+      id: db?.id ?? ep.audio_url,
+      title: ep.title, lang: props.lang,
+      podcast_name: name, audio_url: ep.audio_url,
+      duration_sec: ep.duration_sec ?? null, transcript_url: ep.transcript_url ?? null,
+      source_type: 'podcast',
+      segments: db?.segments ?? [],
+    }
+  })
   currentEpisodes.value = isPinnedJre ? eps.slice(0, 3) : eps
 })
 
 function listenEpisode(ep) {
   emit('open-listen', {
-    id: ep.audio_url, title: ep.title, lang: props.lang,
+    id: ep.id, title: ep.title, lang: props.lang,
     author: ep.podcast_name, source: ep.podcast_name, podcast_name: ep.podcast_name,
-    audio_url: ep.audio_url, segments: [], content: null,
+    audio_url: ep.audio_url, segments: ep.segments ?? [], content: null,
     source_type: 'podcast', transcript_url: ep.transcript_url ?? null,
   })
 }
