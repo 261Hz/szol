@@ -32,6 +32,14 @@ export function explain(word, lang) {
   return new Promise((resolve, reject) => {
     const id = seq++
     pending.set(id, { resolve, reject })
-    getWorker().postMessage({ id, word, lang })
+    getWorker().postMessage({ id, msgType: 'explain', word, lang })
+  })
+}
+
+export function preload(lang) {
+  return new Promise((resolve, reject) => {
+    const id = seq++
+    pending.set(id, { resolve, reject })
+    getWorker().postMessage({ id, msgType: 'load', lang })
   })
 }

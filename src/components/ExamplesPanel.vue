@@ -55,7 +55,7 @@
       <!-- Model download progress -->
       <div v-if="localDefDownloading" class="flex flex-col gap-1 my-1">
         <div class="flex items-center justify-between text-xs" style="color:rgba(31,27,23,0.4);">
-          <span class="truncate max-w-[70%]">{{ localDefLabel || 'Loading language model…' }}</span>
+          <span>Downloading definition model…</span>
           <span>{{ localDefPct }}%</span>
         </div>
         <div class="h-0.5 rounded-full overflow-hidden" style="background:rgba(31,27,23,0.1);">
@@ -107,6 +107,14 @@
         </div>
       </div>
       <div v-else-if="localDef" class="text-sm leading-snug" :dir="isRTL(lang) ? 'rtl' : 'ltr'">{{ localDef }}</div>
+      <div v-else-if="localDefError" class="flex flex-col gap-2">
+        <div class="text-xs" style="color:rgba(31,27,23,0.35); font-style:italic;">Model error — check your connection or free up storage.</div>
+        <button
+          @click="enableAndExplain"
+          class="self-start text-xs px-2.5 py-1 transition-all"
+          style="border:1px solid rgba(31,27,23,0.2); border-radius:2px; color:rgba(31,27,23,0.55);"
+        >Retry</button>
+      </div>
       <template v-else-if="dict.done && !localDefLoading && lang !== 'en'">
         <div v-if="!modelsOn" class="flex flex-col gap-2">
           <div class="text-xs" style="color:rgba(31,27,23,0.35); font-style:italic;">Not in Wiktionary.</div>
@@ -357,12 +365,12 @@ const wiki    = ref({ loading: false, results: [], done: false })
 const wq      = ref({ loading: false, results: [], done: false })
 const video   = ref({ loading: false, results: [], done: false })
 
-const localDef         = ref('')
-const localDefLoading  = ref(false)
-const localDefPct      = ref(0)
-const localDefLabel    = ref('')
+const localDef            = ref('')
+const localDefLoading     = ref(false)
+const localDefPct         = ref(0)
 const localDefDownloading = ref(false)
-const modelsOn         = ref(localModelsEnabled())
+const localDefError       = ref(false)
+const modelsOn            = ref(localModelsEnabled())
 
 const shortDef = computed(() => {
   if (dict.value.data?.definitions?.length) return dict.value.data.definitions[0]
@@ -376,13 +384,11 @@ const removeProgress = onExplainerProgress((info) => {
     localDefDownloading.value = true
   } else if (info.status === 'progress') {
     localDefDownloading.value = true
-    localDefPct.value   = Math.round(info.progress ?? 0)
-    localDefLabel.value = info.file ?? ''
+    localDefPct.value = Math.round(info.progress ?? 0)
   } else if (info.status === 'done' || info.status === 'ready') {
     doneFiles++
     if (doneFiles >= pendingFiles && pendingFiles > 0) {
       localDefPct.value = 100
-      localDefLabel.value = ''
       setTimeout(() => { localDefDownloading.value = false; doneFiles = 0; pendingFiles = 0 }, 600)
     }
   }
@@ -396,6 +402,8 @@ watch(() => props.word, () => {
   wq.value        = { loading: false, results: [], done: false }
   video.value     = { loading: false, results: [], done: false }
   localDef.value  = ''
+  localDefError.value = false
+  clearDownload()
   activeTab.value = 'dict'
   loadDict()
   loadCorpus()
@@ -437,8 +445,14 @@ async function enableAndExplain() {
   setLocalModelsEnabled(true)
   modelsOn.value = true
   localDefLoading.value = true
-  try { localDef.value = await explain(props.word, props.lang) } catch {}
-  clearDownload()
+  localDefError.value   = false
+  try {
+    localDef.value = await explain(props.word, props.lang)
+  } catch {
+    localDefError.value = true
+  } finally {
+    clearDownload()
+  }
 }
 
 async function loadDict() {
@@ -449,8 +463,14 @@ async function loadDict() {
   dict.value.done    = true
   if (!dict.value.data && props.lang !== 'en' && localModelsEnabled()) {
     localDefLoading.value = true
-    try { localDef.value = await explain(props.word, props.lang) } catch {}
-    clearDownload()
+    localDefError.value   = false
+    try {
+      localDef.value = await explain(props.word, props.lang)
+    } catch {
+      localDefError.value = true
+    } finally {
+      clearDownload()
+    }
   }
 }
 

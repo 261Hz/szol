@@ -1,137 +1,128 @@
-<!-- SpeakView.vue: pronunciation practice. -->
-<!-- The user listens to each sentence, then speaks it. Their speech is recorded and scored. -->
 <template>
-  <!-- Outer container stacks items vertically with gaps. -->
-  <div class="flex flex-col gap-6">
+  <div class="flex flex-col gap-5">
 
-    <!-- Shown when no story is loaded. -->
-    <div v-if="!story" class="text-gray-500 text-sm text-center py-12">
+    <div v-if="!story" class="text-sm text-center py-12" style="color:rgba(31,27,23,0.4); font-style:italic;">
       {{ t(lang, 'noStory') }}
     </div>
 
-    <!-- Shown when the browser doesn't support speech recognition. -->
-    <!-- SpeechRecognition is only available in Chrome and Edge (not Firefox or Safari). -->
-    <!-- v-else-if = checked only when the v-if above is false. -->
-    <div v-else-if="!hasRecognition" class="text-center py-16 flex flex-col gap-3">
-      <div class="text-4xl">🎤</div>
-      <div class="text-gray-300 text-sm font-medium">Speech recognition is not supported in this browser.</div>
-      <div class="text-gray-500 text-xs">Try Chrome or Microsoft Edge.</div>
+    <div v-else-if="!hasRecognition" class="text-center py-12 flex flex-col gap-2">
+      <div class="text-sm" style="color:rgba(31,27,23,0.5);">Speech recognition not supported in this browser.</div>
+      <div class="text-xs" style="color:rgba(31,27,23,0.35);">Try Chrome or Edge.</div>
     </div>
 
-    <!-- Main speak practice interface. -->
-    <!-- v-else = shown when all previous v-if/v-else-if conditions were false. -->
     <div v-else class="flex flex-col gap-4">
 
-      <!-- Header: story title + sentence position counter. -->
+      <!-- Header -->
       <div class="flex items-center justify-between">
         <div>
-          <!-- Story title with RTL text direction for Arabic/Hebrew. -->
-          <div class="font-semibold text-lg" :dir="isRTL(lang) ? 'rtl' : 'ltr'">
-            {{ story.title }}
-          </div>
-          <div class="text-xs text-gray-500">{{ LANGS[lang]?.name }}</div>
+          <div class="font-semibold" style="font-family:'IM Fell English',serif; color:#1f1b17;" :dir="isRTL(lang) ? 'rtl' : 'ltr'">{{ story.title }}</div>
+          <div class="text-xs" style="color:rgba(31,27,23,0.4);">{{ LANGS[lang]?.name }}</div>
         </div>
-        <!-- Shows "3 / 10" meaning sentence 3 out of 10. currentIdx is 0-based, so add 1 for display. -->
-        <div class="text-xs text-gray-500 font-medium">{{ currentIdx + 1 }} / {{ sentences.length }}</div>
+        <div class="text-xs" style="color:rgba(31,27,23,0.4);">{{ currentIdx + 1 }} / {{ sentences.length }}</div>
       </div>
 
-      <!-- Progress bar: width grows as the user advances through sentences. -->
-      <div class="h-1 bg-gray-800 rounded-full overflow-hidden">
-        <!-- The inner div's width is a percentage: (sentences done / total) * 100. -->
-        <!-- :style sets CSS styles dynamically. { width: '30%' } = 30% wide. -->
-        <!-- "transition-all duration-300" = animates the width change smoothly over 300ms. -->
+      <!-- Progress bar -->
+      <div class="h-0.5 rounded-full overflow-hidden" style="background:rgba(31,27,23,0.1);">
         <div
-          class="h-full bg-green-600 transition-all duration-300"
+          class="h-full rounded-full transition-all duration-300"
+          style="background:#8b3a3a;"
           :style="{ width: ((currentIdx + 1) / sentences.length * 100) + '%' }"
         />
       </div>
 
-      <!-- Target sentence display. -->
-      <!-- Each word is individually colored after scoring: green = correct, red = wrong. -->
+      <!-- Sentence display -->
       <div
         ref="sentenceEl"
-        class="text-xl leading-relaxed p-4 rounded-xl bg-gray-900 border border-gray-700 break-words"
+        class="text-xl leading-relaxed p-5 break-words"
+        style="background:rgba(31,27,23,0.05); border:1px solid rgba(31,27,23,0.1); border-radius:4px;"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right' : ''"
       >
-        <!-- Loop through each word in the current sentence. -->
-        <!-- "mr-1" = margin-right 0.25rem (space between words on LTR layouts). -->
-        <!-- "transition-colors" = animate color changes smoothly. -->
         <span
           v-for="(word, i) in sentenceWords"
           :key="i"
-          class="inline-block whitespace-nowrap mr-1 transition-colors"
-          :class="scored
-            ? (wordStatuses[i] === 'correct' ? 'text-green-400 font-medium' : 'text-red-500')
-            : ''"
+          class="inline-block whitespace-nowrap transition-colors duration-300"
+          :class="isRTL(lang) ? 'ml-1' : 'mr-1'"
+          :style="wordColor(i)"
         >{{ word }}</span>
-        <!-- scored is true after the user has spoken. Before that, no colors are applied. -->
       </div>
 
-      <!-- Control buttons: Listen and Speak. -->
-      <div class="flex gap-3">
-        <!-- 🔊 Listen: plays the current sentence aloud using TTS. -->
+      <!-- Live interim transcript (while recording) -->
+      <div
+        v-if="recording && liveTranscript"
+        class="text-sm px-1 leading-snug"
+        style="color:rgba(31,27,23,0.65); min-height:1.25rem;"
+        :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+      >{{ liveTranscript }}</div>
+
+      <!-- Final heard text (after scoring) -->
+      <div
+        v-else-if="scored && transcript"
+        class="text-sm px-1"
+        style="color:rgba(31,27,23,0.4); font-style:italic;"
+        :dir="isRTL(lang) ? 'rtl' : 'ltr'"
+      >{{ transcript }}</div>
+
+      <!-- Controls -->
+      <div class="flex gap-2 flex-wrap">
         <button
           @click="speakSentence"
-          class="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-700 text-sm text-gray-300 hover:bg-gray-800 transition-all"
+          :disabled="recording"
+          class="flex items-center gap-1.5 px-3 py-2 text-sm transition-all disabled:opacity-40"
+          style="border:1px solid rgba(31,27,23,0.18); border-radius:3px; color:rgba(31,27,23,0.6);"
         >
-          🔊 Listen
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+          Listen
         </button>
-        <!-- 🎤 Speak: starts recording when clicked, stops if clicked again. -->
-        <!-- The button turns red with a pulse animation while recording is active. -->
+
         <button
           @click="recording ? stopRecording() : startRecording()"
-          :class="[
-            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
-            recording
-              ? 'bg-red-500 text-white'
-              : 'border border-gray-700 text-gray-300 hover:bg-gray-800'
-          ]"
+          class="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all"
+          :style="recording
+            ? 'background:#8b3a3a; color:#e8dcc4; border-radius:3px;'
+            : 'border:1px solid rgba(31,27,23,0.18); border-radius:3px; color:rgba(31,27,23,0.7);'"
         >
-          🎤 {{ recording ? 'Recording…' : 'Speak' }}
-          <!-- … (ellipsis) indicates the action is in progress. -->
+          <span v-if="recording" class="w-2 h-2 rounded-full bg-white" style="animation:pulse 1s infinite;" />
+          <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 2.74-2.9 4.86-5.91 4.97V19h2a1 1 0 0 1 0 2H9a1 1 0 0 1 0-2h2v-3.03C8.99 15.86 6.58 13.74 6.09 11H7.1c.45 2.19 2.4 3.84 4.9 3.84 2.5 0 4.45-1.65 4.9-3.84h1.01z"/></svg>
+          {{ recording ? 'Listening…' : 'Speak' }}
         </button>
+
+        <button
+          v-if="scored"
+          @click="reset"
+          class="px-3 py-2 text-sm transition-all"
+          style="border:1px solid rgba(31,27,23,0.15); border-radius:3px; color:rgba(31,27,23,0.5);"
+        >Try again</button>
       </div>
 
-      <!-- Shows what the speech recognizer heard ("Heard: 'el gato es negro'"). -->
-      <!-- v-if="transcript" = only shown after the user has spoken. -->
-      <div v-if="transcript" class="text-sm text-gray-400 italic px-1">
-        Heard: "{{ transcript }}"
-      </div>
-
-      <!-- Score panel: shows after speaking. Color is green if ≥80%, amber if lower. -->
-      <!-- ≥ means "greater than or equal to". -->
+      <!-- Score -->
       <div
-        v-if="scored"
-        class="flex items-center gap-4 p-4 rounded-xl border"
-        :class="result.pct >= 80 ? 'border-green-800 bg-green-950' : 'border-amber-800 bg-amber-950'"
+        v-if="scored && result"
+        class="flex items-center gap-4 p-4"
+        style="border-radius:4px;"
+        :style="result.pct >= 80
+          ? 'background:rgba(74,120,60,0.08); border:1px solid rgba(74,120,60,0.22);'
+          : 'background:rgba(139,58,58,0.07); border:1px solid rgba(139,58,58,0.2);'"
       >
-        <!-- Large percentage number. -->
-        <div
-          class="text-4xl font-bold"
-          :class="result.pct >= 80 ? 'text-green-400' : 'text-amber-400'"
-        >{{ result.pct }}%</div>
-        <!-- e.g. "4 / 6 words correct". result.correct and result.total come from scoreWords(). -->
-        <div class="text-sm text-gray-400">{{ result.correct }} / {{ result.total }} words correct</div>
+        <div class="text-3xl font-bold" :style="result.pct >= 80 ? 'color:#4a783c;' : 'color:#8b3a3a;'">{{ result.pct }}%</div>
+        <div class="text-sm" style="color:rgba(31,27,23,0.5);">{{ result.correct }} / {{ result.total }} words</div>
       </div>
 
-      <!-- Navigation row: Back on the left, Next on the right. -->
-      <div class="flex justify-between mt-2">
-        <!-- Back button: only shown when not on the first sentence (currentIdx > 0). -->
+      <!-- Navigation -->
+      <div class="flex justify-between mt-1">
         <button
           v-if="currentIdx > 0"
           @click="prev"
-          class="text-sm px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 transition-all"
-        >← Back</button>
-        <!-- Empty div keeps the Next button pushed to the right when Back is hidden. -->
+          class="text-sm px-3 py-1.5 transition-all"
+          style="border:1px solid rgba(31,27,23,0.15); border-radius:3px; color:rgba(31,27,23,0.5);"
+        >Back</button>
         <div v-else />
-        <!-- Next button: appears only after the user has spoken (scored or has a transcript). -->
-        <!-- Shows "Done ✓" on the last sentence instead of "Next →". -->
         <button
           v-if="scored || transcript"
           @click="next"
-          class="text-sm px-4 py-1.5 rounded-lg bg-green-700 text-white hover:bg-green-600 transition-all"
-        >{{ currentIdx < sentences.length - 1 ? 'Next →' : 'Done ✓' }}</button>
+          class="text-sm px-4 py-1.5 transition-all"
+          style="background:#8b3a3a; color:#e8dcc4; border-radius:3px;"
+        >{{ currentIdx < sentences.length - 1 ? 'Next' : 'Done' }}</button>
       </div>
 
     </div>
@@ -154,167 +145,168 @@ const props = defineProps({
   currentUser: Object,
 })
 
-const sentenceEl = ref(null)
+const sentenceEl     = ref(null)
+const voices         = useVoiceList()
+const hasRecognition = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+
+const currentIdx     = ref(0)
+const transcript     = ref('')
+const liveTranscript = ref('')
+const result         = ref(null)
+const scored         = ref(false)
+const recording      = ref(false)
+let   recognition    = null
 
 watch([() => props.story, () => props.lang, rootHighlightOn], ([, , on]) => {
   nextTick(() => on ? applyRoots(sentenceEl.value, props.lang) : clearRoots())
 })
 
-// Load available TTS voices reactively (updates when browser finishes loading them).
-const voices = useVoiceList()
-
-// Check if the browser supports SpeechRecognition.
-// window is the global browser object. || tries the webkit-prefixed version (older Chrome).
-// !! (double-bang) converts any value to a boolean: !!undefined = false, !!(something) = true.
-const hasRecognition = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
-
-// currentIdx tracks which sentence the user is on (0 = first sentence).
-const currentIdx = ref(0)
-// transcript holds what the speech recognizer heard (e.g. "el gato negro").
-const transcript = ref('')
-// result holds the scoring object from scoreWords(): { correct, total, pct, errors }.
-const result = ref(null)
-// scored is true once the user has spoken and been graded.
-const scored = ref(false)
-// recording is true while the microphone is actively listening.
-const recording = ref(false)
-let recognition = null
-
-// Restore saved progress when the story or user changes.
 watch([() => props.story, () => props.currentUser], async ([story, user]) => {
   currentIdx.value = 0
   reset()
   if (user && story?.id) {
     const saved = await getProgress(story.id, 'speak')
-    if (saved && saved.sentence_index > 0) {
+    if (saved?.sentence_index > 0)
       currentIdx.value = Math.min(saved.sentence_index, sentences.value.length - 1)
-      reset()
-    }
   }
 })
 
-// sentences splits the story text into individual sentences.
-// computed() re-runs whenever props.story changes.
 const sentences = computed(() => {
-  if (!props.story) return [] // no story = empty list
+  if (!props.story) return []
   return props.story.content
-    // Split after sentence-ending punctuation: . ! ? ؟ (Arabic) । (Hindi) 。！？ (CJK).
-    // (?<=[.!?؟।。！？]) = lookbehind: only split AFTER these characters.
-    // \s+ = one or more whitespace characters.
     .split(/(?<=[.!?؟।。！？])\s+/)
-    .map(s => s.trim())   // remove leading/trailing spaces from each sentence
-    .filter(Boolean)      // remove any empty strings (Boolean('') = false, so they're filtered out)
+    .map(s => s.trim())
+    .filter(Boolean)
 })
 
-// splitUnits() splits text into comparable units for the current language.
-// For CJK (Chinese, Japanese): each individual character is a unit, because there are no
-//   spaces between words -- splitting by whitespace gives just one giant "word".
-// For all other languages: split by whitespace into words.
 function splitUnits(text) {
-  if (['zh', 'zh-TW', 'ja'].includes(props.lang)) {
-    // [...text] spreads the string into characters. filter keeps only letters (not punctuation/spaces).
+  if (['zh', 'zh-TW', 'ja'].includes(props.lang))
     return [...text].filter(c => /\p{L}/u.test(c))
-  }
   return text.trim().split(/\s+/).filter(Boolean)
 }
 
-// sentenceWords is the list of displayable units in the current sentence.
-// For CJK this is individual characters; for other languages it is words.
 const sentenceWords = computed(() =>
   splitUnits(sentences.value[currentIdx.value] ?? '')
 )
 
-// wordStatuses maps each unit in the sentence to 'correct' or 'wrong' after scoring.
+// LCS alignment: marks which target words appear in the spoken sequence in order.
+// Better than positional comparison — handles recognizer insertions and omissions gracefully.
+function alignWords(target, spoken) {
+  const t = target.map(w => normalize(w))
+  const s = spoken.map(w => normalize(w))
+  const m = t.length, n = s.length
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = t[i-1] === s[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1])
+  const matched = new Set()
+  let i = m, j = n
+  while (i > 0 && j > 0) {
+    if (t[i-1] === s[j-1]) { matched.add(i - 1); i--; j-- }
+    else if (dp[i-1][j] >= dp[i][j-1]) i--
+    else j--
+  }
+  return target.map((_, idx) => matched.has(idx) ? 'correct' : 'wrong')
+}
+
 const wordStatuses = computed(() => {
-  if (!scored.value || !transcript.value) return [] // only compute after speaking
-  // Split the transcript the same way as the target sentence.
-  const typedUnits = splitUnits(transcript.value)
-  // Compare position by position. normalize() strips punctuation/case for fair comparison.
-  return sentenceWords.value.map((unit, i) =>
-    i < typedUnits.length && normalize(typedUnits[i]) === normalize(unit) ? 'correct' : 'wrong'
-  )
+  if (!scored.value || !transcript.value) return []
+  return alignWords(sentenceWords.value, splitUnits(transcript.value))
 })
 
-// speakSentence() reads the current sentence aloud using TTS.
+function wordColor(i) {
+  if (!scored.value) return 'color:#1f1b17;'
+  return wordStatuses.value[i] === 'correct'
+    ? 'color:#4a783c; font-weight:500;'
+    : 'color:#9b4545;'
+}
+
 function speakSentence() {
   const sentence = sentences.value[currentIdx.value]
-  if (!sentence) return // safety check: do nothing if no sentence
-  const bcp47 = LANGS[props.lang]?.bcp47 ?? props.lang // get the language code for TTS
-  const utt   = new SpeechSynthesisUtterance(sentence) // create the speech object
-  utt.lang    = bcp47                                  // set the language
-  const voice = pickVoice(voices.value, bcp47, props.lang) // find the best voice
-  if (voice) utt.voice = voice                         // apply voice (if found)
-  speechSynthesis.cancel()                             // stop anything already playing
-  speechSynthesis.speak(utt)                           // start speaking
+  if (!sentence) return
+  const bcp47 = LANGS[props.lang]?.bcp47 ?? props.lang
+  const utt   = new SpeechSynthesisUtterance(sentence)
+  utt.lang    = bcp47
+  const voice = pickVoice(voices.value, bcp47, props.lang)
+  if (voice) utt.voice = voice
+  speechSynthesis.cancel()
+  speechSynthesis.speak(utt)
 }
 
-// startRecording() starts the microphone and listens for speech.
 function startRecording() {
-  // Get the SpeechRecognition constructor (using the standard or webkit-prefixed version).
-  const SR   = window.SpeechRecognition || window.webkitSpeechRecognition
-  recognition = new SR() // create a new recognition session
-
-  // Set the language so the recognizer knows what language to expect.
+  const SR    = window.SpeechRecognition || window.webkitSpeechRecognition
+  recognition = new SR()
   recognition.lang            = LANGS[props.lang]?.bcp47 ?? props.lang
-  recognition.interimResults  = false // don't send partial results while speaking
-  recognition.maxAlternatives = 1     // only return the single best transcription
+  recognition.interimResults  = true
+  recognition.maxAlternatives = 1
 
-  // onresult fires when the user stops speaking and recognition is complete.
   recognition.onresult = (e) => {
-    // e.results[0][0].transcript = the text of the first result's first alternative.
-    transcript.value = e.results[0][0].transcript
-    // Score the spoken sentence against the target.
-    result.value  = scoreWords(sentences.value[currentIdx.value] ?? '', transcript.value)
-    scored.value  = true    // show the score panel
-    recording.value = false // stop showing the recording indicator
+    const parts = Array.from(e.results)
+    liveTranscript.value = parts.map(r => r[0].transcript).join('')
+    if (e.results[e.results.length - 1].isFinal) {
+      transcript.value     = liveTranscript.value
+      liveTranscript.value = ''
+      result.value         = scoreWords(sentences.value[currentIdx.value] ?? '', transcript.value)
+      scored.value         = true
+      recording.value      = false
+    }
   }
-  // onerror fires if something goes wrong (microphone denied, network error, etc.).
-  recognition.onerror = () => { recording.value = false }
-  // onend fires when the recognition session ends (success or error).
-  recognition.onend   = () => { recording.value = false }
 
-  recording.value = true   // show the red "Recording…" state on the button
-  recognition.start()      // begin listening
+  // If recognition ends without a final result (silence / timeout), use last interim
+  recognition.onend = () => {
+    recording.value = false
+    if (liveTranscript.value && !scored.value) {
+      transcript.value     = liveTranscript.value
+      liveTranscript.value = ''
+      result.value         = scoreWords(sentences.value[currentIdx.value] ?? '', transcript.value)
+      scored.value         = true
+    }
+  }
+
+  recognition.onerror = () => { recording.value = false; liveTranscript.value = '' }
+
+  recording.value      = true
+  liveTranscript.value = ''
+  recognition.start()
 }
 
-// stopRecording() manually stops listening before the user finishes speaking.
 function stopRecording() {
-  recognition?.stop() // ?. = optional chaining: only call .stop() if recognition is not null
+  recognition?.stop()
   recording.value = false
 }
 
-// reset() clears all state so the user can try the next sentence fresh.
 function reset() {
-  transcript.value  = ''
-  result.value      = null
-  scored.value      = false
-  recording.value   = false
-  speechSynthesis.cancel() // stop any speech that's still playing
+  transcript.value     = ''
+  liveTranscript.value = ''
+  result.value         = null
+  scored.value         = false
+  recording.value      = false
+  recognition?.stop()
+  speechSynthesis.cancel()
 }
 
-// next() advances to the next sentence, saves progress, and resets state.
 function next() {
   if (currentIdx.value < sentences.value.length - 1) {
     currentIdx.value++
-    if (props.currentUser && props.story?.id) {
+    if (props.currentUser && props.story?.id)
       saveProgress(props.story.id, props.story.title ?? '', props.lang, 'speak', currentIdx.value)
-    }
     reset()
   }
 }
 
-// prev() goes back to the previous sentence.
 function prev() {
-  if (currentIdx.value > 0) {
-    currentIdx.value-- // decrement the index (move to previous sentence)
-    reset()
-  }
+  if (currentIdx.value > 0) { currentIdx.value--; reset() }
 }
 
-// onUnmounted runs when this view is removed from the screen.
-// Clean up: stop the microphone and any ongoing speech to avoid resource leaks.
 onUnmounted(() => {
-  recognition?.stop()      // stop microphone if still running
-  speechSynthesis.cancel() // stop TTS if still speaking
+  recognition?.stop()
+  speechSynthesis.cancel()
 })
 </script>
+
+<style scoped>
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+</style>

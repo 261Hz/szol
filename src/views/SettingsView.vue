@@ -55,7 +55,46 @@
         </button>
       </div>
 
-      <div v-if="cacheSize" class="flex items-center justify-between px-1">
+      <!-- Download button / progress (only when toggle is on) -->
+      <div v-if="modelsEnabled" class="flex flex-col gap-1.5 px-1">
+        <div v-if="modelDownloading" class="flex flex-col gap-1">
+          <div class="flex items-center justify-between text-xs" style="color:rgba(31,27,23,0.4);">
+            <span>Downloading definition model…</span>
+            <span>{{ modelDownloadPct }}%</span>
+          </div>
+          <div class="h-0.5 rounded-full overflow-hidden" style="background:rgba(31,27,23,0.1);">
+            <div class="h-full rounded-full transition-all duration-300" style="background:#8b3a3a;" :style="{ width: modelDownloadPct + '%' }" />
+          </div>
+        </div>
+        <template v-else-if="modelDownloadError">
+          <div class="text-xs" style="color:#8b3a3a;">Download failed — check your connection or free up storage.</div>
+          <button
+            @click="downloadModel"
+            class="self-start text-xs px-2.5 py-1 transition-all"
+            style="border:1px solid rgba(31,27,23,0.2); border-radius:2px; color:rgba(31,27,23,0.55);"
+          >Retry</button>
+        </template>
+        <template v-else-if="cacheSize">
+          <div class="flex items-center justify-between">
+            <span class="text-xs" style="color:rgba(31,27,23,0.4);">Model cached ({{ cacheSize }}) — ready offline.</span>
+            <button
+              @click="clearCache"
+              :disabled="clearing"
+              class="text-xs transition-all disabled:opacity-40"
+              style="color:#8b3a3a;"
+            >{{ clearing ? 'Clearing…' : 'Delete' }}</button>
+          </div>
+        </template>
+        <template v-else>
+          <div class="text-xs" style="color:rgba(31,27,23,0.4);">Model not yet downloaded.</div>
+          <button
+            @click="downloadModel"
+            class="self-start text-xs px-2.5 py-1 transition-all"
+            style="border:1px solid rgba(31,27,23,0.2); border-radius:2px; color:rgba(31,27,23,0.55);"
+          >Download now</button>
+        </template>
+      </div>
+      <div v-else-if="cacheSize" class="flex items-center justify-between px-1">
         <span class="text-xs" style="color:rgba(31,27,23,0.4);">Downloaded: {{ cacheSize }}</span>
         <button
           @click="clearCache"
@@ -130,11 +169,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { LANGS } from '../data/stories.js'
 import { updateSettings, deleteAccount, logout } from '../utils/api.js'
 import { t } from '../utils/i18n.js'
 import { localModelsEnabled, setLocalModelsEnabled, clearModelCache, modelCacheBytes, fmtBytes } from '../utils/modelCache.js'
+import { preload, onExplainerProgress } from '../utils/localExplainer.js'
 
 const props = defineProps({ currentUser: Object, lang: String, installPrompt: Object })
 const emit  = defineEmits(['openAuth', 'userUpdated', 'logout'])
@@ -149,14 +189,56 @@ const confirmDelete  = ref(false)
 const deleting       = ref(false)
 const deleteError    = ref('')
 
-const modelsEnabled = ref(localModelsEnabled())
-const cacheSize     = ref('')
-const clearing      = ref(false)
+const modelsEnabled       = ref(localModelsEnabled())
+const cacheSize           = ref('')
+const clearing            = ref(false)
+const modelDownloading    = ref(false)
+const modelDownloadPct    = ref(0)
+const modelDownloadError  = ref(false)
 
 onMounted(async () => {
   const bytes = await modelCacheBytes()
   if (bytes > 0) cacheSize.value = fmtBytes(bytes)
 })
+
+let _pendingFiles = 0, _doneFiles = 0
+const _removeProgress = onExplainerProgress((info) => {
+  if (info.status === 'initiate') {
+    _pendingFiles++
+    modelDownloading.value = true
+  } else if (info.status === 'progress') {
+    modelDownloading.value = true
+    modelDownloadPct.value = Math.round(info.progress ?? 0)
+  } else if (info.status === 'done' || info.status === 'ready') {
+    _doneFiles++
+    if (_doneFiles >= _pendingFiles && _pendingFiles > 0) {
+      modelDownloadPct.value = 100
+      setTimeout(async () => {
+        modelDownloading.value = false
+        _pendingFiles = 0; _doneFiles = 0
+        const bytes = await modelCacheBytes()
+        cacheSize.value = bytes > 0 ? fmtBytes(bytes) : ''
+      }, 600)
+    }
+  }
+})
+onUnmounted(() => _removeProgress())
+
+async function downloadModel() {
+  modelDownloading.value   = true
+  modelDownloadError.value = false
+  modelDownloadPct.value   = 0
+  _pendingFiles = 0; _doneFiles = 0
+  try {
+    await preload(props.lang)
+    const bytes = await modelCacheBytes()
+    cacheSize.value = bytes > 0 ? fmtBytes(bytes) : ''
+  } catch {
+    modelDownloadError.value = true
+  } finally {
+    modelDownloading.value = false
+  }
+}
 
 function toggleModels() {
   modelsEnabled.value = !modelsEnabled.value

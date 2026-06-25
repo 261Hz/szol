@@ -53,8 +53,15 @@
         <button
           v-if="story"
           @click="emit('go', 'write')"
-          class="text-sm px-3 py-1 rounded-full transition-all bg-gray-800 text-gray-400 hover:text-white ml-auto"
-        >write →</button>
+          class="text-sm border-b transition-all ml-auto"
+          style="border-color:rgba(139,58,58,0.4); color:#8b3a3a;"
+        >rewrite →</button>
+        <button
+          v-if="story"
+          @click="emit('go', 'speak')"
+          class="text-sm border-b transition-all"
+          style="border-color:rgba(139,58,58,0.4); color:#8b3a3a;"
+        >speak →</button>
       </div>
 
       <!-- ── Completed-sentence history ──────────────────────────────────── -->

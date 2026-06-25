@@ -41,7 +41,7 @@ function makeMessages(word, lang) {
 const loaded = new Map()
 
 self.onmessage = async ({ data }) => {
-  const { id, word, lang } = data
+  const { id, msgType = 'explain', word, lang } = data
   try {
     const modelId = modelFor(lang)
     if (!loaded.has(modelId)) {
@@ -50,6 +50,11 @@ self.onmessage = async ({ data }) => {
         progress_callback: info => self.postMessage({ id, type: 'progress', info }),
       })
       loaded.set(modelId, pipe)
+    }
+    if (msgType === 'load') {
+      // Warm-up only — just cache the model, no inference
+      self.postMessage({ id, type: 'result', result: '' })
+      return
     }
     const pipe = loaded.get(modelId)
     const out  = await pipe(makeMessages(word, lang), { max_new_tokens: 80, do_sample: false })

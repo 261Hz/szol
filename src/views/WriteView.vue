@@ -44,8 +44,22 @@
         </div>
       </div>
 
+      <!-- ── Navigation (must be before story text — canvas covers content below 280px from bottom) -->
+      <div v-if="!usesHanzi" class="flex gap-3">
+        <button @click="emit('go', 'retype')"
+          class="text-sm px-3 py-1.5 transition-all"
+          style="color:#8c7a66; border:1px solid rgba(140,122,102,0.3); border-radius:3px;">
+          ← retype
+        </button>
+        <button @click="emit('go', 'speak')"
+          class="text-sm border-b transition-all"
+          style="border-color:rgba(139,58,58,0.4); color:#8b3a3a;">
+          speak →
+        </button>
+      </div>
+
       <!-- ── Full-page story text (write + Arabic practice mode) ────────── -->
-      <div v-else-if="!usesHanzi"
+      <div v-if="!usesHanzi"
         class="font-serif leading-relaxed select-none"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         style="color:#2a241c; font-size:1.15rem; padding-bottom:280px; display:flex; flex-wrap:wrap; gap:0.2em 0.35em; align-items:baseline;">
@@ -56,15 +70,6 @@
           :style="unitStyle(i) + (i !== unitIdx ? 'cursor:pointer;' : '')"
           @click="i !== unitIdx && tapWord(u)"
         >{{ u }}</span>
-      </div>
-
-      <!-- ── Back link ──────────────────────────────────────────────────── -->
-      <div v-if="!usesHanzi">
-        <button @click="emit('go', 'retype')"
-          class="text-sm px-3 py-1.5 rounded-lg transition-all"
-          style="color:#8c7a66; border:1px solid rgba(140,122,102,0.3);">
-          ← retype
-        </button>
       </div>
 
     </template>

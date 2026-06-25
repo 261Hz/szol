@@ -22,7 +22,7 @@
             {{ knownInText }} {{ knownInText === 1 ? 'word' : 'words' }} from your collection
           </div>
         </div>
-        <div class="flex gap-3 flex-shrink-0">
+        <div class="flex gap-3 flex-shrink-0 flex-wrap justify-end">
           <button
             v-if="story.content"
             @click="$emit('go', 'retype')"
@@ -35,6 +35,12 @@
             class="text-sm border-b transition-all"
             style="border-color:rgba(139,58,58,0.4); color:#8b3a3a;"
           >rewrite →</button>
+          <button
+            v-if="story.content"
+            @click="$emit('go', 'speak')"
+            class="text-sm border-b transition-all"
+            style="border-color:rgba(139,58,58,0.4); color:#8b3a3a;"
+          >speak →</button>
         </div>
       </div>
 
