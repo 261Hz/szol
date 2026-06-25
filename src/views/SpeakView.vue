@@ -201,7 +201,7 @@ import { LANGS } from '../data/stories.js'
 import { isRTL } from '../utils/rtl.js'
 import { t }     from '../utils/i18n.js'
 import { rootHighlightOn, applyRoots, clearRoots } from '../utils/rootHighlight.js'
-import { normalize, scoreWords } from '../utils/scoring.js'
+import { normalize } from '../utils/scoring.js'
 import { useVoiceList, pickVoice } from '../utils/voices.js'
 import { saveProgress, getProgress } from '../utils/api.js'
 import { transcribe, preloadSpeech, onSpeechProgress } from '../utils/localSpeech.js'
@@ -332,6 +332,13 @@ function wordColor(i) {
     : 'color:#9b4545;'
 }
 
+function lcsScore() {
+  const statuses = wordStatuses.value
+  const correct  = statuses.filter(s => s === 'correct').length
+  const total    = sentenceWords.value.length
+  return { correct, total, pct: total > 0 ? Math.round(correct / total * 100) : 0 }
+}
+
 function speakSentence() {
   const sentence = sentences.value[currentIdx.value]
   if (!sentence) return
@@ -360,8 +367,8 @@ async function startRecordingWhisper() {
         const blob  = new Blob(audioChunks, { type: mediaRecorder.mimeType })
         const audio = await blobToWhisperBuffer(blob)
         transcript.value = await transcribe(audio, props.lang)
-        result.value     = scoreWords(sentences.value[currentIdx.value] ?? '', transcript.value)
         scored.value     = true
+        result.value     = lcsScore()
       } catch {
         // silent — user can retry
       } finally {
@@ -398,8 +405,8 @@ function startRecordingWebSpeech() {
     if (e.results[e.results.length - 1].isFinal) {
       transcript.value     = liveTranscript.value
       liveTranscript.value = ''
-      result.value         = scoreWords(sentences.value[currentIdx.value] ?? '', transcript.value)
       scored.value         = true
+      result.value         = lcsScore()
       recording.value      = false
     }
   }
@@ -409,8 +416,8 @@ function startRecordingWebSpeech() {
     if (liveTranscript.value && !scored.value) {
       transcript.value     = liveTranscript.value
       liveTranscript.value = ''
-      result.value         = scoreWords(sentences.value[currentIdx.value] ?? '', transcript.value)
       scored.value         = true
+      result.value         = lcsScore()
     }
   }
 

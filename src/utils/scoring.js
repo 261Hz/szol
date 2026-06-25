@@ -16,7 +16,7 @@ export function normalize(word) {
   //   g = global flag: replace ALL matches, not just the first one
   //   u = unicode flag: treat the pattern as Unicode-aware
   // So this removes anything that isn't a letter or accent mark.
-  return (word || '').toLowerCase().replace(/[^\p{L}\p{M}]/gu, '')
+  return (word || '').toLowerCase().replace(/[^\p{L}]/gu, '')
 }
 
 // scoreWords() compares the original sentence to what the user said.
