@@ -72,13 +72,20 @@
         <div class="text-sm" style="color:#1f1b17;">Install app</div>
         <div class="text-xs" style="color:rgba(31,27,23,0.45);">Add Szól to your home screen for quick access.</div>
       </div>
-      <button
-        v-if="installPrompt"
-        @click="installApp"
-        class="flex-shrink-0 text-sm px-4 py-1.5 transition-all"
-        style="background:#8b3a3a; color:#e8dcc4; border-radius:2px;"
-      >Install</button>
-      <span v-else class="flex-shrink-0 text-xs" style="color:rgba(31,27,23,0.35); font-style:italic;">Installed or not supported</span>
+      <div class="flex flex-col items-end gap-1.5">
+        <button
+          v-if="installPrompt"
+          @click="installApp"
+          class="flex-shrink-0 text-sm px-4 py-1.5 transition-all"
+          style="background:#8b3a3a; color:#e8dcc4; border-radius:2px;"
+        >Install</button>
+        <a
+          href="https://github.com/261Hz/szol/releases/download/android-latest/szol-debug.apk"
+          download
+          class="flex-shrink-0 text-sm px-4 py-1.5 transition-all text-center"
+          style="border:1px solid rgba(31,27,23,0.2); color:#1f1b17; border-radius:2px; text-decoration:none;"
+        >Download APK</a>
+      </div>
     </div>
 
     <!-- ── Danger Zone ── -->
