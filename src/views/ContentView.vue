@@ -105,9 +105,9 @@
                 v-for="(seg, si) in segMap.get(tok)"
                 :key="si"
                 :style="seg.role === 'root'
-                  ? 'color:#3a4f6b;'
-                  : seg.role === 'affix' && rootMode === 'manuscript'
-                    ? 'color:transparent; -webkit-text-stroke:0.7px rgba(42,36,28,0.35);'
+                  ? 'color:#1d4a8c; font-weight:600;'
+                  : seg.role === 'affix'
+                    ? 'color:transparent; -webkit-text-stroke:0.8px rgba(42,36,28,0.32);'
                     : ''"
               >{{ seg.ch }}</span></span>
             <!-- Chinese with pinyin ruby -->
@@ -434,9 +434,8 @@ const isChinese  = computed(() => ['zh', 'zh-TW'].includes(props.lang))
 const showPinyin = ref(false)
 
 const ROOT_MODES = [
-  { key: 'off',        label: 'Text' },
-  { key: 'roots',      label: 'Roots' },
-  { key: 'manuscript', label: 'Manuscript' },
+  { key: 'off',   label: 'Text' },
+  { key: 'roots', label: 'Roots' },
 ]
 
 const wordRootMap = ref({})

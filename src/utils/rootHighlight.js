@@ -8,9 +8,8 @@
  *   4. Null (graceful degradation)
  *
  * rootMode drives the visual layer:
- *   'off'        — plain text, no annotation
- *   'roots'      — ruby text: root sits above each word as a medieval gloss
- *   'manuscript' — roots mode + each root family gets a consistent ink color
+ *   'off'   — plain text, no annotation
+ *   'roots' — root consonants highlighted (deep blue), affixes hollowed
  */
 
 import { ref, computed, watch } from 'vue'
@@ -19,8 +18,8 @@ import { ref, computed, watch } from 'vue'
 
 function loadMode() {
   const s = localStorage.getItem('szol_roots')
-  if (s === '1') return 'roots'  // migrate old boolean
-  if (['off', 'roots', 'manuscript'].includes(s)) return s
+  if (s === '1' || s === 'manuscript') return 'roots'  // migrate old values
+  if (['off', 'roots'].includes(s)) return s
   return 'off'
 }
 
@@ -259,14 +258,14 @@ export async function preFetchRoots(words, lang) {
 // ── CSS Custom Highlight API (root consonant highlighting) ────────────────────
 // Used in VocabView for consonant-level marking within words.
 
-const HIGHLIGHT_KEY = 'szol-root'
 const WORD_RE_HE    = /[א-תװ-״יִ-פֿ]+/g
 const WORD_RE_AR    = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]+/g
 const HE_VOWEL      = /[ְ-ׇ]/
 const AR_VOWEL      = /[ً-ٰٟ]/
 
 export function clearRoots() {
-  CSS.highlights?.delete(HIGHLIGHT_KEY)
+  CSS.highlights?.delete('szol-root')
+  CSS.highlights?.delete('szol-affix')
 }
 
 function stripVowels(text, lang) {
@@ -301,14 +300,48 @@ function findRootRanges(word, rootChars, lang) {
   return ri === rootChars.length ? ranges : null
 }
 
+// Build affix ranges: letter+mark positions in the word not covered by root ranges.
+function buildAffixRanges(word, rootRanges) {
+  const covered = new Set()
+  for (const { start, end } of rootRanges)
+    for (let i = start; i < end; i++) covered.add(i)
+  const result = []
+  let start = null
+  for (let i = 0; i <= word.length; i++) {
+    const isAffix = i < word.length && /[\p{L}\p{M}]/u.test(word[i]) && !covered.has(i)
+    if (isAffix && start === null) start = i
+    else if (!isAffix && start !== null) { result.push({ start, end: i }); start = null }
+  }
+  return result
+}
+
 export async function applyRoots(containerEl, lang) {
   if (!rootHighlightOn.value) return
   if (!CSS.highlights) return
   if (!containerEl) return
   if (lang !== 'he' && lang !== 'ar') return
 
-  const wordRe    = lang === 'he' ? WORD_RE_HE : WORD_RE_AR
-  const allRanges = []
+  const wordRe   = lang === 'he' ? WORD_RE_HE : WORD_RE_AR
+  const rootList  = []
+  const affixList = []
+
+  function addWordRanges(node, word, offset, rootChars) {
+    const rr = findRootRanges(word, rootChars, lang)
+    if (!rr) return
+    for (const { start, end } of rr) {
+      const r = new Range(); r.setStart(node, offset + start); r.setEnd(node, offset + end)
+      rootList.push(r)
+    }
+    for (const { start, end } of buildAffixRanges(word, rr)) {
+      const r = new Range(); r.setStart(node, offset + start); r.setEnd(node, offset + end)
+      affixList.push(r)
+    }
+  }
+
+  function commit() {
+    CSS.highlights.set('szol-root',  new Highlight(...rootList))
+    CSS.highlights.set('szol-affix', new Highlight(...affixList))
+  }
 
   const walker  = document.createTreeWalker(containerEl, NodeFilter.SHOW_TEXT)
   const pending = []
@@ -320,40 +353,22 @@ export async function applyRoots(containerEl, lang) {
     while ((m = wordRe.exec(text)) !== null) {
       const cached = cacheGet(m[0], lang)
       if (cached !== undefined) {
-        if (cached) {
-          const ranges = findRootRanges(m[0], cached, lang)
-          if (ranges) for (const { start, end } of ranges) {
-            const r = new Range()
-            r.setStart(node, m.index + start)
-            r.setEnd(node,   m.index + end)
-            allRanges.push(r)
-          }
-        }
+        if (cached) addWordRanges(node, m[0], m.index, cached)
       } else {
         pending.push({ node, word: m[0], wordOffset: m.index })
       }
     }
   }
 
-  if (allRanges.length) CSS.highlights.set(HIGHLIGHT_KEY, new Highlight(...allRanges))
+  commit()
 
   if (pending.length) {
     const unique = [...new Set(pending.map(p => p.word))]
     await Promise.all(unique.map(w => fetchRoot(w, lang)))
-
-    const finalRanges = [...allRanges]
     for (const { node, word, wordOffset } of pending) {
       const root = cacheGet(word, lang)
-      if (!root) continue
-      const ranges = findRootRanges(word, root, lang)
-      if (!ranges) continue
-      for (const { start, end } of ranges) {
-        const r = new Range()
-        r.setStart(node, wordOffset + start)
-        r.setEnd(node,   wordOffset + end)
-        finalRanges.push(r)
-      }
+      if (root) addWordRanges(node, word, wordOffset, root)
     }
-    if (finalRanges.length) CSS.highlights.set(HIGHLIGHT_KEY, new Highlight(...finalRanges))
+    commit()
   }
 }

@@ -80,11 +80,17 @@ ruby.szol-root rt {
 }
 
 /* Semitic root consonant highlight (CSS Highlight API — VocabView) */
+::highlight(szol-affix) {
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.8px rgba(42,36,28,0.32);
+}
 ::highlight(szol-root) {
-  color: #b45a5a;
+  color: #1d4a8c;
+  -webkit-text-fill-color: #1d4a8c;
   text-decoration: underline;
-  text-decoration-color: #8b3a3a;
+  text-decoration-color: #1d4a8c;
   text-underline-offset: 3px;
+  text-decoration-thickness: 2px;
 }
 
 /* Number pronunciation annotations */
