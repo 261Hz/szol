@@ -82,10 +82,7 @@
           <span v-else-if="checkResult === false" class="text-base font-bold" style="color:#8b3a3a">✗</span>
           <span v-else-if="checking" class="text-xs" style="color:#8c7a66;">…</span>
           <span v-else-if="mlkitDownloading" class="text-xs" style="color:#8c7a66;">downloading model…</span>
-          <span v-else class="flex flex-col gap-0.5">
-            <span class="text-xs" style="color:rgba(140,122,102,0.5);">write the word</span>
-            <span class="text-xs tracking-[0.3em]" style="color:rgba(140,122,102,0.3);">{{ '_ '.repeat(letterCount).trimEnd() }}</span>
-          </span>
+          <span v-else class="text-xs" style="color:rgba(140,122,102,0.5);">write the word</span>
         </div>
         <div class="flex items-center gap-3">
           <span class="text-xs" style="color:rgba(140,122,102,0.5);">{{ progressLabel }}</span>
@@ -157,7 +154,6 @@ function normWord(s) {
   return s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
 }
 
-const letterCount = computed(() => normWord(currentUnit.value).length)
 
 function goNext() { if (!isLast.value) unitIdx.value++ }
 
