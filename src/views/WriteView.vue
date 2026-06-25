@@ -315,7 +315,7 @@ function drawArabicTemplate() {
   ctx.font        = `bold ${fontSize}px "Amiri", serif`
   ctx.lineWidth   = fontSize * 0.08
   ctx.strokeStyle = 'rgba(140,122,102,0.22)'
-  ctx.strokeText(currentUnit.value, w / 2, CANVAS_HEIGHT / 2)
+  ctx.strokeText(currentUnit.value, window.innerWidth / 2, CANVAS_HEIGHT / 2)
   ctx.restore()
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
 }
