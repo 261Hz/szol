@@ -510,7 +510,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, watchEffect } from 'vue'
 import Fuse from 'fuse.js'
 import { LANGS } from '../data/stories.js'
-import { fetchListenStories, checkTranslation, fetchPodcastTranscript, fetchOgjreTranscript, savePodcastTranscript } from '../utils/api.js'
+import { fetchListenStories, checkTranslation, fetchPodcastTranscript, fetchOgjreTranscript, savePodcastTranscript, fetchPodcasts } from '../utils/api.js'
 import { t } from '../utils/i18n.js'
 import { isRTL } from '../utils/rtl.js'
 import { spokenNumbers } from '../utils/spokenNumbers.js'
@@ -798,6 +798,19 @@ async function applyPastedTranscript() {
 async function tryFetchTranscript(storyId, title, podcastName) {
   transcriptLoading.value = true
   try {
+    // Episode came from RSS (id = audio URL) — look up backend DB by audio URL first.
+    // This avoids hitting the auth-gated /api/fetch-transcript Vercel proxy.
+    if (storyId?.startsWith('http')) {
+      const allEps = await fetchPodcasts(props.lang)
+      const match  = (allEps ?? []).find(e => e.audio_url === storyId)
+      if (match?.segments?.length) {
+        segments.value = match.segments
+        await saveStoredTranscript(storyId, match.segments)
+        transcriptLoading.value = false
+        return
+      }
+    }
+
     // JRE: ogjre.com directly from browser
     if (podcastName === 'The Joe Rogan Experience' && title) {
       const ogjre = await fetchOgjreTranscript(title)
