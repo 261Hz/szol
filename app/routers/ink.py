@@ -147,42 +147,48 @@ async def google_recognize(req: GoogleInkRequest):
     import logging as _log
     lang_code = _GOOGLE_LANG_MAP.get(req.lang, req.lang)
     ink = []
+    t_offset = 0
     for stroke in req.strokes:
         if not stroke:
             continue
         xs = [int(round(p.x)) for p in stroke]
         ys = [int(round(p.y)) for p in stroke]
-        ink.append([xs, ys])
+        ts = [t_offset + i * 50 for i in range(len(stroke))]
+        t_offset = ts[-1] + 200
+        ink.append([xs, ys, ts])
     if not ink:
         return {"text": None, "candidates": []}
+    ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     payload = {
-        "writing_guide": {"writing_area_width": int(req.width), "writing_area_height": int(req.height)},
-        "ink": ink,
-        "language": lang_code,
-        "max_completions": 5,
+        "device": ua,
         "options": "enable_pre_space",
+        "requests": [{
+            "writing_guide": {"writing_area_width": int(req.width), "writing_area_height": int(req.height)},
+            "ink": ink,
+            "language": lang_code,
+        }],
     }
     body_str = _json.dumps(payload)
-    _log.warning("google-recognize: lang=%s strokes=%d pts=%d payload=%s", lang_code, len(ink), sum(len(s[0]) for s in ink), body_str[:400])
+    _log.warning("google-recognize: lang=%s strokes=%d body_prefix=%s", lang_code, len(ink), body_str[:200])
     try:
         async with httpx.AsyncClient(timeout=5.0) as c:
             r = await c.post(
-                "https://www.google.com/inputtools/request?ime=handwriting&app=mobilesearch&cs=1&oe=UTF-8",
+                "https://www.google.com/inputtools/request?ime=handwriting&app=gws&cs=1&oe=UTF-8",
                 content=body_str.encode("utf-8"),
                 headers={
                     "Content-Type": "application/json",
                     "Origin": "https://www.google.com",
                     "Referer": "https://www.google.com/inputtools/try",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "User-Agent": ua,
                 },
             )
-        _log.warning("google-recognize: http=%d body=%s", r.status_code, r.text[:200])
+        _log.warning("google-recognize: http=%d body=%s", r.status_code, r.text[:300])
         if r.status_code != 200:
             return {"text": None, "candidates": []}
         data = r.json()
-        if not data or data[0] != "SUCCESS" or not data[1]:
+        if not data or data[0] != "SUCCESS" or not data[1] or not data[1][0]:
             return {"text": None, "candidates": []}
-        candidates = data[1][0] if data[1] else []
+        candidates = data[1][0][1] if len(data[1][0]) > 1 else []
         _log.warning("google-recognize: candidates=%r", candidates)
         return {"text": candidates[0] if candidates else None, "candidates": candidates}
     except Exception as e:
