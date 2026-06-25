@@ -144,7 +144,6 @@ class GoogleInkRequest(BaseModel):
 
 @router.post("/google-recognize")
 async def google_recognize(req: GoogleInkRequest):
-    import logging as _log
     lang_code = _GOOGLE_LANG_MAP.get(req.lang, req.lang)
     ink = []
     t_offset = 0
@@ -169,7 +168,6 @@ async def google_recognize(req: GoogleInkRequest):
         }],
     }
     body_str = _json.dumps(payload)
-    _log.warning("google-recognize: lang=%s strokes=%d body_prefix=%s", lang_code, len(ink), body_str[:200])
     try:
         async with httpx.AsyncClient(timeout=5.0) as c:
             r = await c.post(
@@ -182,17 +180,14 @@ async def google_recognize(req: GoogleInkRequest):
                     "User-Agent": ua,
                 },
             )
-        _log.warning("google-recognize: http=%d body=%s", r.status_code, r.text[:300])
         if r.status_code != 200:
             return {"text": None, "candidates": []}
         data = r.json()
         if not data or data[0] != "SUCCESS" or not data[1] or not data[1][0]:
             return {"text": None, "candidates": []}
         candidates = data[1][0][1] if len(data[1][0]) > 1 else []
-        _log.warning("google-recognize: candidates=%r", candidates)
         return {"text": candidates[0] if candidates else None, "candidates": candidates}
-    except Exception as e:
-        _log.warning("google-recognize: exception %s", e)
+    except Exception:
         return {"text": None, "candidates": []}
 
 _MYSCRIPT_LANG_MAP = {
