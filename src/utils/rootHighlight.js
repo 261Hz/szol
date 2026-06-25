@@ -170,9 +170,24 @@ function dictLookup(word, lang, dict) {
   }
   return null
 }
-// ── Dicta via Vercel proxy ────────────────────────────────────────────────────
-// Browser-direct calls trigger CORS preflight that Dicta's loadbalancer rejects.
-// Route through /api/roots-analyze (same-origin) which calls Dicta server-side.
+// ── Roots API via Vercel proxy ────────────────────────────────────────────────
+// Hebrew: Dicta (direct to Nakdan, CORS-blocked from browser) + HebSpacy fallback.
+// Arabic: CAMeL Tools via Render backend.
+// Both routed through /api/roots-analyze (same-origin proxy).
+
+async function rootsBatch(words, lang) {
+  try {
+    const res = await fetch('/api/roots-analyze', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ words, lang }),
+    })
+    const data = res.ok ? await res.json() : {}
+    return data.roots ?? {}
+  } catch {
+    return {}
+  }
+}
 
 async function dictaHebrewBatch(words) {
   try {
@@ -224,19 +239,20 @@ export async function preFetchRoots(words, lang) {
 
   console.log(`[roots] ${lang} local hit: ${uncached.length - stillUncached.length}/${uncached.length} | miss: ${stillUncached.length}`)
 
-  // 2. Dicta API for words not in local dict (new words, inflected forms not in Wiktionary)
-  if (stillUncached.length && lang === 'he') {
+  // 2. API for words not in local dict
+  if (stillUncached.length) {
     try {
-      const roots = await dictaHebrewBatch(stillUncached)
+      // Hebrew: Dicta Nakdan + HebSpacy fallback (via Vercel proxy)
+      // Arabic: CAMeL Tools on Render backend (via Vercel proxy)
+      const batchFn = lang === 'he' ? dictaHebrewBatch : rootsBatch
+      const roots   = await batchFn(stillUncached, lang)
       for (const word of stillUncached) {
         const chars = roots[word] ?? null
-        if (chars) {
-          cacheSet(word, lang, chars)
-          map[word] = chars.join('')
-        }
+        cacheSet(word, lang, chars)
+        if (chars) map[word] = chars.join('')
       }
     } catch (e) {
-      console.error('[roots] dicta error:', e.message)
+      console.error('[roots] batch error:', e.message)
     }
   }
 

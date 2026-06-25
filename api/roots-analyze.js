@@ -1,15 +1,10 @@
 export const config = { runtime: 'edge' }
 
-// Hebrew: proxies Dicta nakdan API (CORS-blocked from the browser).
-// Arabic: no server-side fallback — local ar-roots.json dict handles most MSA words.
-//   To add Arabic API support, route to a Python backend running CAMeL Tools:
-//     pip install camel-tools && camel_data -i morphology-db-msa-s31
-//   then POST { words: string[] } → { roots: Record<string, string[]> }
-//   from a /roots/arabic endpoint on the FastAPI backend.
+// Hebrew: Dicta Nakdan (direct, CORS-blocked from browser) → HebSpacy on Render for misses.
+// Arabic: CAMeL Tools on Render backend (no usable public CORS-friendly Arabic API).
 
-// Real Dicta loadbalancer URL — found via browser DevTools on nakdan.dicta.org.il
-// Payload uses `data` field; response: { data: [{ str, nakdan: { options: [{lex, prefix_len}] } }] }
-const DICTA_URL = 'https://nakdan-u1-0.loadbalancer.dicta.org.il/api'
+const DICTA_URL  = 'https://nakdan-u1-0.loadbalancer.dicta.org.il/api'
+const RENDER_URL = 'https://szol.onrender.com'
 
 function stripNiqqud(s) { return s.replace(/[֑-ׇ]/g, '') }
 
@@ -68,6 +63,22 @@ async function hebrewRootsBatch(words) {
   return roots
 }
 
+async function renderRootsBatch(words, lang) {
+  try {
+    const res = await fetch(`${RENDER_URL}/roots/analyze`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ words, lang }),
+      signal:  AbortSignal.timeout(8000),
+    })
+    const data = res.ok ? await res.json() : {}
+    return data.roots ?? {}
+  } catch (e) {
+    console.error(`[roots-render/${lang}]`, e.message)
+    return {}
+  }
+}
+
 const json = (data) =>
   new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } })
 
@@ -80,12 +91,24 @@ export default async function handler(req) {
   const { lang } = body
 
   try {
-    if (Array.isArray(body.words)) {
-      const roots = lang === 'he' ? await hebrewRootsBatch(body.words) : {}
-      return json({ roots })
+    const words = Array.isArray(body.words) ? body.words : [body.word ?? '']
+    const single = !Array.isArray(body.words)
+
+    let roots = {}
+
+    if (lang === 'he') {
+      roots = await hebrewRootsBatch(words)
+      const missed = words.filter(w => !roots[w])
+      if (missed.length) {
+        const fallback = await renderRootsBatch(missed, 'he')
+        Object.assign(roots, fallback)
+      }
+    } else if (lang === 'ar') {
+      roots = await renderRootsBatch(words, 'ar')
     }
-    const batch = lang === 'he' ? await hebrewRootsBatch([body.word ?? '']) : {}
-    return json({ root: batch[body.word] ?? null })
+
+    if (single) return json({ root: roots[body.word] ?? null })
+    return json({ roots })
   } catch (e) {
     console.error('[roots] error:', e.message)
     return json({ root: null, roots: {} })
