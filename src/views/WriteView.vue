@@ -313,16 +313,11 @@ function startStroke(e) {
   if (hwDrawing) { hwStroke = new HandwritingStroke(); hwStroke.addPoint({ x, y, t: Date.now() - hwStartTime }) }
 }
 
-function autoScrollCanvas(clientX) {
-  const container = scrollContainerEl.value
-  if (!container) return
-  const right = window.innerWidth - clientX
-  if (right < 80) container.scrollLeft += Math.ceil((80 - right) * 0.4)
-}
+let lastStrokeClientX = 0
 
 function extendStroke(e) {
   if (!drawing || !ctx) return
-  autoScrollCanvas(e.clientX)
+  lastStrokeClientX = e.clientX
   const { x, y } = getXY(e)
   currentStrokePts.push({ x, y })
   ctx.lineTo(x, y)
@@ -347,6 +342,12 @@ function endStroke(e) {
   }
   currentStrokePts = []
   if (hwStroke && hwDrawing) { hwDrawing.addStroke(hwStroke); hwStroke = null }
+  // Scroll only after the stroke is fully committed — never during drawing
+  const container = scrollContainerEl.value
+  if (container) {
+    const right = window.innerWidth - lastStrokeClientX
+    if (right < 100) container.scrollLeft += Math.round((100 - right) + window.innerWidth * 0.25)
+  }
   clearTimeout(autoCheckTimer)
   autoCheckTimer = setTimeout(runCheck, 1000)
 }
