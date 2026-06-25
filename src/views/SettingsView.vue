@@ -70,16 +70,25 @@
     <div class="flex items-center justify-between gap-4 py-3 px-4" style="border:1px solid rgba(31,27,23,0.12); border-radius:3px;">
       <div class="flex flex-col gap-0.5">
         <div class="text-sm" style="color:#1f1b17;">Install app</div>
-        <div class="text-xs" style="color:rgba(31,27,23,0.45);">Add Szól to your home screen for quick access.</div>
+        <!-- iOS: manual instruction -->
+        <div v-if="isIOS" class="text-xs" style="color:rgba(31,27,23,0.55);">
+          Tap <span style="font-family:monospace;">Share</span> in Safari, then "Add to Home Screen".
+        </div>
+        <div v-else class="text-xs" style="color:rgba(31,27,23,0.45);">Add Szól to your home screen for quick access.</div>
       </div>
-      <div class="flex flex-col items-end gap-1.5">
+
+      <!-- iOS: no button, instruction is enough -->
+      <div v-if="!isIOS" class="flex flex-col items-end gap-1.5">
+        <!-- PWA prompt (Android Chrome / desktop Chrome) -->
         <button
           v-if="installPrompt"
           @click="installApp"
           class="flex-shrink-0 text-sm px-4 py-1.5 transition-all"
           style="background:#8b3a3a; color:#e8dcc4; border-radius:2px;"
         >Install</button>
+        <!-- APK download (Android only) -->
         <a
+          v-if="isAndroid"
           href="https://github.com/261Hz/szol/releases/download/android-latest/szol-debug.apk"
           download
           class="flex-shrink-0 text-sm px-4 py-1.5 transition-all text-center"
@@ -129,6 +138,10 @@ import { localModelsEnabled, setLocalModelsEnabled, clearModelCache, modelCacheB
 
 const props = defineProps({ currentUser: Object, lang: String, installPrompt: Object })
 const emit  = defineEmits(['openAuth', 'userUpdated', 'logout'])
+
+const ua       = navigator.userAgent
+const isIOS    = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+const isAndroid = /Android/.test(ua)
 
 const openToMessages = ref(props.currentUser?.open_to_messages ?? false)
 const settingsError  = ref('')
