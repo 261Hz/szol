@@ -104,7 +104,12 @@
 
         <!-- Engine indicator -->
         <span
-          v-if="whisperReady"
+          v-if="isNative"
+          class="self-center text-xs px-2"
+          style="color:rgba(31,27,23,0.3);"
+        >Google ASR</span>
+        <span
+          v-else-if="whisperReady"
           class="self-center text-xs px-2"
           style="color:rgba(31,27,23,0.3);"
         >Whisper</span>
@@ -140,8 +145,8 @@
         >{{ currentIdx < sentences.length - 1 ? 'Next' : 'Done' }}</button>
       </div>
 
-      <!-- ── Whisper download section ── -->
-      <div class="mt-2" style="border-top:1px solid rgba(31,27,23,0.08); padding-top:1rem;">
+      <!-- ── Whisper download section (web only) ── -->
+      <div v-if="!isNative" class="mt-2" style="border-top:1px solid rgba(31,27,23,0.08); padding-top:1rem;">
 
         <!-- Downloading progress -->
         <div v-if="whisperDownloading" class="flex flex-col gap-1">
@@ -206,6 +211,7 @@ import { useVoiceList, pickVoice } from '../utils/voices.js'
 import { saveProgress, getProgress } from '../utils/api.js'
 import { transcribe, preloadSpeech, onSpeechProgress } from '../utils/localSpeech.js'
 import { blobToWhisperBuffer } from '../utils/audioUtils.js'
+import { isNative, startNativeRecognition, stopNativeRecognition } from '../utils/nativeSpeech.js'
 
 const props = defineProps({
   story:       Object,
@@ -433,16 +439,45 @@ function stopRecordingWebSpeech() {
   recording.value = false
 }
 
+// ── Native Android path ───────────────────────────────────────────────────────
+
+async function startRecordingNative() {
+  recording.value      = true
+  liveTranscript.value = ''
+  const bcp47 = LANGS[props.lang]?.bcp47 ?? props.lang
+  try {
+    const text = await startNativeRecognition(bcp47, (partial) => {
+      liveTranscript.value = partial
+    })
+    transcript.value     = text
+    liveTranscript.value = ''
+    scored.value         = true
+    result.value         = lcsScore()
+  } catch {
+    // user can retry
+  } finally {
+    recording.value      = false
+    liveTranscript.value = ''
+  }
+}
+
+async function stopRecordingNative() {
+  await stopNativeRecognition()
+  // recording.value set to false in startRecordingNative's finally block
+}
+
 // ── Unified entry points ──────────────────────────────────────────────────────
 
 function startRecording() {
-  if (whisperReady.value) startRecordingWhisper()
-  else startRecordingWebSpeech()
+  if (isNative)              startRecordingNative()
+  else if (whisperReady.value) startRecordingWhisper()
+  else                       startRecordingWebSpeech()
 }
 
 function stopRecording() {
-  if (whisperReady.value) stopRecordingWhisper()
-  else stopRecordingWebSpeech()
+  if (isNative)              stopRecordingNative()
+  else if (whisperReady.value) stopRecordingWhisper()
+  else                       stopRecordingWebSpeech()
 }
 
 // ── Whisper download ──────────────────────────────────────────────────────────
@@ -499,6 +534,7 @@ function prev() {
 onUnmounted(() => {
   recognition?.stop()
   if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop()
+  if (isNative && recording.value) stopNativeRecognition().catch(() => {})
   speechSynthesis.cancel()
 })
 </script>
