@@ -13,7 +13,11 @@ self.onmessage = async ({ data }) => {
   try {
     if (!pipe) {
       pipe = await pipeline('automatic-speech-recognition', 'onnx-community/whisper-small', {
-        dtype: 'q8',
+        dtype: {
+          encoder_model: 'fp32',
+          decoder_model_merged: 'q4',
+        },
+        device: 'wasm',
         progress_callback: info => self.postMessage({ id, type: 'progress', info }),
       })
     }
