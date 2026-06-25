@@ -502,7 +502,7 @@ onUnmounted(() => {
 watch(unitIdx, () => {
   quizDone.value = false; checkResult.value = null; failCount.value = 0
   if (usesHanzi.value) nextTick(initWriter)
-  else                 nextTick(() => { clearCanvas(); scrollToCurrent() })
+  else                 nextTick(() => { setupCanvas(); scrollToCurrent() })
 })
 
 watch([() => props.lang, () => props.story], () => {
