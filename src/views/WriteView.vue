@@ -53,7 +53,8 @@
           v-for="(u, i) in rewriteUnits"
           :key="i"
           :data-current="i === unitIdx ? '1' : undefined"
-          :style="unitStyle(i)"
+          :style="unitStyle(i) + (i !== unitIdx ? 'cursor:pointer;' : '')"
+          @click="i !== unitIdx && tapWord(u)"
         >{{ u }}</span>
       </div>
 
@@ -129,8 +130,12 @@ const ML_KIT_LANG = {
   'hu': 'hu-HU', 'fi': 'fi-FI', 'da': 'da-DK', 'cs': 'cs-CZ', 'ro': 'ro-RO',
 }
 
-const props = defineProps({ story: Object, lang: String })
-const emit  = defineEmits(['go'])
+const props = defineProps({
+  story:      Object,
+  lang:       String,
+  savedWords: { type: Object, default: () => new Set() },
+})
+const emit = defineEmits(['go', 'saveWord'])
 
 const isCJK         = computed(() => ['zh', 'zh-TW', 'ja'].includes(props.lang))
 const isArabic      = computed(() => props.lang === 'ar')
@@ -193,11 +198,23 @@ const hwFont = computed(() =>
   props.lang === 'he' ? 'font-family:"Playpen Sans Hebrew",serif;' : ''
 )
 
+function isSaved(word) {
+  return props.savedWords.has(word.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase())
+}
+
 function unitStyle(i) {
-  const f = hwFont.value
-  if (i < unitIdx.value)   return f + DONE_STYLE
+  const f    = hwFont.value
+  const word = rewriteUnits.value[i] ?? ''
+  const saved = isSaved(word) ? 'text-decoration:underline; text-decoration-style:dotted; text-decoration-color:#8b3a3a; text-underline-offset:3px;' : ''
+  if (i < unitIdx.value)   return f + DONE_STYLE + saved
   if (i === unitIdx.value) return f + CURRENT_STYLE
-  return f + FUTURE_STYLE
+  return f + FUTURE_STYLE + saved
+}
+
+function tapWord(word) {
+  const clean = word.replace(/[^\p{L}\p{N}]/gu, '')
+  if (!clean) return
+  emit('saveWord', { word: clean, lang: props.lang, sentence: props.story?.content ?? '', story: props.story?.title ?? '' })
 }
 
 // ── Auto-scroll current word into view above the canvas strip ────────────────

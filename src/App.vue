@@ -88,7 +88,9 @@
         v-if="activeTab === 'write'"
         :story="currentStory"
         :lang="activeLang"
+        :saved-words="savedWordsForLang"
         @go="activeTab = $event"
+        @save-word="addToVocab"
       />
 
       <LibraryView
