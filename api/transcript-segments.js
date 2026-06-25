@@ -1,3 +1,4 @@
+import { ytClients } from './_yt-clients.js'
 // api/transcript-segments.js — Vercel serverless function
 //
 // Fetches YouTube captions without going through Render's flagged server IPs.
@@ -193,44 +194,7 @@ async function tryInvidious(base, videoId, lang) {
 // More reliable than the watch-page scrape because it's a real API endpoint.
 
 async function tryYouTubeInnertube(videoId, lang) {
-  // iOS client (id 5) is what yt-dlp defaults to from non-browser IPs — YouTube's
-  // mobile-app pipeline is less aggressively bot-checked than the WEB client.
-  // ANDROID (id 3) is the next best option; WEB is last resort.
-  const clients = [
-    {
-      url: 'https://www.youtube.com/youtubei/v1/player?key=***YT_KEY_IOS***&prettyPrint=false',
-      headers: {
-        'Content-Type':             'application/json',
-        'User-Agent':               'com.google.ios.youtube/19.09.3 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)',
-        'X-YouTube-Client-Name':    '5',
-        'X-YouTube-Client-Version': '19.09.3',
-      },
-      client: { clientName: 'IOS', clientVersion: '19.09.3', deviceModel: 'iPhone14,3', hl: 'en', gl: 'US',
-                userAgent: 'com.google.ios.youtube/19.09.3 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)' },
-    },
-    {
-      url: 'https://www.youtube.com/youtubei/v1/player?key=***YT_KEY_ANDROID***&prettyPrint=false',
-      headers: {
-        'Content-Type':             'application/json',
-        'User-Agent':               'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
-        'X-YouTube-Client-Name':    '3',
-        'X-YouTube-Client-Version': '19.09.37',
-      },
-      client: { clientName: 'ANDROID', clientVersion: '19.09.37', androidSdkVersion: 30, hl: 'en', gl: 'US' },
-    },
-    {
-      url: 'https://www.youtube.com/youtubei/v1/player?key=***YT_KEY_WEB***&prettyPrint=false',
-      headers: {
-        'Content-Type':             'application/json',
-        'User-Agent':               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'X-YouTube-Client-Name':    '1',
-        'X-YouTube-Client-Version': '2.20241201.01.00',
-        'Origin':                   'https://www.youtube.com',
-        'Referer':                  `https://www.youtube.com/watch?v=${videoId}`,
-      },
-      client: { clientName: 'WEB', clientVersion: '2.20241201.01.00', hl: 'en', gl: 'US' },
-    },
-  ]
+  const clients = ytClients(videoId)
 
   const langBase = lang.slice(0, 2)
   let gotValidResponse = false
