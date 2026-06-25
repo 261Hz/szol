@@ -7,8 +7,8 @@
 
     <template v-else>
 
-      <!-- ── CJK mode toggle ───────────────────────────────────────────── -->
-      <div v-if="isCJK" class="flex gap-0.5">
+      <!-- ── CJK / Arabic mode toggle ────────────────────────────────── -->
+      <div v-if="hasGuidedMode" class="flex gap-0.5">
         <button @click="setMode('write')"
           class="text-xs px-2 py-0.5 rounded-full transition-all"
           :style="mode !== 'guided' ? 'background:#2a2018; color:#e8dcc4;' : 'color:rgba(26,26,46,0.38);'">
@@ -42,6 +42,30 @@
             {{ quizActive ? 'Practising…' : 'Practice' }}
           </button>
         </div>
+      </div>
+
+      <!-- ── Arabic guided mode ───────────────────────────────────────── -->
+      <div v-else-if="usesArabicGuide"
+        class="rounded-2xl flex flex-col items-center gap-4 py-5 px-5"
+        style="background:#fefce8; border:1px solid #e8dcc8;">
+        <!-- Story context line -->
+        <div class="self-stretch font-serif text-sm leading-relaxed select-none text-right"
+          dir="rtl" style="color:#2a241c; max-height:80px; overflow:hidden;">
+          <span v-for="(u, i) in rewriteUnits" :key="i" :style="unitStyle(i)">{{ u }} </span>
+        </div>
+        <!-- Full word in large Amiri -->
+        <div dir="rtl" style="font-family:'Amiri',serif; font-size:3.5rem; line-height:1.3; color:#1a1a2e; letter-spacing:0.04em; text-align:center; user-select:none;">
+          {{ currentUnit }}
+        </div>
+        <!-- Individual letters spaced for reference -->
+        <div dir="rtl" class="flex gap-3 flex-wrap justify-center">
+          <span
+            v-for="(letter, i) in arabicLetters"
+            :key="i"
+            style="font-family:'Amiri',serif; font-size:1.6rem; color:rgba(26,26,46,0.5); border-bottom:1px solid rgba(140,122,102,0.3); padding-bottom:2px; min-width:1.8rem; text-align:center;"
+          >{{ letter }}</span>
+        </div>
+        <div class="text-xs" style="color:rgba(140,122,102,0.45);">write on the canvas below ←</div>
       </div>
 
       <!-- ── Full-page story text (write mode) ─────────────────────────── -->
@@ -132,8 +156,15 @@ const ML_KIT_LANG = {
 const props = defineProps({ story: Object, lang: String })
 const emit  = defineEmits(['go'])
 
-const isCJK    = computed(() => ['zh', 'zh-TW', 'ja'].includes(props.lang))
-const isNative = computed(() => Capacitor.isNativePlatform())
+const isCJK         = computed(() => ['zh', 'zh-TW', 'ja'].includes(props.lang))
+const isArabic      = computed(() => props.lang === 'ar')
+const hasGuidedMode = computed(() => isCJK.value || isArabic.value)
+const isNative      = computed(() => Capacitor.isNativePlatform())
+
+const arabicLetters = computed(() => {
+  if (!isArabic.value || !currentUnit.value) return []
+  return [...new Intl.Segmenter('ar', { granularity: 'grapheme' }).segment(currentUnit.value)].map(s => s.segment)
+})
 
 // ── Japanese morpheme tokenization ───────────────────────────────────────────
 const jaTokens = ref(null)
@@ -401,26 +432,28 @@ async function runCheck() {
     }).catch(() => null)
     const top  = normWord(result?.results?.candidates?.[0] ?? '')
     const want = normWord(currentUnit.value)
-    const minStrokes = isCJK.value ? 1 : want.length
+    const minStrokes = isCJK.value ? 1 : isArabic.value ? want.length * 2 : want.length
     passed = top !== '' && top === want && userStrokes.length >= minStrokes
   } else if (isCJK.value) {
     // CJK freeform: Google Handwriting Input
     const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth, CANVAS_HEIGHT)
-    const candidates = result?.candidates ?? (result?.text ? [result.text] : [])
+    const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, 3)
     const want = normWord(currentUnit.value)
-    passed = want !== '' && candidates.some(c => normWord(c) === want)
+    passed = want !== '' && userStrokes.length >= 1 && candidates.some(c => normWord(c) === want)
   } else if (hwDrawing) {
     // Web non-CJK: W3C Handwriting Recognition API (Chromium, on-device, zero deps)
     const predictions = await hwDrawing.getPrediction().catch(() => null)
     const got  = normWord(predictions?.[0]?.text ?? '')
     const want = normWord(currentUnit.value)
-    passed = got !== '' && got === want && userStrokes.length >= want.length
+    const minStrokes = isArabic.value ? want.length * 2 : want.length
+    passed = got !== '' && got === want && userStrokes.length >= minStrokes
   } else {
     // Web non-CJK fallback: Google Handwriting Input via backend proxy
     const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth, CANVAS_HEIGHT)
-    const candidates = result?.candidates ?? (result?.text ? [result.text] : [])
+    const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, 3)
     const want = normWord(currentUnit.value)
-    passed = want !== '' && userStrokes.length >= want.length && candidates.some(c => normWord(c) === want)
+    const minStrokes = isArabic.value ? want.length * 2 : want.length
+    passed = want !== '' && userStrokes.length >= minStrokes && candidates.some(c => normWord(c) === want)
   }
 
   checkResult.value = passed
@@ -442,13 +475,14 @@ const quizDone       = ref(false)
 const charError      = ref(false)
 let writer = null
 
-const usesHanzi = computed(() => isCJK.value && mode.value === 'guided')
+const usesHanzi       = computed(() => isCJK.value    && mode.value === 'guided')
+const usesArabicGuide = computed(() => isArabic.value && mode.value === 'guided')
 
 function setMode(m) {
   mode.value = m
   checkResult.value = null; failCount.value = 0
-  if (m === 'guided') nextTick(initWriter)
-  else                nextTick(setupCanvas)
+  if (m === 'guided' && isCJK.value) nextTick(initWriter)
+  else                               nextTick(setupCanvas)
 }
 
 function initWriter() {
