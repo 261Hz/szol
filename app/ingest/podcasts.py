@@ -394,6 +394,7 @@ def ingest_podcasts(db, dry_run: bool = False) -> int:
         use_chapters     = source.get("chapters_as_transcript", False)
         max_ep           = source.get("max_episodes", 10)
         inserted         = 0
+        changed_count    = 0
 
         # Fetch raw bytes when we need ElementTree for psc:chapters
         raw_xml: bytes | None = None
@@ -463,6 +464,8 @@ def ingest_podcasts(db, dry_run: bool = False) -> int:
                     existing.segments   = segments
                     logger.info("    ↻ backfilled segments: %s", title)
                     changed = True
+                if changed:
+                    changed_count += 1
                 continue
 
             ep = PodcastEpisode(
@@ -481,10 +484,10 @@ def ingest_podcasts(db, dry_run: bool = False) -> int:
                 db.add(ep)
             inserted += 1
 
-        if not dry_run and inserted:
+        if not dry_run and (inserted or changed_count):
             db.commit()
 
-        logger.info("  %d new episode(s)", inserted)
+        logger.info("  %d new episode(s), %d updated", inserted, changed_count)
         total += inserted
 
     return total

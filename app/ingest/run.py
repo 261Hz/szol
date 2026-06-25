@@ -90,8 +90,12 @@ def run(
     if not lang_filter:
         try:
             from .podcasts import ingest_podcasts
-            pod_total = ingest_podcasts(db, dry_run=dry_run)
-            logger.info("Podcast episodes: %d new", pod_total)
+            pod_db = SessionLocal()
+            try:
+                pod_total = ingest_podcasts(pod_db, dry_run=dry_run)
+                logger.info("Podcast episodes: %d new", pod_total)
+            finally:
+                pod_db.close()
         except Exception:
             logger.exception("Podcast ingest failed")
 
