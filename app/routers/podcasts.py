@@ -265,9 +265,13 @@ def _transcribe(ep: models.PodcastEpisode, db: Session) -> dict:
     raw_lang = _WHISPER_LANG_MAP.get(ep.lang, ep.lang)
     lang_hint = raw_lang if raw_lang in _WHISPER_LANGS else None
 
+    # Convert and immediately free the bytearray so both copies aren't live at once.
+    audio_bytes = bytes(audio)
+    del audio
+
     try:
         resp = client.audio.transcriptions.create(
-            file=(f"episode.{ext}", bytes(audio)),
+            file=(f"episode.{ext}", audio_bytes),
             model="whisper-large-v3",
             language=lang_hint,
             response_format="verbose_json",
