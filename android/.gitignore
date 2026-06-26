@@ -92,6 +92,9 @@ lint/tmp/
 # Cordova plugins for Capacitor
 capacitor-cordova-android-plugins
 
+# Gradle daemon JVM toolchain config (generated per-machine)
+gradle/gradle-daemon-jvm.properties
+
 # Copied web assets
 app/src/main/assets/public
 
