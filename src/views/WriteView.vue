@@ -389,7 +389,6 @@ function getXY(e) {
 }
 
 function startStroke(e) {
-  if (isNative.value && !mlkitReady.value) return
   if (!ctx) setupCanvas()
   if (!ctx) return
   drawing = true
@@ -487,7 +486,7 @@ async function runCheck() {
   checking.value = true
   let passed = false
 
-  if (Capacitor.isNativePlatform()) {
+  if (Capacitor.isNativePlatform() && mlkitReady.value) {
     // Native: ML Kit Digital Ink Recognition for all languages
     const result = await DigitalInk.doRecognition({
       model: mlkitLang(),
