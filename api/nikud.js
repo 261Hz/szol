@@ -31,6 +31,7 @@ export default async function handler(req) {
 
   const text = (body.text ?? '').trim()
   if (!text) return jsonRes({ niqqud: {} })
+  if (text.length > 50_000) return new Response(null, { status: 413 })
 
   try {
     const res = await fetch(DICTA_URL, {
