@@ -29,7 +29,7 @@ export default async function handler(req) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         task: 'nakdan', genre: 'modern', addmorph: false,
-        useTokenization: true, keepmetagim: true,
+        useTokenization: false, keepmetagim: true,
         keepqq: false, nodageshdefmem: false, patachma: false,
         data: text,
       }),
