@@ -342,7 +342,7 @@ function setupCanvas() {
 function drawArabicTemplate() {
   if (!ctx || !currentUnit.value) return
   const vw       = window.innerWidth
-  const sl       = scrollContainerEl.value?.scrollLeft ?? 0
+  const sl       = isRTL(props.lang) ? Math.max(0, canvasCssWidth - window.innerWidth) : 0
   const baseline = Math.round(CANVAS_HEIGHT * 0.65)
   const fontSize = Math.round(CANVAS_HEIGHT * 0.52)
 
