@@ -343,6 +343,8 @@ function drawArabicTemplate() {
   if (!ctx || !currentUnit.value) return
   const vw       = window.innerWidth
   const sl       = isRTL(props.lang) ? Math.max(0, canvasCssWidth - window.innerWidth) : 0
+  const domSL    = scrollContainerEl.value?.scrollLeft ?? -1
+  console.warn('[template] word=%s canvasCssWidth=%d vw=%d sl=%d domScrollLeft=%d', currentUnit.value, canvasCssWidth, vw, sl, domSL)
   const baseline = Math.round(CANVAS_HEIGHT * 0.65)
   const fontSize = Math.round(CANVAS_HEIGHT * 0.52)
 
@@ -370,6 +372,7 @@ function clearCanvas() {
   clearTimeout(autoCheckTimer)
   userStrokes = []; currentStrokePts = []
   const rtlStart = isRTL(props.lang) ? Math.max(0, canvasCssWidth - window.innerWidth) : 0
+  console.warn('[clear] rtlStart=%d canvasCssWidth=%d vw=%d', rtlStart, canvasCssWidth, window.innerWidth)
   if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = rtlStart
   if (Capacitor.isNativePlatform()) DigitalInk.erase().catch(() => {})
   if (hwRecognizer) resetHwDrawing()
