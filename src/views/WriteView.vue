@@ -88,6 +88,11 @@
           <span v-else-if="checkResult === false" class="text-base font-bold" style="color:#8b3a3a">✗</span>
           <span v-else-if="checking" class="text-xs" style="color:#8c7a66;">…</span>
           <span v-else class="text-xs" style="color:rgba(140,122,102,0.5);">write the word</span>
+          <span
+            v-if="recognizedText && checkResult !== null"
+            class="text-sm font-serif"
+            :style="checkResult ? 'color:#38a169;' : 'color:#8b3a3a;'"
+          >{{ recognizedText }}</span>
         </div>
         <div class="flex items-center gap-3">
           <span class="text-xs" style="color:rgba(140,122,102,0.5);">{{ progressLabel }}</span>
@@ -190,6 +195,12 @@ function normWord(s) {
     .replace(/[^\p{L}\p{N}]/gu, '')
 }
 
+// Fold katakana → hiragana so recognition variants match (e.g. ア→あ).
+function toHiragana(s) {
+  return s.replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60))
+}
+function normJa(s) { return toHiragana(normWord(s)) }
+
 
 function goNext() { if (!isLast.value) unitIdx.value++ }
 
@@ -281,9 +292,10 @@ async function ensureMLKitModel(retries = 3) {
 
 const canvasEl         = ref(null)
 const scrollContainerEl = ref(null)
-const checking    = ref(false)
-const checkResult = ref(null)
-const failCount   = ref(0)
+const checking        = ref(false)
+const checkResult     = ref(null)
+const recognizedText  = ref(null)   // top candidate from last recognition run
+const failCount       = ref(0)
 let ctx            = null
 let autoCheckTimer = null
 let drawing        = false
@@ -379,7 +391,8 @@ function clearCanvas() {
   const w = canvasCssWidth || window.innerWidth
   ctx.clearRect(0, 0, w, CANVAS_HEIGHT)
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
-  checkResult.value = null
+  checkResult.value   = null
+  recognizedText.value = null
   if (usesArabicGuide.value) drawArabicTemplate()
 }
 
@@ -484,6 +497,7 @@ function getCleanCanvasImage() {
 async function runCheck() {
   if (checking.value || checkResult.value === true || userStrokes.length === 0) return
   checking.value = true
+  recognizedText.value = null
   let passed = false
 
   if (Capacitor.isNativePlatform() && mlkitReady.value) {
@@ -492,28 +506,34 @@ async function runCheck() {
       model: mlkitLang(),
       writingArea: { w: canvasCssWidth || window.innerWidth, h: CANVAS_HEIGHT },
     }).catch(() => null)
-    const top        = normWord(result?.results?.candidates?.[0] ?? '')
+    const candidates = result?.results?.candidates ?? []
+    const top        = normWord(candidates[0] ?? '')
     const want       = normWord(currentUnit.value)
     const minStrokes = isCJK.value || isArabic.value ? 1 : want.length
+    recognizedText.value = candidates[0] ?? null
     passed = top !== '' && top === want && userStrokes.length >= minStrokes
   } else if (isCJK.value) {
-    // CJK freeform: Google Handwriting Input
+    // CJK / Japanese freeform: Google Handwriting Input
     const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth, CANVAS_HEIGHT)
-    const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, 3)
-    const want = normWord(currentUnit.value)
-    passed = want !== '' && userStrokes.length >= 1 && candidates.some(c => normWord(c) === want)
+    const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, 10)
+    recognizedText.value = candidates[0] ?? null
+    const norm = props.lang === 'ja' ? normJa : normWord
+    const want = norm(currentUnit.value)
+    passed = want !== '' && userStrokes.length >= 1 && candidates.some(c => norm(c) === want)
   } else if (hwDrawing) {
     // Web non-CJK: W3C Handwriting Recognition API (Chromium, on-device, zero deps)
     const predictions = await hwDrawing.getPrediction().catch(() => null)
-    const got        = normWord(predictions?.[0]?.text ?? '')
-    const want       = normWord(currentUnit.value)
+    const top  = predictions?.[0]?.text ?? null
+    const got  = normWord(top ?? '')
+    const want = normWord(currentUnit.value)
     const minStrokes = isArabic.value ? 1 : want.length
+    recognizedText.value = top
     passed = got !== '' && got === want && userStrokes.length >= minStrokes
   } else {
     // Web non-CJK fallback: Google Handwriting Input via backend proxy
     const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth, CANVAS_HEIGHT)
-    const limit      = 3
-    const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, limit)
+    const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, 10)
+    recognizedText.value = candidates[0] ?? null
     const want       = normWord(currentUnit.value)
     const minStrokes = isArabic.value ? 1 : want.length
     passed = want !== '' && userStrokes.length >= minStrokes && candidates.some(c => normWord(c) === want)
