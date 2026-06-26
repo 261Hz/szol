@@ -125,7 +125,7 @@
                 ? 'color:#8b3a3a; text-decoration:underline; text-underline-offset:2px;'
                 : ''"
             ><ruby v-for="(ch, ci) in tok.text" :key="ci" style="ruby-align:center"><span>{{ ch }}</span><rt style="font-size:0.55em; color:#8b3a3a; font-family:sans-serif; letter-spacing:0; font-style:normal;">{{ charPinyin(ch) }}</rt></ruby></span>
-            <!-- Plain word — no root data, or roots off -->
+            <!-- Plain word — no root data, roots off, or niqqud mode -->
             <span
               v-else-if="tok.type === 'word'"
               @click="tap(tok.text)"
@@ -133,7 +133,7 @@
               :style="savedWords?.has(normalize(tok.text))
                 ? 'color:#8b3a3a; text-decoration:underline; text-underline-offset:2px;'
                 : ''"
-            >{{ tok.text }}</span>
+            >{{ rootMode === 'niqqud' && niqqudMap[tok.clean] ? niqqudMap[tok.clean] : tok.text }}</span>
             <span v-else>{{ tok.text }}</span>
           </template>
         </div>
@@ -439,17 +439,40 @@ const accuracy = computed(() => {
 const isChinese  = computed(() => ['zh', 'zh-TW'].includes(props.lang))
 const showPinyin = ref(false)
 
-const ROOT_MODES = [
-  { key: 'off',   label: 'Text' },
-  { key: 'roots', label: 'Roots' },
-]
+const ROOT_MODES = computed(() => {
+  const modes = [
+    { key: 'off',    label: 'Text' },
+    { key: 'roots',  label: 'Roots' },
+  ]
+  if (props.lang === 'he') modes.push({ key: 'niqqud', label: 'ניקוד' })
+  return modes
+})
+
+// ── Niqqud (nekudot) — Hebrew only via Dicta Nakdan ──────────────────────────
+const niqqudMap = ref({})  // consonant_word → vocalized_word
+
+watch(
+  [() => props.story, () => props.lang, rootMode],
+  async ([story, lang, mode]) => {
+    if (mode !== 'niqqud' || !story || lang !== 'he') { niqqudMap.value = {}; return }
+    try {
+      const res = await fetch('/api/nikud', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ text: story.content }),
+      })
+      niqqudMap.value = res.ok ? ((await res.json()).niqqud ?? {}) : {}
+    } catch { niqqudMap.value = {} }
+  },
+  { immediate: true }
+)
 
 const wordRootMap = ref({})
 
 watch(
   [() => props.story, () => props.lang, rootMode],
   async ([story, lang, mode]) => {
-    if (mode === 'off' || !story || !['ar', 'he'].includes(lang)) {
+    if (mode !== 'roots' || !story || !['ar', 'he'].includes(lang)) {
       wordRootMap.value = {}
       return
     }
@@ -476,7 +499,7 @@ const rootFamilyMap = computed(() => {
 // Driven by Dicta's shoresh — root chars appear in order within the word form (Semitic
 // root-and-pattern morphology). Non-letter chars (punctuation attached to word) pass through.
 const segMap = computed(() => {
-  if (rootMode.value === 'off') return new Map()
+  if (rootMode.value !== 'roots') return new Map()
   const out = new Map()
   for (const tok of tokens.value) {
     if (tok.type !== 'word' || !tok.clean) continue

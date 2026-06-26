@@ -19,14 +19,14 @@ import { ref, computed, watch } from 'vue'
 function loadMode() {
   const s = localStorage.getItem('szol_roots')
   if (s === '1' || s === 'manuscript') return 'roots'  // migrate old values
-  if (['off', 'roots'].includes(s)) return s
+  if (['off', 'roots', 'niqqud'].includes(s)) return s
   return 'off'
 }
 
 export const rootMode = ref(loadMode())
 
 // Backward-compat alias (VocabView still uses this)
-export const rootHighlightOn = computed(() => rootMode.value !== 'off')
+export const rootHighlightOn = computed(() => rootMode.value === 'roots')
 
 watch(rootMode, v => localStorage.setItem('szol_roots', v))
 
