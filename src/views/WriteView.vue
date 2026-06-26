@@ -339,12 +339,14 @@ function setupCanvas() {
   if (usesArabicGuide.value) drawArabicTemplate()
 }
 
-function drawArabicTemplate() {
+async function drawArabicTemplate() {
   if (!ctx || !currentUnit.value) return
   const vw       = window.innerWidth
   const sl       = isRTL(props.lang) ? Math.max(0, canvasCssWidth - window.innerWidth) : 0
   const baseline = Math.round(CANVAS_HEIGHT * 0.65)
   const fontSize = Math.round(CANVAS_HEIGHT * 0.52)
+
+  await document.fonts.load(`bold ${fontSize}px "Amiri"`)
 
   // Baseline rule across visible width
   ctx.save()
