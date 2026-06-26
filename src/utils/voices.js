@@ -24,11 +24,13 @@ export function useVoiceList() {
   // speechSynthesis is the browser's built-in text-to-speech engine.
   // .getVoices() returns an array of SpeechSynthesisVoice objects.
   function load() {
+    if (typeof speechSynthesis === 'undefined') return
     voices.value = speechSynthesis.getVoices()
   }
 
   // onMounted runs once after this component is added to the page (DOM = Document Object Model, the visible page).
   onMounted(() => {
+    if (typeof speechSynthesis === 'undefined') return
     load() // load voices immediately on mount (might return empty on first call in Chrome)
     // 'voiceschanged' fires when the browser finishes loading all available voices asynchronously.
     // addEventListener adds a listener so load() is called again once they're ready.
@@ -38,6 +40,7 @@ export function useVoiceList() {
   // onUnmounted runs when the component is removed. Clean up the listener to avoid memory leaks.
   // A "memory leak" = code that keeps running after you're done with it, wasting resources.
   onUnmounted(() => {
+    if (typeof speechSynthesis === 'undefined') return
     speechSynthesis.removeEventListener('voiceschanged', load)
   })
 

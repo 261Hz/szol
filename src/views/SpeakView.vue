@@ -535,7 +535,7 @@ onUnmounted(() => {
   recognition?.stop()
   if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop()
   if (isNative && recording.value) stopNativeRecognition().catch(() => {})
-  speechSynthesis.cancel()
+  if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
 })
 </script>
 
