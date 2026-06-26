@@ -4,7 +4,7 @@ Podcast endpoints.
 GET  /podcasts/search?q=        search iTunes for podcasts
 POST /podcasts/subscribe        add a podcast feed and ingest episodes
 GET  /podcasts/?lang=           list episodes for a language
-POST /podcasts/{id}/transcript  fetch transcript via ogjre.com (fast, free)
+POST /podcasts/{id}/transcript  scraped transcript (ogjre/Lex) → Groq Whisper fallback
 """
 
 import logging
@@ -20,6 +20,15 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
+from ..config import settings
+
+_MAX_BYTES = 24 * 1024 * 1024  # 24 MB — Groq upload limit
+_AUDIO_EXTS = [".mp3", ".m4a", ".aac", ".ogg", ".flac", ".wav", ".webm", ".opus"]
+_WHISPER_LANG_MAP = {"arz": "ar"}  # non-ISO-639-1 codes Whisper doesn't accept
+_WHISPER_LANGS = {
+    "en", "es", "fr", "de", "it", "pt", "nl", "pl", "ru",
+    "ar", "ja", "zh", "ko", "sv", "tr", "hu", "el", "he",
+}
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/podcasts", tags=["Podcasts"])
@@ -166,7 +175,7 @@ def get_transcript(episode_id: UUID, db: Session = Depends(get_db)):
             logger.warning("Lex on-demand fetch error: %s", exc)
 
     if not transcript:
-        raise HTTPException(status_code=404, detail="Transcript not available for this episode")
+        return _transcribe(ep, db)
 
     ep.transcript = transcript
     ep.segments   = segments or None
@@ -229,9 +238,11 @@ def _transcribe(ep: models.PodcastEpisode, db: Session) -> dict:
     import httpx
     from groq import Groq
 
+    if not settings.GROQ_API_KEY:
+        raise HTTPException(status_code=503, detail="Groq not configured — cannot transcribe audio.")
+
     client = Groq(api_key=settings.GROQ_API_KEY)
 
-    # Stream-download, capped at MAX_BYTES (truncates long episodes)
     audio = bytearray()
     truncated = False
     try:
@@ -251,13 +262,8 @@ def _transcribe(ep: models.PodcastEpisode, db: Session) -> dict:
         raise HTTPException(status_code=502, detail=f"Could not download audio: {e}")
 
     ext = _ext_from_url(ep.audio_url)
-
-    # Restrict language hint to Whisper-supported codes
-    _WHISPER_LANGS = {
-        "en", "es", "fr", "de", "it", "pt", "nl", "pl", "ru",
-        "ar", "ja", "zh", "ko", "sv", "tr", "hu", "el",
-    }
-    lang_hint = ep.lang if ep.lang in _WHISPER_LANGS else None
+    raw_lang = _WHISPER_LANG_MAP.get(ep.lang, ep.lang)
+    lang_hint = raw_lang if raw_lang in _WHISPER_LANGS else None
 
     try:
         resp = client.audio.transcriptions.create(
