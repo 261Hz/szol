@@ -240,7 +240,7 @@ const mlkitReady = ref(true)   // false = model not yet ready; true = ready or w
 
 function mlkitLang() { return ML_KIT_LANG[props.lang] || 'en-US' }
 
-async function ensureMLKitModel(retries = 4) {
+async function ensureMLKitModel(retries = 3) {
   if (!Capacitor.isNativePlatform()) return
   const lang = mlkitLang()
   try {
@@ -250,18 +250,18 @@ async function ensureMLKitModel(retries = 4) {
     } catch {}
     mlkitReady.value = false
     await new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error('timeout')), 120_000)
+      const t = setTimeout(() => reject(new Error('timeout')), 60_000)
       DigitalInk.downloadSingularModel({ model: lang }, r => {
-        if (r.done)  { clearTimeout(t); resolve() }
-        if (r.error) { clearTimeout(t); reject(new Error(r.error ?? 'download failed')) }
-      }).catch(err => { clearTimeout(t); reject(err) })
+        if (r?.done)  { clearTimeout(t); resolve() }
+        if (r?.error) { clearTimeout(t); reject(new Error(typeof r.error === 'string' ? r.error : 'download failed')) }
+      })
     })
     mlkitReady.value = true
   } catch (err) {
     console.warn('MLKit model download failed:', err)
     mlkitReady.value = false
     if (retries > 0) {
-      await new Promise(r => setTimeout(r, 5_000))
+      await new Promise(r => setTimeout(r, 10_000))
       ensureMLKitModel(retries - 1)
     }
   }
