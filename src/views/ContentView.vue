@@ -95,7 +95,17 @@
           >{{ m.label }}</button>
         </div>
 
+        <!-- Niqqud mode: show full vocalized text returned by Dicta -->
         <div
+          v-if="rootMode === 'niqqud' && niqqudText"
+          class="font-serif leading-[1.8] text-lg text-right"
+          style="color:#2a241c; white-space:pre-wrap;"
+          dir="rtl"
+        >{{ niqqudText }}</div>
+
+        <!-- Interactive text (read / roots mode) -->
+        <div
+          v-else
           class="font-serif leading-[1.8] text-base"
           style="color:#2a241c;"
           :dir="isRTL(lang) ? 'rtl' : 'ltr'"
@@ -125,7 +135,7 @@
                 ? 'color:#8b3a3a; text-decoration:underline; text-underline-offset:2px;'
                 : ''"
             ><ruby v-for="(ch, ci) in tok.text" :key="ci" style="ruby-align:center"><span>{{ ch }}</span><rt style="font-size:0.55em; color:#8b3a3a; font-family:sans-serif; letter-spacing:0; font-style:normal;">{{ charPinyin(ch) }}</rt></ruby></span>
-            <!-- Plain word — no root data, roots off, or niqqud mode -->
+            <!-- Plain word -->
             <span
               v-else-if="tok.type === 'word'"
               @click="tap(tok.text)"
@@ -133,7 +143,7 @@
               :style="savedWords?.has(normalize(tok.text))
                 ? 'color:#8b3a3a; text-decoration:underline; text-underline-offset:2px;'
                 : ''"
-            >{{ rootMode === 'niqqud' && niqqudMap[tok.clean] ? niqqudMap[tok.clean] : tok.text }}</span>
+            >{{ tok.text }}</span>
             <span v-else>{{ tok.text }}</span>
           </template>
         </div>
@@ -449,20 +459,20 @@ const ROOT_MODES = computed(() => {
 })
 
 // ── Niqqud (nekudot) — Hebrew only via Dicta Nakdan ──────────────────────────
-const niqqudMap = ref({})  // consonant_word → vocalized_word
+const niqqudText = ref('')  // full vocalized story text returned by /api/nikud
 
 watch(
   [() => props.story, () => props.lang, rootMode],
   async ([story, lang, mode]) => {
-    if (mode !== 'niqqud' || !story || lang !== 'he') { niqqudMap.value = {}; return }
+    if (mode !== 'niqqud' || !story || lang !== 'he') { niqqudText.value = ''; return }
     try {
       const res = await fetch('/api/nikud', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ text: story.content }),
       })
-      niqqudMap.value = res.ok ? ((await res.json()).niqqud ?? {}) : {}
-    } catch { niqqudMap.value = {} }
+      niqqudText.value = res.ok ? ((await res.json()).text ?? '') : ''
+    } catch { niqqudText.value = '' }
   },
   { immediate: true }
 )
