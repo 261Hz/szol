@@ -87,11 +87,6 @@
           <span v-if="checkResult === true"  class="text-base font-bold" style="color:#38a169">✓</span>
           <span v-else-if="checkResult === false" class="text-base font-bold" style="color:#8b3a3a">✗</span>
           <span v-else-if="checking" class="text-xs" style="color:#8c7a66;">…</span>
-          <span v-else-if="mlkitDownloading" class="text-xs" style="color:#8c7a66;">downloading recognition model…</span>
-          <button v-else-if="mlkitError" @click="ensureMLKitModel"
-            class="text-xs" style="color:#8b3a3a; text-decoration:underline; background:none; border:none; cursor:pointer; padding:0;">
-            download failed — tap to retry</button>
-          <span v-else-if="isNative && !mlkitReady" class="text-xs" style="color:#8c7a66;">model not ready</span>
           <span v-else class="text-xs" style="color:rgba(140,122,102,0.5);">write the word</span>
         </div>
         <div class="flex items-center gap-3">
@@ -241,35 +236,34 @@ function scrollToCurrent() {
 
 // ── Canvas ───────────────────────────────────────────────────────────────────
 // ── ML Kit (native only) ─────────────────────────────────────────────────────
-const mlkitDownloading = ref(false)
-const mlkitReady       = ref(true)   // false = model missing; true = ready or web
-const mlkitError       = ref(false)
+const mlkitReady = ref(true)   // false = model not yet ready; true = ready or web
 
 function mlkitLang() { return ML_KIT_LANG[props.lang] || 'en-US' }
 
-async function ensureMLKitModel() {
+async function ensureMLKitModel(retries = 4) {
   if (!Capacitor.isNativePlatform()) return
   const lang = mlkitLang()
-  mlkitError.value = false
   try {
-    const { models } = await DigitalInk.getDownloadedModels()
-    if (models.includes(lang)) { mlkitReady.value = true; return }
-    mlkitReady.value       = false
-    mlkitDownloading.value = true
+    try {
+      const { models } = await DigitalInk.getDownloadedModels()
+      if (models.includes(lang)) { mlkitReady.value = true; return }
+    } catch {}
+    mlkitReady.value = false
     await new Promise((resolve, reject) => {
       const t = setTimeout(() => reject(new Error('timeout')), 120_000)
       DigitalInk.downloadSingularModel({ model: lang }, r => {
         if (r.done)  { clearTimeout(t); resolve() }
         if (r.error) { clearTimeout(t); reject(new Error(r.error ?? 'download failed')) }
-      })
+      }).catch(err => { clearTimeout(t); reject(err) })
     })
     mlkitReady.value = true
   } catch (err) {
     console.warn('MLKit model download failed:', err)
-    mlkitError.value = true
     mlkitReady.value = false
-  } finally {
-    mlkitDownloading.value = false
+    if (retries > 0) {
+      await new Promise(r => setTimeout(r, 5_000))
+      ensureMLKitModel(retries - 1)
+    }
   }
 }
 
