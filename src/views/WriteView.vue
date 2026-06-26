@@ -104,8 +104,8 @@
         </div>
       </div>
 
-      <!-- The canvas itself (wider than viewport for long words; auto-scrolls while drawing) -->
-      <div ref="scrollContainerEl" style="overflow-x:hidden; overflow-y:hidden;">
+      <!-- The canvas itself (wider than viewport for long words; scrollable) -->
+      <div ref="scrollContainerEl" style="overflow-x:auto; overflow-y:hidden;">
         <canvas
           ref="canvasEl"
           class="block touch-none"
@@ -406,11 +406,8 @@ function startStroke(e) {
   if (hwDrawing) { hwStroke = new HandwritingStroke(); hwStroke.addPoint({ x, y, t: Date.now() - hwStartTime }) }
 }
 
-let lastStrokeClientX = 0
-
 function extendStroke(e) {
   if (!drawing || !ctx) return
-  lastStrokeClientX = e.clientX
   const { x, y } = getXY(e)
   currentStrokePts.push({ x, y })
   ctx.lineTo(x, y)
@@ -435,16 +432,6 @@ function endStroke(e) {
   }
   currentStrokePts = []
   if (hwStroke && hwDrawing) { hwDrawing.addStroke(hwStroke); hwStroke = null }
-  // Scroll only after the stroke is fully committed — never during drawing
-  const container = scrollContainerEl.value
-  if (container) {
-    if (isRTL(props.lang)) {
-      if (lastStrokeClientX < 100) container.scrollLeft -= Math.round((100 - lastStrokeClientX) + window.innerWidth * 0.25)
-    } else {
-      const right = window.innerWidth - lastStrokeClientX
-      if (right < 100) container.scrollLeft += Math.round((100 - right) + window.innerWidth * 0.25)
-    }
-  }
   clearTimeout(autoCheckTimer)
   autoCheckTimer = setTimeout(runCheck, 1000)
 }
