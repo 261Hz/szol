@@ -198,6 +198,26 @@ async def google_recognize(req: GoogleInkRequest):
 
 
 
+class FuriganaRequest(BaseModel):
+    text: str
+
+@router.post("/furigana")
+async def furigana(req: FuriganaRequest):
+    try:
+        import pykakasi
+        kks = pykakasi.kakasi()
+        result = kks.convert(req.text)
+        tokens = []
+        for item in result:
+            orig = item["orig"]
+            hira = item["hira"]
+            # Only annotate if the original contains kanji
+            has_kanji = any("一" <= c <= "鿿" or "㐀" <= c <= "䶿" for c in orig)
+            tokens.append({"w": orig, "r": hira if has_kanji else None})
+        return {"tokens": tokens}
+    except Exception as e:
+        return {"tokens": [{"w": req.text, "r": None}]}
+
 _MYSCRIPT_LANG_MAP = {
     # Non-Latin scripts
     "ar": "ar",      "he": "he_IL",  "ru": "ru_RU",
