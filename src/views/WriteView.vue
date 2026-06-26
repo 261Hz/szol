@@ -262,8 +262,9 @@ async function ensureMLKitModel(retries = 3) {
       const t = setTimeout(() => { dbg('timeout 60s'); reject(new Error('timeout')) }, 60_000)
       DigitalInk.downloadSingularModel({ model: lang }, r => {
         dbg(`callback: ${JSON.stringify(r)}`)
-        if (r?.done)  { clearTimeout(t); resolve() }
-        if (r?.error) { clearTimeout(t); reject(new Error(typeof r.error === 'string' ? r.error : 'download failed')) }
+        if (r == null) { clearTimeout(t); reject(new Error('rejected by plugin')) }
+        else if (r?.done)  { clearTimeout(t); resolve() }
+        else if (r?.error) { clearTimeout(t); reject(new Error(typeof r.error === 'string' ? r.error : 'download failed')) }
       })
     })
     dbg('ready'); mlkitReady.value = true
