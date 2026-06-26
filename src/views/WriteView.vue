@@ -342,6 +342,7 @@ function setupCanvas() {
 function drawArabicTemplate() {
   if (!ctx || !currentUnit.value) return
   const vw       = window.innerWidth
+  const sl       = scrollContainerEl.value?.scrollLeft ?? 0
   const baseline = Math.round(CANVAS_HEIGHT * 0.65)
   const fontSize = Math.round(CANVAS_HEIGHT * 0.52)
 
@@ -349,17 +350,17 @@ function drawArabicTemplate() {
   ctx.save()
   ctx.strokeStyle = 'rgba(140,122,102,0.3)'
   ctx.lineWidth   = 1
-  ctx.beginPath(); ctx.moveTo(20, baseline); ctx.lineTo(vw - 20, baseline); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(sl + 20, baseline); ctx.lineTo(sl + vw - 20, baseline); ctx.stroke()
   ctx.restore()
 
-  // Faded word sitting on baseline
+  // Faded word sitting on baseline (offset to visible area)
   ctx.save()
   ctx.direction    = 'rtl'
   ctx.textAlign    = 'center'
   ctx.textBaseline = 'alphabetic'
   ctx.font         = `bold ${fontSize}px "Amiri", serif`
   ctx.fillStyle    = 'rgba(140,122,102,0.2)'
-  ctx.fillText(currentUnit.value, vw / 2, baseline)
+  ctx.fillText(currentUnit.value, sl + vw / 2, baseline)
   ctx.restore()
 
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
@@ -368,7 +369,8 @@ function drawArabicTemplate() {
 function clearCanvas() {
   clearTimeout(autoCheckTimer)
   userStrokes = []; currentStrokePts = []
-  if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = 0
+  const rtlStart = isRTL(props.lang) ? Math.max(0, canvasCssWidth - window.innerWidth) : 0
+  if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = rtlStart
   if (Capacitor.isNativePlatform()) DigitalInk.erase().catch(() => {})
   if (hwRecognizer) resetHwDrawing()
   if (!ctx || !canvasEl.value) return
@@ -431,8 +433,12 @@ function endStroke(e) {
   // Scroll only after the stroke is fully committed — never during drawing
   const container = scrollContainerEl.value
   if (container) {
-    const right = window.innerWidth - lastStrokeClientX
-    if (right < 100) container.scrollLeft += Math.round((100 - right) + window.innerWidth * 0.25)
+    if (isRTL(props.lang)) {
+      if (lastStrokeClientX < 100) container.scrollLeft -= Math.round((100 - lastStrokeClientX) + window.innerWidth * 0.25)
+    } else {
+      const right = window.innerWidth - lastStrokeClientX
+      if (right < 100) container.scrollLeft += Math.round((100 - right) + window.innerWidth * 0.25)
+    }
   }
   clearTimeout(autoCheckTimer)
   autoCheckTimer = setTimeout(runCheck, 1000)
@@ -515,7 +521,7 @@ async function runCheck() {
   checkResult.value = passed
   checking.value    = false
   if (passed) {
-    if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = 0
+    if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = isRTL(props.lang) ? Math.max(0, canvasCssWidth - window.innerWidth) : 0
     failCount.value = 0
     if (!isLast.value) setTimeout(() => { clearCanvas(); goNext(); scrollToCurrent() }, 600)
   } else {
