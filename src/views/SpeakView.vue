@@ -38,7 +38,17 @@
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right' : ''"
       >
+        <template v-if="lang === 'ja' && furiganaTokens.length">
+          <ruby
+            v-for="(tok, i) in furiganaTokens"
+            :key="i"
+            class="transition-colors duration-300"
+            style="margin-right:0.1em;"
+            :style="wordColor(i)"
+          >{{ tok.w }}<rt v-if="tok.r" style="font-size:0.5em; color:inherit;">{{ tok.r }}</rt></ruby>
+        </template>
         <span
+          v-else
           v-for="(word, i) in sentenceWords"
           :key="i"
           class="inline-block whitespace-nowrap transition-colors duration-300"
@@ -208,7 +218,7 @@ import { t }     from '../utils/i18n.js'
 import { rootHighlightOn, applyRoots, clearRoots } from '../utils/rootHighlight.js'
 import { normalize } from '../utils/scoring.js'
 import { useVoiceList, pickVoice } from '../utils/voices.js'
-import { saveProgress, getProgress } from '../utils/api.js'
+import { saveProgress, getProgress, fetchFurigana } from '../utils/api.js'
 import { transcribe, preloadSpeech, onSpeechProgress } from '../utils/localSpeech.js'
 import { blobToWhisperBuffer } from '../utils/audioUtils.js'
 import { isNative, startNativeRecognition, stopNativeRecognition } from '../utils/nativeSpeech.js'
@@ -223,8 +233,9 @@ const sentenceEl     = ref(null)
 const voices         = useVoiceList()
 const hasRecognition = !!(window.SpeechRecognition || window.webkitSpeechRecognition)
 
-const currentIdx     = ref(0)
-const transcript     = ref('')
+const currentIdx      = ref(0)
+const furiganaTokens  = ref([])
+const transcript      = ref('')
 const liveTranscript = ref('')
 const result         = ref(null)
 const scored         = ref(false)
@@ -298,15 +309,30 @@ const sentences = computed(() => {
     .filter(Boolean)
 })
 
+watch([() => props.lang, currentIdx, () => props.story], async () => {
+  if (props.lang !== 'ja') { furiganaTokens.value = []; return }
+  const text = sentences.value[currentIdx.value]
+  if (!text) { furiganaTokens.value = []; return }
+  const data = await fetchFurigana(text)
+  furiganaTokens.value = data?.tokens ?? []
+}, { immediate: true })
+
 function splitUnits(text) {
-  if (['zh', 'zh-TW', 'ja'].includes(props.lang))
+  if (props.lang === 'ja') {
+    if (!('Segmenter' in Intl)) return [...text].filter(c => /\p{L}/u.test(c))
+    const seg = new Intl.Segmenter('ja', { granularity: 'word' })
+    return [...seg.segment(text)].filter(s => s.isWordLike).map(s => s.segment)
+  }
+  if (['zh', 'zh-TW'].includes(props.lang))
     return [...text].filter(c => /\p{L}/u.test(c))
   return text.trim().split(/\s+/).filter(Boolean)
 }
 
-const sentenceWords = computed(() =>
-  splitUnits(sentences.value[currentIdx.value] ?? '')
-)
+const sentenceWords = computed(() => {
+  if (props.lang === 'ja' && furiganaTokens.value.length)
+    return furiganaTokens.value.map(t => t.w)
+  return splitUnits(sentences.value[currentIdx.value] ?? '')
+})
 
 function alignWords(target, spoken) {
   const t = target.map(w => normalize(w))

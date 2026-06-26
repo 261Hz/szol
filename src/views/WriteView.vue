@@ -105,7 +105,7 @@
       </div>
 
       <!-- The canvas itself (wider than viewport for long words; scrollable) -->
-      <div ref="scrollContainerEl" style="overflow-x:auto; overflow-y:hidden;">
+      <div ref="scrollContainerEl" :style="`overflow-x:auto; overflow-y:hidden;${isRTL(lang) ? ' direction:rtl;' : ''}`">
         <canvas
           ref="canvasEl"
           class="block touch-none"
@@ -374,8 +374,7 @@ async function drawArabicTemplate() {
 function clearCanvas() {
   clearTimeout(autoCheckTimer)
   userStrokes = []; currentStrokePts = []
-  const rtlStart = isRTL(props.lang) ? Math.max(0, canvasCssWidth - window.innerWidth) : 0
-  if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = rtlStart
+  if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = 0
   if (Capacitor.isNativePlatform()) DigitalInk.erase().catch(() => {})
   if (hwRecognizer) resetHwDrawing()
   if (!ctx || !canvasEl.value) return
@@ -520,7 +519,7 @@ async function runCheck() {
   checkResult.value = passed
   checking.value    = false
   if (passed) {
-    if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = isRTL(props.lang) ? Math.max(0, canvasCssWidth - window.innerWidth) : 0
+    if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = 0
     failCount.value = 0
     if (!isLast.value) setTimeout(() => { goNext(); scrollToCurrent() }, 600)
   } else {

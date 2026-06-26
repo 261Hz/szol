@@ -580,6 +580,16 @@ export async function fetchTodayDocuments(lang) {
   return await res.json()
 }
 
+export async function fetchFurigana(text) {
+  const res = await fetch(`${API_URL}/ink/furigana`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  }).catch(() => null)
+  if (!res?.ok) return null
+  return await res.json().catch(() => null)
+}
+
 export async function tutorChat({ messages, lang }) {
   let res
   try {
