@@ -243,24 +243,39 @@ function mlkitLang() { return ML_KIT_LANG[props.lang] || 'en-US' }
 async function ensureMLKitModel(retries = 3) {
   if (!Capacitor.isNativePlatform()) return
   const lang = mlkitLang()
+  console.log('[MLKit] ensureMLKitModel lang=%s retries=%d', lang, retries)
   try {
     try {
-      const { models } = await DigitalInk.getDownloadedModels()
-      if (models.includes(lang)) { mlkitReady.value = true; return }
-    } catch {}
+      const downloaded = await DigitalInk.getDownloadedModels()
+      console.log('[MLKit] getDownloadedModels:', JSON.stringify(downloaded))
+      const models = downloaded?.models
+      if (Array.isArray(models) && models.includes(lang)) {
+        console.log('[MLKit] model already downloaded, ready')
+        mlkitReady.value = true; return
+      }
+    } catch (e) {
+      console.warn('[MLKit] getDownloadedModels threw:', e)
+    }
     mlkitReady.value = false
+    console.log('[MLKit] starting downloadSingularModel')
     await new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error('timeout')), 60_000)
+      const t = setTimeout(() => {
+        console.warn('[MLKit] download timed out after 60s')
+        reject(new Error('timeout'))
+      }, 60_000)
       DigitalInk.downloadSingularModel({ model: lang }, r => {
+        console.log('[MLKit] callback r=', JSON.stringify(r))
         if (r?.done)  { clearTimeout(t); resolve() }
         if (r?.error) { clearTimeout(t); reject(new Error(typeof r.error === 'string' ? r.error : 'download failed')) }
       })
     })
+    console.log('[MLKit] download complete, model ready')
     mlkitReady.value = true
   } catch (err) {
-    console.warn('MLKit model download failed:', err)
+    console.warn('[MLKit] failed:', err?.message ?? err)
     mlkitReady.value = false
     if (retries > 0) {
+      console.log('[MLKit] retrying in 10s, retries left:', retries - 1)
       await new Promise(r => setTimeout(r, 10_000))
       ensureMLKitModel(retries - 1)
     }
