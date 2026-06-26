@@ -41,8 +41,11 @@ export default async function handler(req) {
       return jsonRes({ text: '' })
     }
 
-    const json  = await res.json()
-    const items = Array.isArray(json.data) ? json.data : []
+    const json   = await res.json()
+    const raw    = Array.isArray(json.data) ? json.data : []
+    // Dicta returns a flat array for single-sentence input but an array-of-arrays
+    // (one per sentence) for multi-sentence / paragraph input. Flatten either form.
+    const items  = raw.length > 0 && Array.isArray(raw[0]) ? raw.flat() : raw
 
     // Join all token str fields — Dicta includes whitespace items between words
     // so join('') produces correctly spaced vocalized text.
