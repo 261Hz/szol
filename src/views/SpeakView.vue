@@ -33,8 +33,8 @@
       <!-- Sentence display -->
       <div
         ref="sentenceEl"
-        class="text-xl leading-relaxed p-5 break-words"
-        style="background:rgba(31,27,23,0.05); border:1px solid rgba(31,27,23,0.1); border-radius:4px;"
+        class="text-xl p-5 break-words"
+        :style="`background:rgba(31,27,23,0.05); border:1px solid rgba(31,27,23,0.1); border-radius:4px; line-height:${lang === 'ja' && furiganaTokens.length ? '2.8' : isRTL(lang) ? '2.2' : '1.7'};`"
         :dir="isRTL(lang) ? 'rtl' : 'ltr'"
         :class="isRTL(lang) ? 'text-right' : ''"
       >
@@ -43,9 +43,9 @@
             v-for="(tok, i) in furiganaTokens"
             :key="i"
             class="transition-colors duration-300"
-            style="margin-right:0.1em;"
+            style="margin-right:0.15em; ruby-align:center;"
             :style="wordColor(i)"
-          >{{ tok.w }}<rt v-if="tok.r" style="font-size:0.5em; color:inherit;">{{ tok.r }}</rt></ruby>
+          >{{ tok.w }}<rt v-if="tok.r" style="font-size:0.55em; color:inherit; letter-spacing:0.05em;">{{ tok.r }}</rt></ruby>
         </template>
         <span
           v-else
@@ -218,7 +218,7 @@ import { t }     from '../utils/i18n.js'
 import { rootHighlightOn, applyRoots, clearRoots } from '../utils/rootHighlight.js'
 import { normalize } from '../utils/scoring.js'
 import { useVoiceList, pickVoice } from '../utils/voices.js'
-import { saveProgress, getProgress, fetchFurigana } from '../utils/api.js'
+import { saveProgress, getProgress, fetchFurigana, transcribeViaBackend } from '../utils/api.js'
 import { transcribe, preloadSpeech, onSpeechProgress } from '../utils/localSpeech.js'
 import { blobToWhisperBuffer } from '../utils/audioUtils.js'
 import { isNative, startNativeRecognition, stopNativeRecognition } from '../utils/nativeSpeech.js'
@@ -357,11 +357,39 @@ const wordStatuses = computed(() => {
   return alignWords(sentenceWords.value, splitUnits(transcript.value))
 })
 
+function editDist(a, b) {
+  if (!a.length) return b.length
+  if (!b.length) return a.length
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i)
+  for (let i = 1; i <= a.length; i++) {
+    const curr = [i]
+    for (let j = 1; j <= b.length; j++)
+      curr.push(a[i-1] === b[j-1] ? prev[j-1] : 1 + Math.min(prev[j], curr[j-1], prev[j-1]))
+    prev = curr
+  }
+  return prev[b.length]
+}
+
+const wordScores = computed(() => {
+  if (!scored.value || !transcript.value) return []
+  const expected = sentenceWords.value.map(w => normalize(w))
+  const spoken   = splitUnits(transcript.value).map(w => normalize(w))
+  return expected.map(exp => {
+    if (!spoken.length) return 0
+    return spoken.reduce((best, sp) => {
+      const maxLen = Math.max(exp.length, sp.length)
+      const score  = maxLen ? 1 - editDist(exp, sp) / maxLen : 1
+      return score > best ? score : best
+    }, 0)
+  })
+})
+
 function wordColor(i) {
   if (!scored.value) return 'color:#1f1b17;'
-  return wordStatuses.value[i] === 'correct'
-    ? 'color:#4a783c; font-weight:500;'
-    : 'color:#9b4545;'
+  const score = wordScores.value[i] ?? 0
+  if (score >= 0.85) return 'color:#4a783c; font-weight:500;'
+  if (score >= 0.40) return 'color:#a06020;'
+  return 'color:#9b4545;'
 }
 
 function lcsScore() {
@@ -396,11 +424,17 @@ async function startRecordingWhisper() {
       if (!audioChunks.length) return
       isTranscribing.value = true
       try {
-        const blob  = new Blob(audioChunks, { type: mediaRecorder.mimeType })
-        const audio = await blobToWhisperBuffer(blob)
-        transcript.value = await transcribe(audio, props.lang, sentences.value[currentIdx.value])
-        scored.value     = true
-        result.value     = lcsScore()
+        const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType })
+        const hint = sentences.value[currentIdx.value]
+        if (['ar', 'arz'].includes(props.lang)) {
+          const res = await transcribeViaBackend(blob, props.lang, hint)
+          transcript.value = res?.text ?? ''
+        } else {
+          const audio = await blobToWhisperBuffer(blob)
+          transcript.value = await transcribe(audio, props.lang, hint)
+        }
+        scored.value = true
+        result.value = lcsScore()
       } catch {
         // silent — user can retry
       } finally {
