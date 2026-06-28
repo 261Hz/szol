@@ -290,7 +290,7 @@ async def speak_transcribe(
                 file=(_os.path.basename(path), f),
                 model="whisper-large-v3",
                 response_format="verbose_json",
-                timestamp_granularities=["word"],
+                timestamp_granularities=["word", "segment"],
                 language=whisper_lang,
                 prompt=hint or None,
             )
@@ -298,7 +298,13 @@ async def speak_transcribe(
     text = (resp.text or "").strip()
     words = [{"word": w.word, "start": float(w.start), "end": float(w.end)}
              for w in (getattr(resp, "words", None) or [])]
-    return {"text": text, "words": words}
+
+    # avg_logprob per segment → pronunciation clarity 0–1 (exp maps logprob to probability)
+    logprobs = [s.avg_logprob for s in (getattr(resp, "segments", None) or [])
+                if getattr(s, "avg_logprob", None) is not None]
+    clarity = float(math.exp(sum(logprobs) / len(logprobs))) if logprobs else None
+
+    return {"text": text, "words": words, "clarity": clarity}
 
 _MYSCRIPT_LANG_MAP = {
     # Non-Latin scripts
