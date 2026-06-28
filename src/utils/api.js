@@ -591,6 +591,16 @@ export async function transcribeViaBackend(blob, lang, hint) {
   return await res.json().catch(() => null)
 }
 
+export async function fetchNikud(text) {
+  const res = await fetch(`${API_URL}/ink/nikud`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  }).catch(() => null)
+  if (!res?.ok) return null
+  return await res.json().catch(() => null)
+}
+
 export async function fetchFurigana(text) {
   const res = await fetch(`${API_URL}/ink/furigana`, {
     method: 'POST',

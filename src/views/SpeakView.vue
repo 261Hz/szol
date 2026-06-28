@@ -54,7 +54,7 @@
           class="inline-block whitespace-nowrap transition-colors duration-300"
           :class="isRTL(lang) ? 'ml-1' : 'mr-1'"
           :style="wordColor(i)"
-        >{{ word }}</span>
+        >{{ (lang === 'he' && nikudWords[i]) ? nikudWords[i] : word }}</span>
       </div>
 
       <!-- Live interim transcript (Web Speech API only) -->
@@ -218,7 +218,7 @@ import { t }     from '../utils/i18n.js'
 import { rootHighlightOn, applyRoots, clearRoots } from '../utils/rootHighlight.js'
 import { normalize } from '../utils/scoring.js'
 import { useVoiceList, pickVoice } from '../utils/voices.js'
-import { saveProgress, getProgress, fetchFurigana, transcribeViaBackend } from '../utils/api.js'
+import { saveProgress, getProgress, fetchFurigana, fetchNikud, transcribeViaBackend } from '../utils/api.js'
 import { transcribe, preloadSpeech, onSpeechProgress } from '../utils/localSpeech.js'
 import { blobToWhisperBuffer } from '../utils/audioUtils.js'
 import { isNative, startNativeRecognition, stopNativeRecognition } from '../utils/nativeSpeech.js'
@@ -235,6 +235,7 @@ const hasRecognition = !!(window.SpeechRecognition || window.webkitSpeechRecogni
 
 const currentIdx      = ref(0)
 const furiganaTokens  = ref([])
+const nikudWords      = ref([])
 const transcript      = ref('')
 const liveTranscript = ref('')
 const result         = ref(null)
@@ -310,11 +311,17 @@ const sentences = computed(() => {
 })
 
 watch([() => props.lang, currentIdx, () => props.story], async () => {
-  if (props.lang !== 'ja') { furiganaTokens.value = []; return }
+  furiganaTokens.value = []
+  nikudWords.value     = []
   const text = sentences.value[currentIdx.value]
-  if (!text) { furiganaTokens.value = []; return }
-  const data = await fetchFurigana(text)
-  furiganaTokens.value = data?.tokens ?? []
+  if (!text) return
+  if (props.lang === 'ja') {
+    const data = await fetchFurigana(text)
+    furiganaTokens.value = data?.tokens ?? []
+  } else if (props.lang === 'he') {
+    const data = await fetchNikud(text)
+    nikudWords.value = data?.words ?? []
+  }
 }, { immediate: true })
 
 function splitUnits(text) {
