@@ -104,8 +104,8 @@
         </div>
       </div>
 
-      <!-- The canvas itself (wider than viewport for long words; scrollable) -->
-      <div ref="scrollContainerEl" :style="`overflow-x:auto; overflow-y:hidden;${isRTL(lang) ? ' direction:rtl;' : ''}`">
+      <!-- Canvas (overflow hidden — scrolled by the strip below) -->
+      <div ref="scrollContainerEl" style="overflow:hidden;">
         <canvas
           ref="canvasEl"
           class="block touch-none"
@@ -116,6 +116,12 @@
           @pointercancel="endStroke"
           @pointerleave="endStroke"
         />
+      </div>
+      <!-- Separate scroll strip so the scrollbar is never blocked by canvas pointer events -->
+      <div ref="scrollBarEl"
+        :style="`overflow-x:auto; overflow-y:hidden; height:18px;${isRTL(lang) ? ' direction:rtl;' : ''}`"
+        @scroll.passive="onScrollBarScroll">
+        <div :style="`height:1px; width:${canvasCssWidth}px;`"></div>
       </div>
     </div>
   </teleport>
@@ -281,8 +287,18 @@ async function ensureMLKitModel(retries = 3) {
   }
 }
 
-const canvasEl         = ref(null)
+const canvasEl          = ref(null)
 const scrollContainerEl = ref(null)
+const scrollBarEl       = ref(null)
+
+function setScrollLeft(val) {
+  if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = val
+  if (scrollBarEl.value)       scrollBarEl.value.scrollLeft       = val
+}
+
+function onScrollBarScroll(e) {
+  if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = e.target.scrollLeft
+}
 const checking        = ref(false)
 const checkResult     = ref(null)
 const recognizedText  = ref(null)   // top candidate from last recognition run
@@ -374,7 +390,7 @@ async function drawArabicTemplate() {
 function clearCanvas() {
   clearTimeout(autoCheckTimer)
   userStrokes = []; currentStrokePts = []
-  if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = 0
+  setScrollLeft(0)
   if (Capacitor.isNativePlatform()) DigitalInk.erase().catch(() => {})
   if (hwRecognizer) resetHwDrawing()
   if (!ctx || !canvasEl.value) return
@@ -519,7 +535,7 @@ async function runCheck() {
   checkResult.value = passed
   checking.value    = false
   if (passed) {
-    if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = 0
+    setScrollLeft(0)
     failCount.value = 0
     if (!isLast.value) setTimeout(() => { goNext(); scrollToCurrent() }, 600)
   } else {
