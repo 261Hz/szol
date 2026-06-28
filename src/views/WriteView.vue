@@ -520,8 +520,9 @@ async function runCheck() {
     passed = top !== '' && top === want && userStrokes.length >= minStrokes
   } else if (isCJK.value) {
     // CJK / Japanese freeform: Google Handwriting Input
+    // Top-3 candidates only — single CJK chars have genuine visual ambiguity.
     const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth.value, CANVAS_HEIGHT)
-    const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, 10)
+    const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, 3)
     recognizedText.value = candidates[0] ?? null
     const norm = props.lang === 'ja' ? normJa : normWord
     const want = norm(currentUnit.value)
@@ -536,13 +537,17 @@ async function runCheck() {
     recognizedText.value = top
     passed = got !== '' && got === want && userStrokes.length >= minStrokes
   } else {
-    // Web non-CJK fallback: Google Handwriting Input via backend proxy
+    // Web / native fallback: Google Handwriting Input via backend proxy.
+    // Top candidate only — checking deeper candidates accepts words the model
+    // didn't actually recognise (shows candidates[0] in green but matched on candidates[5]).
     const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth.value, CANVAS_HEIGHT)
-    const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, 10)
-    recognizedText.value = candidates[0] ?? null
-    const want       = normWord(currentUnit.value)
+    const candidates = result?.candidates ?? (result?.text ? [result.text] : [])
+    const top  = candidates[0] ?? null
+    recognizedText.value = top
+    const got  = normWord(top ?? '')
+    const want = normWord(currentUnit.value)
     const minStrokes = isArabic.value ? 1 : want.length
-    passed = want !== '' && userStrokes.length >= minStrokes && candidates.some(c => normWord(c) === want)
+    passed = got !== '' && got === want && userStrokes.length >= minStrokes
   }
 
   checkResult.value = passed
