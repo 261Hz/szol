@@ -49,9 +49,9 @@ export default async function handler(req) {
     const root   = Array.isArray(json) ? json : (Array.isArray(json.data) ? json.data : [])
     const items  = root.length > 0 && Array.isArray(root[0]) ? root.flat() : root
 
-    // Join all token str fields — Dicta includes whitespace items between words
-    // so join('') produces correctly spaced vocalized text.
-    const vocalized = items.map(i => i.str ?? '').join('')
+    // item.str = unvocalized input; item.nakdan.options[0].w = vocalized form.
+    // Separator tokens (spaces, punctuation) have no options — fall back to str.
+    const vocalized = items.map(i => i.nakdan?.options?.[0]?.w ?? i.str ?? '').join('')
 
     console.log('[nikud] vocalized', vocalized.length, 'chars from', items.length, 'items')
     return jsonRes({ text: vocalized })
