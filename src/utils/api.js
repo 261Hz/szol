@@ -580,6 +580,17 @@ export async function fetchTodayDocuments(lang) {
   return await res.json()
 }
 
+export async function transcribeViaBackend(blob, lang, hint) {
+  const ext  = blob.type.includes('ogg') ? 'ogg' : blob.type.includes('mp4') ? 'mp4' : 'webm'
+  const form = new FormData()
+  form.append('file', blob, `audio.${ext}`)
+  form.append('lang', lang)
+  form.append('hint', hint || '')
+  const res = await fetch(`${API_URL}/ink/speak-transcribe`, { method: 'POST', body: form }).catch(() => null)
+  if (!res?.ok) return null
+  return await res.json().catch(() => null)
+}
+
 export async function fetchFurigana(text) {
   const res = await fetch(`${API_URL}/ink/furigana`, {
     method: 'POST',
