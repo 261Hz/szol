@@ -324,7 +324,9 @@ watch([() => props.lang, currentIdx, () => props.story], async () => {
     furiganaTokens.value = data?.tokens ?? []
   } else if (props.lang === 'he') {
     const data = await fetchNikud(text)
-    nikudWords.value = data?.words ?? []
+    // Vercel /api/nikud returns { text: "full vocalized string" }
+    // Split by whitespace — Dicta preserves original word boundaries
+    nikudWords.value = data?.text ? data.text.trim().split(/\s+/) : []
   }
 }, { immediate: true })
 

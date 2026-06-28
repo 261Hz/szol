@@ -592,7 +592,7 @@ export async function transcribeViaBackend(blob, lang, hint) {
 }
 
 export async function fetchNikud(text) {
-  const res = await fetch(`${API_URL}/ink/nikud`, {
+  const res = await fetch('/api/nikud', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text }),
