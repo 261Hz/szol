@@ -135,7 +135,10 @@
           : 'background:rgba(139,58,58,0.07); border:1px solid rgba(139,58,58,0.2);'"
       >
         <div class="text-3xl font-bold" :style="result.pct >= 80 ? 'color:#4a783c;' : 'color:#8b3a3a;'">{{ result.pct }}%</div>
-        <div class="text-sm" style="color:rgba(31,27,23,0.5);">{{ result.correct }} / {{ result.total }} words</div>
+        <div class="flex flex-col gap-0.5">
+          <div class="text-sm" style="color:rgba(31,27,23,0.5);">{{ result.correct }} / {{ result.total }} words</div>
+          <div v-if="clarity !== null" class="text-xs" style="color:rgba(31,27,23,0.35);">clarity {{ Math.round(clarity * 100) }}%</div>
+        </div>
       </div>
 
       <!-- Navigation -->
@@ -237,6 +240,7 @@ const currentIdx      = ref(0)
 const furiganaTokens  = ref([])
 const nikudWords      = ref([])
 const transcript      = ref('')
+const clarity         = ref(null) // Whisper avg_logprob → 0-1 pronunciation clarity
 const liveTranscript = ref('')
 const result         = ref(null)
 const scored         = ref(false)
@@ -436,6 +440,7 @@ async function startRecordingWhisper() {
         const res  = await transcribeViaBackend(blob, props.lang, hint)
         if (res?.text) {
           transcript.value = res.text
+          clarity.value    = res.clarity ?? null
         } else {
           const audio = await blobToWhisperBuffer(blob)
           transcript.value = await transcribe(audio, props.lang, hint)
@@ -578,6 +583,7 @@ function reset() {
   transcript.value     = ''
   liveTranscript.value = ''
   result.value         = null
+  clarity.value        = null
   scored.value         = false
   recording.value      = false
   isTranscribing.value = false
