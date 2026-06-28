@@ -426,9 +426,9 @@ async function startRecordingWhisper() {
       try {
         const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType })
         const hint = sentences.value[currentIdx.value]
-        if (['ar', 'arz'].includes(props.lang)) {
-          const res = await transcribeViaBackend(blob, props.lang, hint)
-          transcript.value = res?.text ?? ''
+        const res  = await transcribeViaBackend(blob, props.lang, hint)
+        if (res?.text) {
+          transcript.value = res.text
         } else {
           const audio = await blobToWhisperBuffer(blob)
           transcript.value = await transcribe(audio, props.lang, hint)
