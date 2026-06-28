@@ -520,13 +520,12 @@ async function runCheck() {
     passed = top !== '' && top === want && userStrokes.length >= minStrokes
   } else if (isCJK.value) {
     // CJK / Japanese freeform: Google Handwriting Input
-    // Top-3 candidates only — single CJK chars have genuine visual ambiguity.
     const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth.value, CANVAS_HEIGHT)
-    const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, 3)
-    recognizedText.value = candidates[0] ?? null
+    const top = result?.candidates?.[0] ?? result?.text ?? null
+    recognizedText.value = top
     const norm = props.lang === 'ja' ? normJa : normWord
     const want = norm(currentUnit.value)
-    passed = want !== '' && userStrokes.length >= 1 && candidates.some(c => norm(c) === want)
+    passed = top !== null && want !== '' && userStrokes.length >= 1 && norm(top) === want
   } else if (hwDrawing) {
     // Web non-CJK: W3C Handwriting Recognition API (Chromium, on-device, zero deps)
     const predictions = await hwDrawing.getPrediction().catch(() => null)
