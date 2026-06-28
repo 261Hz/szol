@@ -591,14 +591,18 @@ export async function transcribeViaBackend(blob, lang, hint) {
   return await res.json().catch(() => null)
 }
 
+const _nikudCache = new Map()
 export async function fetchNikud(text) {
+  if (_nikudCache.has(text)) return _nikudCache.get(text)
   const res = await fetch('/api/nikud', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text }),
   }).catch(() => null)
   if (!res?.ok) return null
-  return await res.json().catch(() => null)
+  const data = await res.json().catch(() => null)
+  if (data?.text) _nikudCache.set(text, data)
+  return data
 }
 
 export async function fetchFurigana(text) {
