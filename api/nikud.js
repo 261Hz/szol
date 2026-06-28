@@ -42,10 +42,12 @@ export default async function handler(req) {
     }
 
     const json   = await res.json()
-    const raw    = Array.isArray(json.data) ? json.data : []
-    // Dicta returns a flat array for single-sentence input but an array-of-arrays
-    // (one per sentence) for multi-sentence / paragraph input. Flatten either form.
-    const items  = raw.length > 0 && Array.isArray(raw[0]) ? raw.flat() : raw
+    // Dicta response varies by version and input size:
+    //   { data: [[token,...], [token,...]] }  — paragraph, array-of-arrays under .data
+    //   { data: [token, token, ...] }         — single sentence, flat under .data
+    //   [token, token, ...]                   — top-level flat array (some versions)
+    const root   = Array.isArray(json) ? json : (Array.isArray(json.data) ? json.data : [])
+    const items  = root.length > 0 && Array.isArray(root[0]) ? root.flat() : root
 
     // Join all token str fields — Dicta includes whitespace items between words
     // so join('') produces correctly spaced vocalized text.

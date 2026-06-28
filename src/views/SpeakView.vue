@@ -233,7 +233,8 @@ const hasRecognition = !!(window.SpeechRecognition || window.webkitSpeechRecogni
 
 const currentIdx      = ref(0)
 const furiganaTokens  = ref([])
-const nikudWords      = ref([])
+const nikudAllWords   = ref([])  // nikudded words for every sentence: [[w,...], [w,...]]
+const nikudWords      = computed(() => nikudAllWords.value[currentIdx.value] ?? [])
 const transcript      = ref('')
 const clarity         = ref(null) // Whisper avg_logprob → 0-1 pronunciation clarity
 const liveTranscript = ref('')
@@ -309,20 +310,28 @@ const sentences = computed(() => {
     .filter(Boolean)
 })
 
+// Furigana: per-sentence (needs sentence-level context for accuracy)
 watch([() => props.lang, currentIdx, () => props.story], async () => {
   furiganaTokens.value = []
-  nikudWords.value     = []
+  if (props.lang !== 'ja') return
   const text = sentences.value[currentIdx.value]
   if (!text) return
-  if (props.lang === 'ja') {
-    const data = await fetchFurigana(text)
-    furiganaTokens.value = data?.tokens ?? []
-  } else if (props.lang === 'he') {
-    const data = await fetchNikud(text)
-    // Vercel /api/nikud returns { text: "full vocalized string" }
-    // Split by whitespace — Dicta preserves original word boundaries
-    nikudWords.value = data?.text ? data.text.trim().split(/\s+/) : []
-  }
+  const data = await fetchFurigana(text)
+  furiganaTokens.value = data?.tokens ?? []
+}, { immediate: true })
+
+// Nikud: once per story — vocalize full content then split into sentences.
+// Sending paragraph-level text is more reliable than per-sentence calls.
+watch([() => props.lang, () => props.story], async () => {
+  nikudAllWords.value = []
+  if (props.lang !== 'he' || !props.story?.content) return
+  const data = await fetchNikud(props.story.content)
+  if (!data?.text) return
+  const vocSentences = data.text
+    .split(/(?<=[.!?؟।。！？])\s+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+  nikudAllWords.value = vocSentences.map(s => s.split(/\s+/).filter(Boolean))
 }, { immediate: true })
 
 function splitUnits(text) {

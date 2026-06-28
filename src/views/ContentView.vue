@@ -461,10 +461,14 @@ const ROOT_MODES = computed(() => {
 // ── Niqqud (nekudot) — Hebrew only via Dicta Nakdan ──────────────────────────
 const niqqudText = ref('')  // full vocalized story text returned by /api/nikud
 
+let _lastNikudKey = ''
 watch(
   [() => props.story, () => props.lang, rootMode],
   async ([story, lang, mode]) => {
     if (mode !== 'niqqud' || !story || lang !== 'he') { niqqudText.value = ''; return }
+    const key = `${story.id}`
+    if (key === _lastNikudKey) return
+    _lastNikudKey = key
     try {
       const res = await fetch('/api/nikud', {
         method:  'POST',
