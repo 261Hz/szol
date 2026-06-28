@@ -119,9 +119,10 @@
       </div>
       <!-- Separate scroll strip so the scrollbar is never blocked by canvas pointer events -->
       <div ref="scrollBarEl"
+        class="canvas-scroll-strip"
         :style="`overflow-x:auto; overflow-y:hidden; height:18px;${isRTL(lang) ? ' direction:rtl;' : ''}`"
         @scroll.passive="onScrollBarScroll">
-        <div :style="`height:1px; width:${canvasCssWidth}px;`"></div>
+        <div :style="`height:1px; width:${canvasCssWidth}px;`" />
       </div>
     </div>
   </teleport>
@@ -306,7 +307,7 @@ const failCount       = ref(0)
 let ctx            = null
 let autoCheckTimer = null
 let drawing        = false
-let canvasCssWidth = 0
+const canvasCssWidth = ref(0)
 
 // Stroke data collected locally — no dependency on Chrome HW API
 let userStrokes        = []   // completed strokes: {x,y}[][]
@@ -345,10 +346,10 @@ function setupCanvas() {
   const dpr       = window.devicePixelRatio || 1
   const viewportW = window.innerWidth
   const wordLen   = currentUnit.value.length || 1
-  canvasCssWidth  = Math.max(viewportW * 2, wordLen * 90 + 60)
-  el.width        = canvasCssWidth * dpr
-  el.height       = CANVAS_HEIGHT  * dpr
-  el.style.width  = canvasCssWidth + 'px'
+  canvasCssWidth.value  = Math.max(viewportW * 2, wordLen * 90 + 60)
+  el.width              = canvasCssWidth.value * dpr
+  el.height             = CANVAS_HEIGHT        * dpr
+  el.style.width        = canvasCssWidth.value + 'px'
   el.style.height = CANVAS_HEIGHT  + 'px'
   ctx = el.getContext('2d')
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -361,7 +362,7 @@ function setupCanvas() {
 async function drawArabicTemplate() {
   if (!ctx || !currentUnit.value) return
   const vw       = window.innerWidth
-  const sl       = isRTL(props.lang) ? Math.max(0, canvasCssWidth - window.innerWidth) : 0
+  const sl       = isRTL(props.lang) ? Math.max(0, canvasCssWidth.value - window.innerWidth) : 0
   const baseline = Math.round(CANVAS_HEIGHT * 0.65)
   const fontSize = Math.round(CANVAS_HEIGHT * 0.52)
 
@@ -394,7 +395,7 @@ function clearCanvas() {
   if (Capacitor.isNativePlatform()) DigitalInk.erase().catch(() => {})
   if (hwRecognizer) resetHwDrawing()
   if (!ctx || !canvasEl.value) return
-  const w = canvasCssWidth || window.innerWidth
+  const w = canvasCssWidth.value || window.innerWidth
   ctx.clearRect(0, 0, w, CANVAS_HEIGHT)
   ctx.strokeStyle = INK_COLOR; ctx.fillStyle = INK_COLOR; ctx.lineWidth = 3
   checkResult.value   = null
@@ -497,7 +498,7 @@ async function runCheck() {
     // Native: ML Kit Digital Ink Recognition for all languages
     const result = await DigitalInk.doRecognition({
       model: mlkitLang(),
-      writingArea: { w: canvasCssWidth || window.innerWidth, h: CANVAS_HEIGHT },
+      writingArea: { w: canvasCssWidth.value || window.innerWidth, h: CANVAS_HEIGHT },
     }).catch(() => null)
     const candidates = result?.results?.candidates ?? []
     const top        = normWord(candidates[0] ?? '')
@@ -507,7 +508,7 @@ async function runCheck() {
     passed = top !== '' && top === want && userStrokes.length >= minStrokes
   } else if (isCJK.value) {
     // CJK / Japanese freeform: Google Handwriting Input
-    const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth, CANVAS_HEIGHT)
+    const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth.value, CANVAS_HEIGHT)
     const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, 10)
     recognizedText.value = candidates[0] ?? null
     const norm = props.lang === 'ja' ? normJa : normWord
@@ -524,7 +525,7 @@ async function runCheck() {
     passed = got !== '' && got === want && userStrokes.length >= minStrokes
   } else {
     // Web non-CJK fallback: Google Handwriting Input via backend proxy
-    const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth, CANVAS_HEIGHT)
+    const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth.value, CANVAS_HEIGHT)
     const candidates = (result?.candidates ?? (result?.text ? [result.text] : [])).slice(0, 10)
     recognizedText.value = candidates[0] ?? null
     const want       = normWord(currentUnit.value)
@@ -627,6 +628,18 @@ watch([() => props.lang, () => props.story], () => {
 </script>
 
 <style scoped>
+/* Make the canvas scrollbar strip visible and themed */
+.canvas-scroll-strip::-webkit-scrollbar { height: 6px; }
+.canvas-scroll-strip::-webkit-scrollbar-track { background: transparent; }
+.canvas-scroll-strip::-webkit-scrollbar-thumb {
+  background: rgba(140,122,102,0.45);
+  border-radius: 3px;
+}
+.canvas-scroll-strip {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(140,122,102,0.45) transparent;
+}
+
 .hanzi-container {
   width: 100%;
   max-width: 380px;
