@@ -97,7 +97,8 @@ async function handleRss(req, res) {
     return m?.[1]?.trim() ?? null
   })()
 
-  const isAtom = /<feed[^>]*xmlns="http:\/\/www\.w3\.org\/2005\/Atom"/.test(rssText)
+  const isAtom = /<feed[^>]+xmlns=["']http:\/\/www\.w3\.org\/2005\/Atom["']/.test(rssText)
+    || (rssText.includes('<entry>') && !rssText.includes('<item>'))
   const articles = []
 
   if (isAtom) {

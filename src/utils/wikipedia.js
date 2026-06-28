@@ -59,8 +59,7 @@ export async function fetchOnThisDay(lang) {
 
   try {
     const res = await fetch(
-      `https://api.wikimedia.org/feed/v1/wikipedia/${wl(lang)}/onthisday/all/${m}/${d}`,
-      { headers: { 'Api-User-Agent': 'szol-app/1.0 (language-learning)' } }
+      `https://${wl(lang)}.wikipedia.org/api/rest_v1/feed/onthisday/all/${m}/${d}`
     )
     if (!res.ok) return []
     const data = await res.json()
