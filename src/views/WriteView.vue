@@ -120,7 +120,7 @@
       <!-- Separate scroll strip so the scrollbar is never blocked by canvas pointer events -->
       <div ref="scrollBarEl"
         class="canvas-scroll-strip"
-        :style="`overflow-x:auto; overflow-y:hidden; height:18px;${isRTL(lang) ? ' direction:rtl;' : ''}`"
+        :style="`overflow-x:auto; overflow-y:hidden; height:32px;${isRTL(lang) ? ' direction:rtl;' : ''}`"
         @scroll.passive="onScrollBarScroll">
         <div :style="`height:1px; width:${canvasCssWidth}px;`" />
       </div>
@@ -644,16 +644,26 @@ watch([() => props.lang, () => props.story], () => {
 </script>
 
 <style scoped>
-/* Make the canvas scrollbar strip visible and themed */
-.canvas-scroll-strip::-webkit-scrollbar { height: 6px; }
-.canvas-scroll-strip::-webkit-scrollbar-track { background: transparent; }
+/* Canvas scroll strip — tall hit area, chunky thumb easy to drag on touch */
+.canvas-scroll-strip::-webkit-scrollbar { height: 20px; }
+.canvas-scroll-strip::-webkit-scrollbar-track {
+  background: rgba(140,122,102,0.1);
+  border-radius: 10px;
+  margin: 0 8px;
+}
 .canvas-scroll-strip::-webkit-scrollbar-thumb {
-  background: rgba(140,122,102,0.45);
-  border-radius: 3px;
+  background: rgba(140,122,102,0.55);
+  border-radius: 10px;
+  border: 4px solid transparent;
+  background-clip: content-box;
+}
+.canvas-scroll-strip::-webkit-scrollbar-thumb:active {
+  background: rgba(140,122,102,0.8);
+  background-clip: content-box;
 }
 .canvas-scroll-strip {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(140,122,102,0.45) transparent;
+  scrollbar-width: auto;
+  scrollbar-color: rgba(140,122,102,0.55) rgba(140,122,102,0.1);
 }
 
 .hanzi-container {
