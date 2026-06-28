@@ -5,11 +5,6 @@
       {{ t(lang, 'noStory') }}
     </div>
 
-    <div v-else-if="!hasRecognition && !whisperEnabled" class="text-center py-12 flex flex-col gap-2">
-      <div class="text-sm" style="color:rgba(31,27,23,0.5);">Speech recognition not supported in this browser.</div>
-      <div class="text-xs" style="color:rgba(31,27,23,0.35);">Try Chrome or Edge, or download the on-device model below.</div>
-    </div>
-
     <div v-else class="flex flex-col gap-4">
 
       <!-- Header -->
@@ -57,6 +52,13 @@
         >{{ (lang === 'he' && nikudWords[i]) ? nikudWords[i] : word }}</span>
       </div>
 
+      <!-- Color key -->
+      <div v-if="scored" class="flex gap-4 text-xs" style="color:rgba(31,27,23,0.38);">
+        <span><span style="color:#4a783c; font-weight:600;">■</span> correct</span>
+        <span><span style="color:#a06020; font-weight:600;">■</span> close</span>
+        <span><span style="color:#9b4545; font-weight:600;">■</span> missed</span>
+      </div>
+
       <!-- Live interim transcript (Web Speech API only) -->
       <div
         v-if="recording && liveTranscript"
@@ -94,7 +96,7 @@
 
         <button
           @click="recording ? stopRecording() : startRecording()"
-          :disabled="isTranscribing || (whisperEnabled && !whisperReady && !hasRecognition)"
+          :disabled="isTranscribing"
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all disabled:opacity-40"
           :style="recording
             ? 'background:#8b3a3a; color:#e8dcc4; border-radius:3px;'
@@ -114,10 +116,10 @@
 
         <!-- Engine indicator -->
         <span
-          v-if="isNative"
+          v-if="engineLabel"
           class="self-center text-xs px-2"
           style="color:rgba(31,27,23,0.3);"
-        >Google ASR</span>
+        >{{ engineLabel }}</span>
       </div>
 
       <!-- Score -->
@@ -132,7 +134,7 @@
         <div class="text-3xl font-bold" :style="result.pct >= 80 ? 'color:#4a783c;' : 'color:#8b3a3a;'">{{ result.pct }}%</div>
         <div class="flex flex-col gap-0.5">
           <div class="text-sm" style="color:rgba(31,27,23,0.5);">{{ result.correct }} / {{ result.total }} words</div>
-          <div v-if="clarity !== null" class="text-xs" style="color:rgba(31,27,23,0.35);">clarity {{ Math.round(clarity * 100) }}%</div>
+          <div v-if="clarity !== null" class="text-xs" style="color:rgba(31,27,23,0.35);">pronunciation clarity {{ Math.round(clarity * 100) }}%</div>
         </div>
       </div>
 
@@ -153,13 +155,13 @@
         >{{ currentIdx < sentences.length - 1 ? 'Next' : 'Done' }}</button>
       </div>
 
-      <!-- ── Whisper download section (web only) ── -->
+      <!-- ── Offline backup section (web only) ── -->
       <div v-if="!isNative" class="mt-2" style="border-top:1px solid rgba(31,27,23,0.08); padding-top:1rem;">
 
         <!-- Downloading progress -->
         <div v-if="whisperDownloading" class="flex flex-col gap-1">
           <div class="flex items-center justify-between text-xs" style="color:rgba(31,27,23,0.4);">
-            <span>Downloading speech model…</span>
+            <span>Downloading offline model…</span>
             <span>{{ whisperPct }}%</span>
           </div>
           <div class="h-0.5 rounded-full overflow-hidden" style="background:rgba(31,27,23,0.1);">
@@ -173,33 +175,16 @@
           <button @click="downloadWhisper" class="self-start text-xs px-2.5 py-1 transition-all" style="border:1px solid rgba(31,27,23,0.2); border-radius:2px; color:rgba(31,27,23,0.55);">Retry</button>
         </div>
 
-        <!-- Prompt: not yet decided -->
-        <div v-else-if="whisperEnabled === null" class="flex flex-col gap-2">
-          <div class="text-xs" style="color:rgba(31,27,23,0.5);">Download offline speech model as backup (~150 MB) — recognition runs via server when online.</div>
-          <div class="flex gap-2">
-            <button
-              @click="downloadWhisper"
-              class="text-xs px-2.5 py-1 transition-all"
-              style="border:1px solid rgba(31,27,23,0.2); border-radius:2px; color:rgba(31,27,23,0.6);"
-            >Download</button>
-            <button
-              @click="skipWhisper"
-              class="text-xs transition-all"
-              style="color:rgba(31,27,23,0.3);"
-            >Skip</button>
-          </div>
+        <!-- Offline model ready -->
+        <div v-else-if="whisperReady" class="flex items-center justify-between">
+          <span class="text-xs" style="color:rgba(31,27,23,0.35);">Offline backup active · Groq when online.</span>
+          <button @click="skipWhisper" class="text-xs transition-all" style="color:rgba(31,27,23,0.25);">Remove</button>
         </div>
 
-        <!-- Whisper ready -->
-        <div v-else-if="whisperReady && whisperEnabled === 'on'" class="flex items-center justify-between">
-          <span class="text-xs" style="color:rgba(31,27,23,0.35);">On-device speech model active.</span>
-          <button @click="skipWhisper" class="text-xs transition-all" style="color:rgba(31,27,23,0.3);">Switch to browser</button>
-        </div>
-
-        <!-- Whisper opted out -->
-        <div v-else-if="whisperEnabled === 'off'" class="flex items-center gap-2">
-          <span class="text-xs" style="color:rgba(31,27,23,0.3);">Using browser recognition.</span>
-          <button @click="downloadWhisper" class="text-xs transition-all" style="color:rgba(31,27,23,0.4); text-decoration:underline;">Switch to Whisper</button>
+        <!-- Offer offline backup -->
+        <div v-else class="flex items-center justify-between">
+          <span class="text-xs" style="color:rgba(31,27,23,0.35);">Groq Whisper · server</span>
+          <button @click="downloadWhisper" class="text-xs transition-all" style="color:rgba(31,27,23,0.35); text-decoration:underline;">+ offline backup (~150 MB)</button>
         </div>
 
       </div>
@@ -243,6 +228,15 @@ const result         = ref(null)
 const scored         = ref(false)
 const recording      = ref(false)
 const isTranscribing = ref(false)
+const usedEngine     = ref(null) // 'groq' | 'local' | 'browser' | 'native'
+
+const engineLabel = computed(() => {
+  if (isNative) return usedEngine.value ? 'Google ASR' : null
+  if (usedEngine.value === 'groq')    return 'Groq'
+  if (usedEngine.value === 'local')   return 'whisper · local'
+  if (usedEngine.value === 'browser') return 'browser ASR'
+  return null
+})
 
 // Whisper state
 const whisperEnabled    = ref(localStorage.getItem('szol_whisper') ?? null) // 'on' | 'off' | null
@@ -439,6 +433,11 @@ async function speakSentence() {
 // ── Whisper path ──────────────────────────────────────────────────────────────
 
 async function startRecordingWhisper() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    // Platform doesn't support getUserMedia — fall back to Web Speech API
+    startRecordingWebSpeech()
+    return
+  }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     audioChunks = []
@@ -455,9 +454,11 @@ async function startRecordingWhisper() {
         if (res?.text) {
           transcript.value = res.text
           clarity.value    = res.clarity ?? null
-        } else {
+          usedEngine.value = 'groq'
+        } else if (whisperReady.value) {
           const audio = await blobToWhisperBuffer(blob)
           transcript.value = await transcribe(audio, props.lang, hint)
+          usedEngine.value = 'local'
         }
         scored.value = true
         result.value = lcsScore()
@@ -497,6 +498,7 @@ function startRecordingWebSpeech() {
     if (e.results[e.results.length - 1].isFinal) {
       transcript.value     = liveTranscript.value
       liveTranscript.value = ''
+      usedEngine.value     = 'browser'
       scored.value         = true
       result.value         = lcsScore()
       recording.value      = false
@@ -508,6 +510,7 @@ function startRecordingWebSpeech() {
     if (liveTranscript.value && !scored.value) {
       transcript.value     = liveTranscript.value
       liveTranscript.value = ''
+      usedEngine.value     = 'browser'
       scored.value         = true
       result.value         = lcsScore()
     }
@@ -537,6 +540,7 @@ async function startRecordingNative() {
     })
     transcript.value     = text
     liveTranscript.value = ''
+    usedEngine.value     = 'native'
     scored.value         = true
     result.value         = lcsScore()
   } catch {
@@ -555,15 +559,14 @@ async function stopRecordingNative() {
 // ── Unified entry points ──────────────────────────────────────────────────────
 
 function startRecording() {
-  if (isNative)              startRecordingNative()
-  else if (whisperReady.value) startRecordingWhisper()
-  else                       startRecordingWebSpeech()
+  if (isNative) startRecordingNative()
+  else          startRecordingWhisper()  // Groq backend → local fallback → browser
 }
 
 function stopRecording() {
-  if (isNative)              stopRecordingNative()
-  else if (whisperReady.value) stopRecordingWhisper()
-  else                       stopRecordingWebSpeech()
+  if (isNative) stopRecordingNative()
+  else if (mediaRecorder && mediaRecorder.state !== 'inactive') stopRecordingWhisper()
+  else          stopRecordingWebSpeech()
 }
 
 // ── Whisper download ──────────────────────────────────────────────────────────
@@ -601,6 +604,7 @@ function reset() {
   scored.value         = false
   recording.value      = false
   isTranscribing.value = false
+  usedEngine.value     = null
   recognition?.stop()
   if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
   if (isNative) TextToSpeech.stop().catch(() => {})
