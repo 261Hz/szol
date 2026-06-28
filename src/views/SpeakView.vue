@@ -220,6 +220,7 @@ import { saveProgress, getProgress, fetchFurigana, fetchNikud, transcribeViaBack
 import { transcribe, preloadSpeech, onSpeechProgress } from '../utils/localSpeech.js'
 import { blobToWhisperBuffer } from '../utils/audioUtils.js'
 import { isNative, startNativeRecognition, stopNativeRecognition } from '../utils/nativeSpeech.js'
+import { TextToSpeech } from '@capacitor-community/text-to-speech'
 
 const props = defineProps({
   story:       Object,
@@ -418,16 +419,21 @@ function lcsScore() {
   return { correct, total, pct: total > 0 ? Math.round(correct / total * 100) : 0 }
 }
 
-function speakSentence() {
+async function speakSentence() {
   const sentence = sentences.value[currentIdx.value]
   if (!sentence) return
   const bcp47 = LANGS[props.lang]?.bcp47 ?? props.lang
-  const utt   = new SpeechSynthesisUtterance(sentence)
-  utt.lang    = bcp47
-  const voice = pickVoice(voices.value, bcp47, props.lang)
-  if (voice) utt.voice = voice
-  speechSynthesis.cancel()
-  speechSynthesis.speak(utt)
+  if (isNative) {
+    await TextToSpeech.stop().catch(() => {})
+    await TextToSpeech.speak({ text: sentence, lang: bcp47, rate: 1.0, pitch: 1.0, volume: 1.0 }).catch(() => {})
+  } else if (typeof speechSynthesis !== 'undefined') {
+    const utt   = new SpeechSynthesisUtterance(sentence)
+    utt.lang    = bcp47
+    const voice = pickVoice(voices.value, bcp47, props.lang)
+    if (voice) utt.voice = voice
+    speechSynthesis.cancel()
+    speechSynthesis.speak(utt)
+  }
 }
 
 // ── Whisper path ──────────────────────────────────────────────────────────────
@@ -596,7 +602,8 @@ function reset() {
   recording.value      = false
   isTranscribing.value = false
   recognition?.stop()
-  speechSynthesis.cancel()
+  if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel()
+  if (isNative) TextToSpeech.stop().catch(() => {})
 }
 
 function next() {
