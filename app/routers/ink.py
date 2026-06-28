@@ -200,11 +200,48 @@ async def google_recognize(req: GoogleInkRequest):
 
 
 
-class FuriganaRequest(BaseModel):
+class TextRequest(BaseModel):
     text: str
 
+FuriganaRequest = TextRequest  # backwards compat alias
+
+@router.post("/nikud")
+async def nikud(req: TextRequest):
+    """Add Hebrew nikud (vowel points) via Dicta Nakdan API."""
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                "https://nakdan.dicta.org.il/api",
+                json={
+                    "task": "nakdan",
+                    "data": req.text,
+                    "genre": "modern",
+                    "addmorph": False,
+                    "keepqq": False,
+                    "matchpartial": True,
+                    "nikud": True,
+                },
+                headers={"Content-Type": "application/json"},
+            )
+        data = resp.json()
+        # Dicta returns a list of word entries; each may be a dict {word, sep} or a list of candidates
+        words = []
+        for entry in data:
+            if isinstance(entry, list):
+                # list of candidates — take the first non-empty word
+                w = next((c.get("word", "") for c in entry if c.get("word", "").strip()), "")
+            elif isinstance(entry, dict):
+                w = entry.get("word", "")
+            else:
+                w = str(entry)
+            words.append(w)
+        return {"words": words}
+    except Exception:
+        return {"words": req.text.split()}
+
 @router.post("/furigana")
-async def furigana(req: FuriganaRequest):
+async def furigana(req: TextRequest):
     try:
         import pykakasi
         kks = pykakasi.kakasi()
