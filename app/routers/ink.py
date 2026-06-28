@@ -2,8 +2,10 @@ import math
 import hmac as _hmac
 import hashlib
 import json as _json
+import os as _os
+import tempfile as _tempfile
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, File, Form, UploadFile
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/ink", tags=["ink"])
@@ -217,6 +219,49 @@ async def furigana(req: FuriganaRequest):
         return {"tokens": tokens}
     except Exception as e:
         return {"tokens": [{"w": req.text, "r": None}]}
+
+_SPEAK_WHISPER_LANG = {"arz": "ar", "zh-TW": "zh"}
+
+@router.post("/speak-transcribe")
+async def speak_transcribe(
+    file: UploadFile = File(...),
+    lang: str = Form("ar"),
+    hint: str = Form(""),
+):
+    try:
+        from app.config import settings
+        import groq as groq_sdk
+        if not settings.GROQ_API_KEY:
+            return {"text": "", "words": []}
+    except Exception:
+        return {"text": "", "words": []}
+
+    content = await file.read()
+    if len(content) < 500:
+        return {"text": "", "words": []}
+
+    ext = (file.filename or "audio.webm").rsplit(".", 1)[-1] or "webm"
+    whisper_lang = _SPEAK_WHISPER_LANG.get(lang, lang if len(lang) == 2 else None)
+    client = groq_sdk.Groq(api_key=settings.GROQ_API_KEY)
+
+    with _tempfile.TemporaryDirectory() as tmpdir:
+        path = _os.path.join(tmpdir, f"audio.{ext}")
+        with open(path, "wb") as fh:
+            fh.write(content)
+        with open(path, "rb") as f:
+            resp = client.audio.transcriptions.create(
+                file=(_os.path.basename(path), f),
+                model="whisper-large-v3",
+                response_format="verbose_json",
+                timestamp_granularities=["word"],
+                language=whisper_lang,
+                prompt=hint or None,
+            )
+
+    text = (resp.text or "").strip()
+    words = [{"word": w.word, "start": float(w.start), "end": float(w.end)}
+             for w in (getattr(resp, "words", None) or [])]
+    return {"text": text, "words": words}
 
 _MYSCRIPT_LANG_MAP = {
     # Non-Latin scripts
