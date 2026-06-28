@@ -293,12 +293,24 @@ const scrollContainerEl = ref(null)
 const scrollBarEl       = ref(null)
 
 function setScrollLeft(val) {
-  if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = val
-  if (scrollBarEl.value)       scrollBarEl.value.scrollLeft       = val
+  if (scrollBarEl.value) scrollBarEl.value.scrollLeft = val
+  if (scrollContainerEl.value) {
+    // RTL scrollbar: val=0 is right end, negative values go left.
+    // Container has no direction:rtl, so its scrollLeft=0 is the left end.
+    // Convert: containerSL = maxScroll + val (val ≤ 0 for RTL).
+    const containerVal = isRTL(props.lang)
+      ? (canvasCssWidth.value - window.innerWidth) + val
+      : val
+    scrollContainerEl.value.scrollLeft = containerVal
+  }
 }
 
 function onScrollBarScroll(e) {
-  if (scrollContainerEl.value) scrollContainerEl.value.scrollLeft = e.target.scrollLeft
+  if (!scrollContainerEl.value) return
+  const containerVal = isRTL(props.lang)
+    ? (canvasCssWidth.value - window.innerWidth) + e.target.scrollLeft
+    : e.target.scrollLeft
+  scrollContainerEl.value.scrollLeft = containerVal
 }
 const checking        = ref(false)
 const checkResult     = ref(null)
