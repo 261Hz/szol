@@ -118,11 +118,6 @@
           class="self-center text-xs px-2"
           style="color:rgba(31,27,23,0.3);"
         >Google ASR</span>
-        <span
-          v-else-if="whisperReady"
-          class="self-center text-xs px-2"
-          style="color:rgba(31,27,23,0.3);"
-        >Whisper</span>
       </div>
 
       <!-- Score -->
@@ -180,7 +175,7 @@
 
         <!-- Prompt: not yet decided -->
         <div v-else-if="whisperEnabled === null" class="flex flex-col gap-2">
-          <div class="text-xs" style="color:rgba(31,27,23,0.5);">Download Whisper for better recognition — especially for Arabic &amp; Hebrew (~150 MB).</div>
+          <div class="text-xs" style="color:rgba(31,27,23,0.5);">Download offline speech model as backup (~150 MB) — recognition runs via server when online.</div>
           <div class="flex gap-2">
             <button
               @click="downloadWhisper"
@@ -191,7 +186,7 @@
               @click="skipWhisper"
               class="text-xs transition-all"
               style="color:rgba(31,27,23,0.3);"
-            >Use browser recognition</button>
+            >Skip</button>
           </div>
         </div>
 
@@ -344,6 +339,8 @@ function splitUnits(text) {
 const sentenceWords = computed(() => {
   if (props.lang === 'ja' && furiganaTokens.value.length)
     return furiganaTokens.value.map(t => t.w)
+  if (props.lang === 'he' && nikudWords.value.length)
+    return nikudWords.value
   return splitUnits(sentences.value[currentIdx.value] ?? '')
 })
 
