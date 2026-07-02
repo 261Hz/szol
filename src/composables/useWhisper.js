@@ -37,13 +37,20 @@ export function useWhisper() {
   // cap is accurate. Without it we estimate from file size ÷ 128 kbps, which
   // under-counts 64 kbps feeds by 2× and can let large episodes slip through.
   async function transcribe(audioUrl, lang, episodeDurationSecs) {
-    phase.value            = 'idle'
-    modelPct.value         = 0
-    transcribePct.value    = 0
-    errorMsg.value         = ''
-    sizeWarning.value      = 0
+    // Abort any in-progress run before starting a new one.
+    _sizeConfirmResolve?.(false)
+    _sizeConfirmResolve = null
     needsSizeConfirm.value = false
-    modelFiles             = { total: 0, done: 0 }
+    cancelCurrentTranscription()
+
+    // Use 'fetching' immediately — skips the 'idle' flash that would briefly
+    // re-show the Whisper button and allow a second concurrent click.
+    phase.value         = 'fetching'
+    modelPct.value      = 0
+    transcribePct.value = 0
+    errorMsg.value      = ''
+    sizeWarning.value   = 0
+    modelFiles          = { total: 0, done: 0 }
 
     try {
       const segments = await transcribeAudio(audioUrl, lang, async (p, extra) => {
