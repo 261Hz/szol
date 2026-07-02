@@ -1,6 +1,9 @@
 // Singleton Whisper worker + main-thread audio decode/resample.
 // AudioContext / OfflineAudioContext are main-thread only — decode stays here.
 
+// Backend URL — matches api.js. On CORS failure the audio is proxied through here.
+const BACKEND = 'https://szol.onrender.com'
+
 let worker    = null
 let seq       = 1
 const pending   = new Map()
@@ -182,7 +185,24 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
           if (proceed === false) throw new Error('CANCELLED')
         }
       }
-      const r = await fetch(audioUrl, { signal: ctrl.signal })
+
+      // Try direct fetch first; fall through to backend proxy on CORS TypeError.
+      // The proxy response resolves tracking redirects, giving us real Content-Type —
+      // fixing the codec-detection blind spot for extensionless redirect URLs.
+      let r
+      try {
+        r = await fetch(audioUrl, { signal: ctrl.signal })
+      } catch (directErr) {
+        if (directErr.name === 'AbortError') throw new Error('CANCELLED')
+        if (directErr instanceof TypeError) {
+          const proxyUrl = `${BACKEND}/proxy/audio?url=${encodeURIComponent(audioUrl)}`
+          r = await fetch(proxyUrl, { signal: ctrl.signal })
+          // Re-detect codec from actual resolved response (tracking redirects resolved)
+          codec = detectCodec(r.url || audioUrl, r.headers.get('content-type') || '')
+        } else {
+          throw directErr
+        }
+      }
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       arrayBuffers = [await r.arrayBuffer()]
     }

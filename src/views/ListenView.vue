@@ -248,56 +248,10 @@
         </div>
       </div>
 
-      <!-- Analog VU meters + transport -->
+      <!-- Waveform + transport -->
       <div class="vu-wrap">
 
-        <!-- Dual needle meters -->
-        <svg class="vu-svg" viewBox="0 0 430 130" xmlns="http://www.w3.org/2000/svg">
-          <!-- LEFT CHANNEL -->
-          <g>
-            <path :d="VU_ARC_FULL" fill="none" stroke="rgba(31,27,23,0.11)" stroke-width="2.5" stroke-linecap="round"/>
-            <path :d="VU_ARC_RED"  fill="none" stroke="rgba(155,25,15,0.38)" stroke-width="2.5" stroke-linecap="round"/>
-            <g v-for="t in VU_TICKS" :key="'L'+t.label">
-              <line
-                :x1="(100 + 67 * Math.sin(t.angle * DEG)).toFixed(1)" :y1="(105 - 67 * Math.cos(t.angle * DEG)).toFixed(1)"
-                :x2="(100 + 79 * Math.sin(t.angle * DEG)).toFixed(1)" :y2="(105 - 79 * Math.cos(t.angle * DEG)).toFixed(1)"
-                :stroke="t.red ? 'rgba(155,25,15,0.4)' : 'rgba(31,27,23,0.25)'" stroke-width="1.2"/>
-              <text
-                :x="(100 + 91 * Math.sin(t.angle * DEG)).toFixed(1)" :y="(105 - 91 * Math.cos(t.angle * DEG)).toFixed(1)"
-                text-anchor="middle" dominant-baseline="middle" font-size="7"
-                :fill="t.red ? 'rgba(155,25,15,0.5)' : 'rgba(31,27,23,0.38)'"
-                font-family="'Courier New',monospace">{{ t.label }}</text>
-            </g>
-            <g :transform="`rotate(${needleAngleL.toFixed(1)},100,105)`">
-              <line x1="100" y1="105" x2="100" y2="26" stroke="rgba(31,27,23,0.72)" stroke-width="1.4" stroke-linecap="round"/>
-            </g>
-            <circle cx="100" cy="105" r="3" fill="rgba(31,27,23,0.48)"/>
-            <text x="100" y="122" text-anchor="middle" font-size="7" fill="rgba(31,27,23,0.3)" font-family="'Courier New',monospace" letter-spacing="1.5">LEFT CHANNEL</text>
-          </g>
-          <!-- RIGHT CHANNEL (offset 215px) -->
-          <g transform="translate(215,0)">
-            <path :d="VU_ARC_FULL" fill="none" stroke="rgba(31,27,23,0.11)" stroke-width="2.5" stroke-linecap="round"/>
-            <path :d="VU_ARC_RED"  fill="none" stroke="rgba(155,25,15,0.38)" stroke-width="2.5" stroke-linecap="round"/>
-            <g v-for="t in VU_TICKS" :key="'R'+t.label">
-              <line
-                :x1="(100 + 67 * Math.sin(t.angle * DEG)).toFixed(1)" :y1="(105 - 67 * Math.cos(t.angle * DEG)).toFixed(1)"
-                :x2="(100 + 79 * Math.sin(t.angle * DEG)).toFixed(1)" :y2="(105 - 79 * Math.cos(t.angle * DEG)).toFixed(1)"
-                :stroke="t.red ? 'rgba(155,25,15,0.4)' : 'rgba(31,27,23,0.25)'" stroke-width="1.2"/>
-              <text
-                :x="(100 + 91 * Math.sin(t.angle * DEG)).toFixed(1)" :y="(105 - 91 * Math.cos(t.angle * DEG)).toFixed(1)"
-                text-anchor="middle" dominant-baseline="middle" font-size="7"
-                :fill="t.red ? 'rgba(155,25,15,0.5)' : 'rgba(31,27,23,0.38)'"
-                font-family="'Courier New',monospace">{{ t.label }}</text>
-            </g>
-            <g :transform="`rotate(${needleAngleR.toFixed(1)},100,105)`">
-              <line x1="100" y1="105" x2="100" y2="26" stroke="rgba(31,27,23,0.72)" stroke-width="1.4" stroke-linecap="round"/>
-            </g>
-            <circle cx="100" cy="105" r="3" fill="rgba(31,27,23,0.48)"/>
-            <text x="100" y="122" text-anchor="middle" font-size="7" fill="rgba(31,27,23,0.3)" font-family="'Courier New',monospace" letter-spacing="1.5">RIGHT CHANNEL</text>
-          </g>
-        </svg>
-
-        <!-- Physics-realistic waveform -->
+        <!-- Waveform canvas -->
         <canvas ref="waveformCanvas" class="wave-canvas" @click="onWaveClick" @mousedown="onWaveDragStart" />
 
         <!-- Time + scrubber -->
@@ -589,12 +543,14 @@ const {
 
 async function startWhisper() {
   if (!selectedStory.value?.audio_url) return
-  // Pass loaded audio duration for accurate AAC size gating.
-  // duration.value is set by onAudioLoaded() once <audio> metadata is available.
+  // Real episode duration: prefer loaded audio element, fall back to RSS itunes:duration.
+  // duration_sec comes from the backend PodcastEpisodeResponse schema.
+  // CORS-blocked audio won't load metadata, so the RSS value is the reliable source.
+  const episodeSecs = duration.value || selectedStory.value?.duration_sec || null
   const segs = await whisperTranscribe(
     selectedStory.value.audio_url,
     props.lang,
-    duration.value || null,
+    episodeSecs,
   )
   if (segs?.length) {
     segments.value = segs
@@ -925,7 +881,7 @@ async function tryFetchTranscript(storyId, title, podcastName) {
 
     // Podcast Index lookup — catches episodes with transcripts registered by
     // third-party services (Podscribe, Scribie, etc.) not in the RSS feed
-    const piFeedUrl = selectedStory.value?.podcast_feed_url ?? selectedStory.value?.feed_url
+    const piFeedUrl = selectedStory.value?.feed_url ?? selectedStory.value?.podcast_feed_url
     if (piFeedUrl) {
       const audioForLookup = storyId?.startsWith('http') ? storyId : selectedStory.value?.audio_url
       const episodeGuid    = selectedStory.value?.guid ?? null
@@ -1338,54 +1294,29 @@ function onWaveDragStart(e) {
   window.addEventListener('mouseup',  up)
 }
 
+// Seed waveform with pseudo-random amplitudes derived from the audio URL.
+// Real measured peaks will overwrite these as the user listens.
+function seedWaveform(url) {
+  const h = new Float32Array(WAVE_BARS)
+  let s = 0
+  for (let i = 0; i < (url || '').length; i++) s = (s * 31 + url.charCodeAt(i)) >>> 0
+  for (let i = 0; i < WAVE_BARS; i++) {
+    s = (s * 1664525 + 1013904223) >>> 0
+    const base = (s >>> 17) / 32767
+    // shape: louder in the middle, quieter at edges
+    const env = Math.sin((i / WAVE_BARS) * Math.PI) * 0.6 + 0.2
+    h[i] = Math.min(1, base * env + 0.08)
+  }
+  waveHistory.value = h
+}
+
 // Reset accumulated waveform when story changes
-watch(selectedStory, async () => {
-  waveHistory.value = new Float32Array(WAVE_BARS)
+watch(selectedStory, async (story) => {
+  seedWaveform(story?.audio_url || '')
   await nextTick()
   drawWaveform()
 })
 watch(currentTime, drawWaveform)
-
-// ── Analog VU meter constants ─────────────────────────────────────────────────
-
-const DEG      = Math.PI / 180
-const VU_START = -80   // degrees from 12 o'clock at -20 dB
-const VU_END   = +40   // degrees from 12 o'clock at +3 dB
-const VU_RANGE = VU_END - VU_START
-
-function _vuPt(deg, r) {
-  return [(100 + r * Math.sin(deg * DEG)).toFixed(1), (105 - r * Math.cos(deg * DEG)).toFixed(1)]
-}
-function vuArcPath(startDeg, endDeg, r) {
-  const [x1,y1] = _vuPt(startDeg, r)
-  const [x2,y2] = _vuPt(endDeg, r)
-  const la = Math.abs(endDeg - startDeg) > 180 ? 1 : 0
-  return `M ${x1} ${y1} A ${r} ${r} 0 ${la} 1 ${x2} ${y2}`
-}
-function _dbToAngle(db) { return VU_START + ((db + 20) / 23) * VU_RANGE }
-
-const VU_ARC_FULL = vuArcPath(VU_START, VU_END, 78)
-const VU_ARC_RED  = vuArcPath(_dbToAngle(0), VU_END, 78)
-const VU_TICKS    = [-20, -10, -6, 0, 3].map(db => ({
-  label: db > 0 ? `+${db}` : `${db}`,
-  angle: _dbToAngle(db),
-  red:   db >= 0,
-}))
-
-// VU meter 0–1 levels — bars range 4..56, normalise to that span
-const vuLeft = computed(() => {
-  if (!isPlaying.value) return 0
-  const avg = bars.value.slice(0, 20).reduce((a, b) => a + b, 0) / 20
-  return Math.min(1, Math.max(0, (avg - 4) / 52))
-})
-const vuRight = computed(() => {
-  if (!isPlaying.value) return 0
-  const avg = bars.value.slice(20).reduce((a, b) => a + b, 0) / 20
-  return Math.min(1, Math.max(0, (avg - 4) / 52))
-})
-// Needle angles in degrees from 12 o'clock (clockwise)
-const needleAngleL = computed(() => VU_START + vuLeft.value  * VU_RANGE)
-const needleAngleR = computed(() => VU_START + vuRight.value * VU_RANGE)
 
 // ── Waveform / VU bars (Web Audio API analyser with fallback) ────────────────
 
@@ -1630,7 +1561,7 @@ onUnmounted(() => {
 /* ── Waveform canvas ────────────────────────────────────────────────────────── */
 .wave-canvas {
   width: 100%;
-  height: 56px;
+  height: 80px;
   display: block;
   cursor: crosshair;
   border-radius: 2px;
