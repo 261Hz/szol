@@ -460,8 +460,26 @@
         <template v-else>
           <div class="text-sm text-stone-500">{{ t(lang, 'noTranscript') }}</div>
 
+          <!-- Whisper: large-episode confirmation gate -->
+          <div v-if="whisperNeedsSizeConfirm" class="flex flex-col gap-2 p-3 rounded border border-amber-800 bg-amber-950">
+            <div class="text-xs text-amber-300">
+              This episode is ~{{ whisperSizeWarning }} min. Decoding AAC audio requires loading the entire file
+              (~{{ Math.round(whisperSizeWarning * 0.35) }} MB peak memory). Continue?
+            </div>
+            <div class="flex gap-2">
+              <button
+                @click="whisperConfirmLarge"
+                class="text-xs px-3 py-1 rounded border border-amber-600 text-amber-400 hover:bg-amber-900 transition-all"
+              >Continue</button>
+              <button
+                @click="whisperRejectLarge"
+                class="text-xs px-3 py-1 rounded border border-stone-700 text-stone-500 hover:text-stone-300 transition-all"
+              >Cancel</button>
+            </div>
+          </div>
+
           <!-- Whisper progress -->
-          <div v-if="whisperPhase !== 'idle' && whisperPhase !== 'done'" class="flex flex-col gap-2">
+          <div v-if="whisperPhase !== 'idle' && whisperPhase !== 'done' && !whisperNeedsSizeConfirm" class="flex flex-col gap-2">
             <div class="text-xs text-stone-400">
               <span v-if="whisperPhase === 'fetching'">Downloading audio…</span>
               <span v-else-if="whisperPhase === 'decoding'">Decoding audio…</span>
@@ -489,11 +507,11 @@
             <button
               v-if="selectedStory?.audio_url && (whisperPhase === 'idle' || whisperPhase === 'error')"
               @click="startWhisper"
-              class="text-sm px-4 py-1.5 rounded border border-stone-600 text-stone-300 hover:border-emerald-600 hover:text-emerald-400 transition-all"
+              class="text-sm px-4 py-1.5 rounded border border-red-800 text-red-500 hover:border-red-600 hover:text-red-400 transition-all"
             >Transcribe with Whisper</button>
             <button
               @click="pasteMode = true"
-              class="text-sm px-4 py-1.5 rounded border border-stone-600 text-stone-300 hover:border-stone-400 transition-all"
+              class="text-sm px-4 py-1.5 rounded border border-red-800 text-red-500 hover:border-red-600 hover:text-red-400 transition-all"
             >{{ t(lang, 'pasteTranscript') }}</button>
           </div>
         </template>
@@ -556,18 +574,28 @@ const { translateText, isTranslating, isDownloading, downloadPct, downloadLabel 
 const localTranslation = ref('')
 
 const {
-  phase:         whisperPhase,
-  modelPct:      whisperModelPct,
-  transcribePct: whisperTranscribePct,
-  errorMsg:      whisperError,
-  transcribe:    whisperTranscribe,
-  reset:         whisperReset,
-  cancel:        whisperCancel,
+  phase:              whisperPhase,
+  modelPct:           whisperModelPct,
+  transcribePct:      whisperTranscribePct,
+  errorMsg:           whisperError,
+  sizeWarning:        whisperSizeWarning,
+  needsSizeConfirm:   whisperNeedsSizeConfirm,
+  transcribe:         whisperTranscribe,
+  reset:              whisperReset,
+  cancel:             whisperCancel,
+  confirmLargeEpisode: whisperConfirmLarge,
+  rejectLargeEpisode:  whisperRejectLarge,
 } = useWhisper()
 
 async function startWhisper() {
   if (!selectedStory.value?.audio_url) return
-  const segs = await whisperTranscribe(selectedStory.value.audio_url, props.lang)
+  // Pass loaded audio duration for accurate AAC size gating.
+  // duration.value is set by onAudioLoaded() once <audio> metadata is available.
+  const segs = await whisperTranscribe(
+    selectedStory.value.audio_url,
+    props.lang,
+    duration.value || null,
+  )
   if (segs?.length) {
     segments.value = segs
     await saveStoredTranscript(selectedStory.value.id, segs)
@@ -900,7 +928,8 @@ async function tryFetchTranscript(storyId, title, podcastName) {
     const piFeedUrl = selectedStory.value?.podcast_feed_url ?? selectedStory.value?.feed_url
     if (piFeedUrl) {
       const audioForLookup = storyId?.startsWith('http') ? storyId : selectedStory.value?.audio_url
-      const piTxUrl = await fetchPodcastIndexTranscript(piFeedUrl, audioForLookup).catch(() => null)
+      const episodeGuid    = selectedStory.value?.guid ?? null
+      const piTxUrl = await fetchPodcastIndexTranscript(piFeedUrl, audioForLookup, episodeGuid).catch(() => null)
       if (piTxUrl) {
         const r = await fetch(`/api/fetch-transcript?url=${encodeURIComponent(piTxUrl)}`).catch(() => null)
         if (r?.ok) {

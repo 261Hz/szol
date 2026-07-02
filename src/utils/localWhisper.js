@@ -7,9 +7,16 @@ const pending   = new Map()
 const listeners = new Set()
 let _currentAbort = null
 
-// 20 MB per range-request chunk: decode one slice at a time so peak RAM is
-// ~3× a single chunk (~60 MB) rather than 3× the entire file (~3–4 GB for long episodes)
-const RANGE_CHUNK = 20 * 1024 * 1024
+// 20 MB per fetch segment. MP3 frames are independently decodable at byte offsets;
+// AAC/MP4 containers need the moov atom — they cannot be range-decoded.
+const RANGE_CHUNK   = 20 * 1024 * 1024
+// Fallback bit-rate when RSS duration is unavailable.
+// 128 kbps is safe for most podcasts; pass episodeDurationSecs for 64 kbps feeds.
+const BYTES_PER_SEC = 16_000
+// Hard cap: decode peak memory would exceed ~1.9 GB for AAC
+const AAC_MAX_MINS  = 90
+// Soft warning: decode peak ~635 MB, risky on mobile
+const AAC_WARN_MINS = 30
 
 function getWorker() {
   if (worker) return worker
@@ -23,7 +30,7 @@ function getWorker() {
     const p = pending.get(id)
     if (!p) return
     pending.delete(id)
-    if (type === 'result')    p.resolve(data.segments)
+    if (type === 'result')     p.resolve(data.segments)
     else if (type === 'ready') p.resolve(true)
     else p.reject(new Error(data.error || 'Whisper worker error'))
   }
@@ -40,8 +47,25 @@ export function onWhisperProgress(fn) {
   return () => listeners.delete(fn)
 }
 
-// Decode any browser-supported audio to 16 kHz mono Float32.
-// AudioContext / OfflineAudioContext are main-thread only — keep this here.
+// Hard-stop the worker. Model files stay in the browser cache; next getWorker()
+// recreates the worker and the cached files avoid a full re-download.
+export function terminateWhisperWorker() {
+  if (worker) { worker.terminate(); worker = null }
+  pending.forEach(p => p.reject(new Error('CANCELLED')))
+  pending.clear()
+}
+
+function detectCodec(url, contentType) {
+  const ext = (url.split('?')[0].split('.').pop() ?? '').toLowerCase()
+  const ct  = (contentType ?? '').toLowerCase()
+  if (ext === 'mp3' || ct.includes('mpeg') || ct.includes('mp3')) return 'mp3'
+  if (['m4a', 'mp4', 'aac', 'm4b'].includes(ext) ||
+      ct.includes('mp4') || ct.includes('aac') || ct.includes('m4a')) return 'aac'
+  return 'unknown'
+}
+
+// Returns standalone Float32Array (byteOffset=0, owns its whole buffer) — safe to
+// postMessage-transfer without an extra .slice() copy at the call site.
 async function decodeAudioTo16k(arrayBuffer) {
   const audioCtx    = new AudioContext()
   const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
@@ -49,15 +73,17 @@ async function decodeAudioTo16k(arrayBuffer) {
   const channels    = audioBuffer.numberOfChannels
   audioCtx.close()
 
-  // Downmix to mono
-  const mono = new Float32Array(audioBuffer.length)
+  // Hoist channel data references outside the loop — getChannelData(c) inside the
+  // per-sample loop would be ~240M method calls for a 45-min stereo file.
+  const chans = Array.from({ length: channels }, (_, c) => audioBuffer.getChannelData(c))
+  const mono  = new Float32Array(audioBuffer.length)
   for (let i = 0; i < audioBuffer.length; i++) {
     let s = 0
-    for (let c = 0; c < channels; c++) s += audioBuffer.getChannelData(c)[i]
+    for (let c = 0; c < channels; c++) s += chans[c][i]
     mono[i] = s / channels
   }
 
-  if (inputRate === 16000) return { pcm: mono, samplingRate: 16000 }
+  if (inputRate === 16000) return mono   // already a standalone Float32Array
 
   const targetRate = 16000
   const offlineCtx = new OfflineAudioContext(1, Math.ceil(audioBuffer.duration * targetRate), targetRate)
@@ -68,100 +94,161 @@ async function decodeAudioTo16k(arrayBuffer) {
   src.connect(offlineCtx.destination)
   src.start(0)
   const rendered = await offlineCtx.startRendering()
-  return { pcm: rendered.getChannelData(0), samplingRate: 16000 }
+
+  // getChannelData returns a view into AudioBuffer's internal memory — copy into a
+  // standalone buffer that we can transfer (no extra slice at the call site).
+  return new Float32Array(rendered.getChannelData(0))
 }
 
-export async function transcribeAudio(audioUrl, lang, onPhase) {
+// transcribeAudio(audioUrl, lang, onPhase, episodeDurationSecs?)
+//
+// onPhase(phase, extra?) — caller may return a Promise or boolean.
+//   Returning false from 'size_warning' cancels the operation before the fetch starts.
+//   'fetching'             — downloading audio bytes
+//   'decoding'             — decoding current segment
+//   'transcribing'         — Whisper inference on current segment
+//   'size_warning', { estimatedMins }  — large AAC episode; return false to cancel
+//
+// episodeDurationSecs: pass from RSS itunes:duration or audio element.
+//   Without it, byte-count ÷ 128 kbps is used — badly wrong for 64 kbps feeds.
+//   A 3-hour 64 kbps episode estimates as 90 min, just under the cap, and would OOM.
+export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSecs) {
   const ctrl = new AbortController()
   _currentAbort = ctrl
 
-  // 1 — fetch (range-chunked when the CDN supports it to cap peak RAM)
   onPhase?.('fetching')
+
   let arrayBuffers
+  let totalEstimatedChunks = 1
 
   try {
     let contentLength  = 0
     let supportsRanges = false
+    let codec          = detectCodec(audioUrl, '')
 
     try {
       const head = await fetch(audioUrl, { method: 'HEAD', signal: ctrl.signal })
       if (head.ok) {
         contentLength  = parseInt(head.headers.get('content-length') || '0', 10)
         supportsRanges = head.headers.get('accept-ranges') === 'bytes'
+        codec          = detectCodec(audioUrl, head.headers.get('content-type') || '')
       }
     } catch (e) {
       if (e.name === 'AbortError') throw new Error('CANCELLED')
-      // HEAD failed — continue to full fetch
+      // HEAD failed or CORS-blocked — continue with codec guessed from URL
     }
 
-    if (contentLength > RANGE_CHUNK && supportsRanges) {
-      arrayBuffers = []
-      const numChunks = Math.ceil(contentLength / RANGE_CHUNK)
-      for (let i = 0; i < numChunks; i++) {
-        if (ctrl.signal.aborted) throw new Error('CANCELLED')
-        const start = i * RANGE_CHUNK
-        const end   = Math.min(start + RANGE_CHUNK - 1, contentLength - 1)
-        const r = await fetch(audioUrl, { signal: ctrl.signal, headers: { Range: `bytes=${start}-${end}` } })
-        if (!r.ok && r.status !== 206) throw new Error(`HTTP ${r.status}`)
-        arrayBuffers.push(await r.arrayBuffer())
+    // Real episode duration beats byte-count estimate: 64 kbps feeds are 2× longer than
+    // 128 kbps would predict, so the byte estimate alone would let a 3-hour episode slip
+    // under the safety cap.
+    const estimatedSecs  = episodeDurationSecs ?? (contentLength ? contentLength / BYTES_PER_SEC : 0)
+    const estimatedMins  = Math.round(estimatedSecs / 60)
+    totalEstimatedChunks = Math.max(1, Math.ceil(estimatedSecs / 25))
+
+    if (codec === 'mp3' && contentLength > RANGE_CHUNK && supportsRanges) {
+      // Range is not a CORS-safelisted header — triggers OPTIONS preflight many CDNs reject.
+      // Wrap in try/catch so failures fall through to single-fetch.
+      try {
+        arrayBuffers = []
+        const numChunks = Math.ceil(contentLength / RANGE_CHUNK)
+        for (let i = 0; i < numChunks; i++) {
+          if (ctrl.signal.aborted) throw new Error('CANCELLED')
+          const start = i * RANGE_CHUNK
+          const end   = Math.min(start + RANGE_CHUNK - 1, contentLength - 1)
+          const r = await fetch(audioUrl, { signal: ctrl.signal, headers: { Range: `bytes=${start}-${end}` } })
+          if (!r.ok && r.status !== 206) throw new Error(`HTTP ${r.status}`)
+          arrayBuffers.push(await r.arrayBuffer())
+        }
+      } catch (e) {
+        if (e.name === 'AbortError' || e.message === 'CANCELLED') throw e
+        arrayBuffers = null  // range fetch failed; fall through to single-fetch
       }
-    } else {
+    }
+
+    if (!arrayBuffers) {
+      // Single-fetch path: AAC, unknown codec, or range fallback.
+      if (codec !== 'mp3') {
+        if (estimatedMins > AAC_MAX_MINS) {
+          throw new Error(
+            `This episode is ~${estimatedMins} min. AAC/MP4 audio must be decoded in full — ` +
+            `${estimatedMins} min exceeds safe memory limits. ` +
+            `Download the file and paste a local transcript instead.`
+          )
+        }
+        if (estimatedMins > AAC_WARN_MINS) {
+          // Await the callback so the UI can pause for user confirmation.
+          // If the caller returns false the fetch is cancelled before it starts.
+          const proceed = await onPhase?.('size_warning', { estimatedMins })
+          if (proceed === false) throw new Error('CANCELLED')
+        }
+      }
       const r = await fetch(audioUrl, { signal: ctrl.signal })
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       arrayBuffers = [await r.arrayBuffer()]
     }
   } catch (e) {
     if (e.message === 'CANCELLED' || e.name === 'AbortError') throw new Error('CANCELLED')
-    const isCors = e instanceof TypeError && e.message.toLowerCase().includes('fetch')
-    throw new Error(isCors
-      ? 'CORS: this feed blocks direct audio access. Download the episode and paste a local transcript instead.'
-      : `Could not load audio: ${e.message}`)
+    // Any TypeError from fetch() is a network or CORS failure.
+    // Safari: "Load failed"  Firefox: "NetworkError when attempting to fetch resource"
+    // Chrome: "Failed to fetch" — don't match on message text, just the error type.
+    if (e instanceof TypeError) {
+      throw new Error('CORS: this feed blocks direct audio access. Download the episode and paste a local transcript instead.')
+    }
+    throw e.message.match(/^(This episode|HTTP )/) ? e : new Error(`Could not load audio: ${e.message}`)
   }
 
-  // 2 — decode each chunk to 16 kHz mono, then concatenate
-  // Processing one chunk at a time keeps peak intermediate RAM around 60–120 MB
-  if (ctrl.signal.aborted) throw new Error('CANCELLED')
-  onPhase?.('decoding')
+  // Per-segment pipeline: decode → Whisper (with timeOffset) → free PCM → next.
+  // Peak RAM ≤ one segment's decoded PCM at a time, bounded regardless of episode length.
+  const allSegments   = []
+  let timeOffset      = 0
+  let chunksProcessed = 0
 
-  const pcmChunks  = []
-  let totalSamples = 0
   for (let i = 0; i < arrayBuffers.length; i++) {
     if (ctrl.signal.aborted) throw new Error('CANCELLED')
-    const { pcm } = await decodeAudioTo16k(arrayBuffers[i])
-    pcmChunks.push(pcm)
-    totalSamples  += pcm.length
-    arrayBuffers[i] = null // release compressed buffer
+    onPhase?.('decoding')
+
+    const pcm = await decodeAudioTo16k(arrayBuffers[i])
+    arrayBuffers[i] = null   // release compressed buffer
+
+    if (ctrl.signal.aborted) throw new Error('CANCELLED')
+    onPhase?.('transcribing')
+
+    const segDuration = pcm.length / 16000
+    const segChunks   = Math.ceil(segDuration / 25)
+
+    // pcm is a standalone Float32Array — transfer its buffer directly (no slice copy)
+    const segments = await new Promise((resolve, reject) => {
+      const id = seq++
+      pending.set(id, { resolve, reject })
+      getWorker().postMessage(
+        {
+          id, type: 'transcribe',
+          audio: pcm.buffer, samplingRate: 16000, lang,
+          totalChunks:  totalEstimatedChunks,
+          chunksOffset: chunksProcessed,
+          timeOffset,
+        },
+        [pcm.buffer],
+      )
+    })
+
+    allSegments.push(...segments)
+    timeOffset      += segDuration
+    chunksProcessed += segChunks
   }
-  arrayBuffers = null
 
-  const combined = new Float32Array(totalSamples)
-  let offset = 0
-  for (const chunk of pcmChunks) { combined.set(chunk, offset); offset += chunk.length }
-
-  const durationSec = totalSamples / 16000
-  const totalChunks = Math.ceil(durationSec / 25) // 30 s chunk − 5 s stride = 25 s of new audio each
-
-  // 3 — transfer PCM to worker and run inference
-  if (ctrl.signal.aborted) throw new Error('CANCELLED')
-  onPhase?.('transcribing')
-  const buf = combined.buffer.slice(combined.byteOffset, combined.byteOffset + combined.byteLength)
-
-  return new Promise((resolve, reject) => {
-    const id = seq++
-    pending.set(id, { resolve, reject })
-    getWorker().postMessage(
-      { id, type: 'transcribe', audio: buf, samplingRate: 16000, lang, totalChunks },
-      [buf],
-    )
-  })
+  return allSegments
 }
 
+// Cancel: abort the fetch and terminate the worker.
+// The WASM ONNX runtime runs synchronously — the worker's event loop is blocked
+// during inference, so a 'cancel' message would sit in the queue until inference
+// finishes. Worker termination is the only reliable cancel path for WASM.
+// WebGPU operations are partially async but termination is still the safest route.
 export function cancelCurrentTranscription() {
   _currentAbort?.abort()
   _currentAbort = null
-  if (worker) worker.postMessage({ type: 'cancel' })
-  pending.forEach(p => p.reject(new Error('CANCELLED')))
-  pending.clear()
+  terminateWhisperWorker()
 }
 
 export function preloadWhisper() {

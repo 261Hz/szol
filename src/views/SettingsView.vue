@@ -94,15 +94,19 @@
       <div class="flex items-start justify-between gap-4 py-3 px-4" style="border:1px solid rgba(31,27,23,0.12); border-radius:3px;">
         <div class="flex flex-col gap-0.5">
           <div class="text-sm" style="color:#1f1b17;">Whisper transcription</div>
-          <div class="text-xs" style="color:rgba(31,27,23,0.45);">Speech-to-text for podcast episodes without transcripts. Downloads automatically when first used. ~74 MB (WASM) or ~240 MB (WebGPU).</div>
+          <div class="text-xs" style="color:rgba(31,27,23,0.45);">Speech-to-text for podcast episodes without transcripts. Downloaded automatically on first use. ~74 MB (WASM) or ~170 MB (WebGPU, faster).</div>
         </div>
       </div>
 
       <div class="flex flex-col gap-1.5 px-1">
         <div v-if="whisperDownloading" class="flex flex-col gap-1">
           <div class="flex items-center justify-between text-xs" style="color:rgba(31,27,23,0.4);">
-            <span>Downloading Whisper model…</span>
-            <span>{{ whisperDownloadPct }}%</span>
+            <span>Downloading Whisper model… {{ whisperDownloadPct }}%</span>
+            <button
+              @click="cancelWhisperDownload"
+              class="text-xs px-2 py-0.5 transition-all"
+              style="border:1px solid rgba(31,27,23,0.2); border-radius:2px; color:rgba(31,27,23,0.5);"
+            >Cancel</button>
           </div>
           <div class="h-0.5 rounded-full overflow-hidden" style="background:rgba(31,27,23,0.1);">
             <div class="h-full rounded-full transition-all duration-300" style="background:#8b3a3a;" :style="{ width: whisperDownloadPct + '%' }" />
@@ -113,11 +117,11 @@
           <button @click="downloadWhisper" class="self-start text-xs px-2.5 py-1 transition-all" style="border:1px solid rgba(31,27,23,0.2); border-radius:2px; color:rgba(31,27,23,0.55);">Retry</button>
         </template>
         <template v-else-if="whisperSize">
-          <span class="text-xs" style="color:rgba(31,27,23,0.4);">Cached ({{ whisperSize }}) — ready for offline transcription.</span>
+          <span class="text-xs" style="color:rgba(31,27,23,0.4);">Cached ({{ whisperSize }}) — ready for transcription.</span>
         </template>
         <template v-else>
-          <div class="text-xs" style="color:rgba(31,27,23,0.4);">Not yet downloaded — will be fetched on first use.</div>
-          <button @click="downloadWhisper" class="self-start text-xs px-2.5 py-1 transition-all" style="border:1px solid rgba(31,27,23,0.2); border-radius:2px; color:rgba(31,27,23,0.55);">Preload now</button>
+          <div class="text-xs" style="color:rgba(31,27,23,0.4);">Not yet downloaded — fetched automatically when first used.</div>
+          <button @click="downloadWhisper" class="self-start text-xs px-2.5 py-1 transition-all" style="border:1px solid rgba(31,27,23,0.2); border-radius:2px; color:rgba(31,27,23,0.55);">Download in advance</button>
         </template>
       </div>
 
@@ -202,7 +206,7 @@ import { updateSettings, deleteAccount, logout } from '../utils/api.js'
 import { t } from '../utils/i18n.js'
 import { localModelsEnabled, setLocalModelsEnabled, clearModelCache, translatorCacheBytes, whisperCacheBytes, fmtBytes } from '../utils/modelCache.js'
 import { preload, onExplainerProgress } from '../utils/localExplainer.js'
-import { preloadWhisper, onWhisperProgress } from '../utils/localWhisper.js'
+import { preloadWhisper, onWhisperProgress, terminateWhisperWorker } from '../utils/localWhisper.js'
 
 const props = defineProps({ currentUser: Object, lang: String, installPrompt: Object })
 const emit  = defineEmits(['openAuth', 'userUpdated', 'logout'])
@@ -296,19 +300,31 @@ async function downloadModel() {
   }
 }
 
+let _whisperCancelledByUser = false
+
 async function downloadWhisper() {
   whisperDownloading.value   = true
   whisperDownloadError.value = false
   whisperDownloadPct.value   = 0
   _wPending = 0; _wDone = 0
+  _whisperCancelledByUser = false
   try {
     await preloadWhisper()
     await refreshCacheSizes()
   } catch {
-    whisperDownloadError.value = true
+    if (!_whisperCancelledByUser) whisperDownloadError.value = true
   } finally {
-    whisperDownloading.value = false
+    if (!_whisperCancelledByUser) whisperDownloading.value = false
+    _whisperCancelledByUser = false
   }
+}
+
+function cancelWhisperDownload() {
+  _whisperCancelledByUser    = true
+  terminateWhisperWorker()
+  whisperDownloading.value   = false
+  whisperDownloadPct.value   = 0
+  _wPending = 0; _wDone = 0
 }
 
 function toggleModels() {

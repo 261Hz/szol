@@ -420,10 +420,11 @@ export async function savePodcastTranscript(episodeId, segments) {
   }).catch(() => null)
 }
 
-export async function fetchPodcastIndexTranscript(feedUrl, audioUrl) {
+export async function fetchPodcastIndexTranscript(feedUrl, audioUrl, guid) {
   if (!feedUrl) return null
   const params = new URLSearchParams({ feedUrl })
   if (audioUrl) params.set('audioUrl', audioUrl)
+  if (guid)     params.set('guid', guid)
   const res = await fetch(`/api/podcast-index?${params}`, { headers: authHeaders() }).catch(() => null)
   if (!res?.ok) return null
   const data = await res.json().catch(() => null)

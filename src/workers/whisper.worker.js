@@ -13,8 +13,7 @@ const WHISPER_LANG = {
   id: 'indonesian', hi: 'hindi',      bg: 'bulgarian',
 }
 
-let transcriber     = null
-let cancelRequested = false
+let transcriber = null
 
 async function load() {
   if (transcriber) return
@@ -27,16 +26,16 @@ async function load() {
     }
   } catch {}
 
-  // whisper-small on WebGPU: meaningfully better multilingual WER (~240 MB)
-  // whisper-base on WASM: fits comfortably, q4 kernels are unreliable on WASM so use q8
+  // whisper-small on WebGPU: better multilingual accuracy.
+  //   fp16 encoder: ~170 MB download vs fp32's ~340 MB
+  // whisper-base on WASM: fits memory budget; q4 kernels are unreliable on WASM → q8
   const model = device === 'webgpu'
     ? 'onnx-community/whisper-small'
     : 'onnx-community/whisper-base'
 
-  const dtype = {
-    encoder_model:        'fp32',
-    decoder_model_merged: device === 'webgpu' ? 'q4' : 'q8',
-  }
+  const dtype = device === 'webgpu'
+    ? { encoder_model: 'fp16', decoder_model_merged: 'q4' }
+    : { encoder_model: 'fp32', decoder_model_merged: 'q8' }
 
   transcriber = await pipeline('automatic-speech-recognition', model, {
     dtype,
@@ -48,13 +47,7 @@ async function load() {
 self.onmessage = async ({ data }) => {
   const { id, type } = data
 
-  if (type === 'cancel') {
-    cancelRequested = true
-    return
-  }
-
   if (type === 'load') {
-    cancelRequested = false
     try {
       await load()
       self.postMessage({ id, type: 'ready' })
@@ -65,13 +58,14 @@ self.onmessage = async ({ data }) => {
   }
 
   if (type === 'transcribe') {
-    cancelRequested = false
-    const { audio, samplingRate, lang, totalChunks } = data
+    // timeOffset: seconds to add to all returned timestamps (per-segment transcription)
+    // chunksOffset: chunk count already processed by prior segments (cumulative progress)
+    const { audio, samplingRate, lang, totalChunks, chunksOffset = 0, timeOffset = 0 } = data
     try {
       await load()
 
-      const pcm          = new Float32Array(audio)
-      const whisperLang  = WHISPER_LANG[lang] ?? null
+      const pcm         = new Float32Array(audio)
+      const whisperLang = WHISPER_LANG[lang] ?? null
       let chunksProcessed = 0
 
       const result = await transcriber(
@@ -82,20 +76,24 @@ self.onmessage = async ({ data }) => {
           return_timestamps: true,
           chunk_length_s:    30,
           stride_length_s:   5,
-          // chunk_callback fires once per 30-s audio window — correct for progress %
-          // callback_function fires per decode token — wrong for progress, causes spam
+          // chunk_callback fires once per 30-s audio window — correct hook for % progress.
+          // Note: WASM ONNX compute is synchronous so the main thread cannot send a cancel
+          // message mid-inference; cancellation is handled by terminating the worker instead.
           chunk_callback: () => {
             chunksProcessed++
-            self.postMessage({ type: 'chunk_done', chunksProcessed, totalChunks })
-            if (cancelRequested) throw new Error('CANCELLED')
+            self.postMessage({
+              type: 'chunk_done',
+              chunksProcessed: chunksOffset + chunksProcessed,
+              totalChunks,
+            })
           },
         },
       )
 
       const segments = (result.chunks ?? [])
         .map(c => ({
-          start: c.timestamp[0] ?? 0,
-          end:   c.timestamp[1] ?? (c.timestamp[0] ?? 0) + 30,
+          start: (c.timestamp[0] ?? 0) + timeOffset,
+          end:   (c.timestamp[1] ?? (c.timestamp[0] ?? 0) + 30) + timeOffset,
           text:  c.text.trim(),
         }))
         .filter(s => s.text)

@@ -12,7 +12,7 @@ import { requireAuth } from './_auth.js'
 export default async function handler(req, res) {
   if (!requireAuth(req, res)) return
 
-  const { feedUrl, audioUrl } = req.query
+  const { feedUrl, audioUrl, guid } = req.query
   if (!feedUrl) return res.status(400).json({ error: 'Expected ?feedUrl=' })
 
   const key    = process.env.PODCAST_INDEX_KEY
@@ -38,9 +38,12 @@ export default async function handler(req, res) {
     const data = await r.json()
 
     for (const ep of data.items ?? []) {
-      // Match by enclosure URL when provided; otherwise take the first episode with a transcript
-      const matchesAudio = !audioUrl || ep.enclosureUrl === audioUrl
-      if (!matchesAudio) continue
+      // GUID match is most reliable — tracking-redirect prefixes (podtrac/chartable)
+      // mean enclosureUrl often doesn't literally equal the audio URL we have.
+      const matchesGuid  = guid && (ep.guid === guid || ep.feedGuid === guid)
+      const matchesAudio = !audioUrl || ep.enclosureUrl === audioUrl ||
+        ep.enclosureUrl?.includes(audioUrl) || audioUrl?.includes(ep.enclosureUrl ?? '')
+      if (!matchesGuid && !matchesAudio) continue
       const tx = (ep.transcripts ?? []).find(t => t.url)
       if (tx?.url) {
         res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate')
