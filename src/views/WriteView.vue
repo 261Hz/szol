@@ -136,6 +136,8 @@ import { t }     from '../utils/i18n.js'
 import { googleRecognizeInk } from '../utils/api.js'
 import { Capacitor } from '@capacitor/core'
 import { DigitalInk } from 'capacitor-mlkit-digitalink-plugin'
+import { LANGS } from '../data/stories.js'
+import { useVoiceList, pickVoice } from '../utils/voices.js'
 
 const ML_KIT_LANG = {
   'zh': 'zh-Hans-CN', 'zh-TW': 'zh-Hant-TW', 'ja': 'ja-JP', 'ko': 'ko-KR',
@@ -152,6 +154,20 @@ const props = defineProps({
   savedWords: { type: Object, default: () => new Set() },
 })
 const emit = defineEmits(['go', 'saveWord'])
+
+const voices = useVoiceList()
+
+function speakWord(word) {
+  if (!word || typeof speechSynthesis === 'undefined') return
+  const bcp47 = LANGS[props.lang]?.bcp47 ?? props.lang
+  const utt   = new SpeechSynthesisUtterance(word)
+  utt.lang    = bcp47
+  const voice = pickVoice(voices.value, bcp47, props.lang)
+  if (voice) utt.voice = voice
+  speechSynthesis.cancel()
+  speechSynthesis.resume()
+  speechSynthesis.speak(utt)
+}
 
 const isCJK         = computed(() => ['zh', 'zh-TW', 'ja'].includes(props.lang))
 const isArabic      = computed(() => props.lang === 'ar')
@@ -552,6 +568,7 @@ async function runCheck() {
   checkResult.value = passed
   checking.value    = false
   if (passed) {
+    speakWord(currentUnit.value)
     setScrollLeft(0)
     failCount.value = 0
     if (!isLast.value) setTimeout(() => { goNext(); scrollToCurrent() }, 600)
@@ -601,6 +618,7 @@ function startQuiz() {
   writer.quiz({
     onComplete: () => {
       quizActive.value = false; quizDone.value = true
+      speakWord(currentUnit.value)
       if (!isLast.value) setTimeout(goNext, 900)
     }
   })
