@@ -9,15 +9,14 @@ export function setLocalModelsEnabled(v) {
   localStorage.setItem('szol_local_models', v ? 'on' : 'off')
 }
 
-// Returns bytes used by any HuggingFace model caches.
-export async function modelCacheBytes() {
+async function _scanCaches(filter) {
   try {
     let total = 0
     for (const name of await caches.keys()) {
       const cache = await caches.open(name)
       const keys  = await cache.keys()
-      if (!keys.some(r => r.url.includes('huggingface.co'))) continue
       for (const req of keys) {
+        if (!filter(req.url)) continue
         const res = await cache.match(req)
         const buf = await res?.arrayBuffer()
         total += buf?.byteLength ?? 0
@@ -25,6 +24,22 @@ export async function modelCacheBytes() {
     }
     return total
   } catch { return 0 }
+}
+
+// HuggingFace models that are NOT the Whisper ASR model
+export function translatorCacheBytes() {
+  return _scanCaches(url => url.includes('huggingface.co') && !url.includes('whisper'))
+}
+
+// Whisper ASR model only (whisper-base or whisper-small)
+export function whisperCacheBytes() {
+  return _scanCaches(url => url.includes('huggingface.co') && url.includes('whisper'))
+}
+
+// Total of both (kept for any external callers)
+export async function modelCacheBytes() {
+  const [t, w] = await Promise.all([translatorCacheBytes(), whisperCacheBytes()])
+  return t + w
 }
 
 export function fmtBytes(bytes) {

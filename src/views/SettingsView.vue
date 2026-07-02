@@ -75,15 +75,7 @@
           >Retry</button>
         </template>
         <template v-else-if="cacheSize">
-          <div class="flex items-center justify-between">
-            <span class="text-xs" style="color:rgba(31,27,23,0.4);">Model cached ({{ cacheSize }}) — ready offline.</span>
-            <button
-              @click="clearCache"
-              :disabled="clearing"
-              class="text-xs transition-all disabled:opacity-40"
-              style="color:#8b3a3a;"
-            >{{ clearing ? 'Clearing…' : 'Delete' }}</button>
-          </div>
+          <span class="text-xs" style="color:rgba(31,27,23,0.4);">Model cached ({{ cacheSize }}) — ready offline.</span>
         </template>
         <template v-else>
           <div class="text-xs" style="color:rgba(31,27,23,0.4);">Model not yet downloaded.</div>
@@ -96,6 +88,41 @@
       </div>
       <div v-else-if="cacheSize" class="flex items-center justify-between px-1">
         <span class="text-xs" style="color:rgba(31,27,23,0.4);">Downloaded: {{ cacheSize }}</span>
+      </div>
+
+      <!-- Whisper ASR model row -->
+      <div class="flex items-start justify-between gap-4 py-3 px-4" style="border:1px solid rgba(31,27,23,0.12); border-radius:3px;">
+        <div class="flex flex-col gap-0.5">
+          <div class="text-sm" style="color:#1f1b17;">Whisper transcription</div>
+          <div class="text-xs" style="color:rgba(31,27,23,0.45);">Speech-to-text for podcast episodes without transcripts. Downloads automatically when first used. ~74 MB (WASM) or ~240 MB (WebGPU).</div>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-1.5 px-1">
+        <div v-if="whisperDownloading" class="flex flex-col gap-1">
+          <div class="flex items-center justify-between text-xs" style="color:rgba(31,27,23,0.4);">
+            <span>Downloading Whisper model…</span>
+            <span>{{ whisperDownloadPct }}%</span>
+          </div>
+          <div class="h-0.5 rounded-full overflow-hidden" style="background:rgba(31,27,23,0.1);">
+            <div class="h-full rounded-full transition-all duration-300" style="background:#8b3a3a;" :style="{ width: whisperDownloadPct + '%' }" />
+          </div>
+        </div>
+        <template v-else-if="whisperDownloadError">
+          <div class="text-xs" style="color:#8b3a3a;">Download failed — check your connection or free up storage.</div>
+          <button @click="downloadWhisper" class="self-start text-xs px-2.5 py-1 transition-all" style="border:1px solid rgba(31,27,23,0.2); border-radius:2px; color:rgba(31,27,23,0.55);">Retry</button>
+        </template>
+        <template v-else-if="whisperSize">
+          <span class="text-xs" style="color:rgba(31,27,23,0.4);">Cached ({{ whisperSize }}) — ready for offline transcription.</span>
+        </template>
+        <template v-else>
+          <div class="text-xs" style="color:rgba(31,27,23,0.4);">Not yet downloaded — will be fetched on first use.</div>
+          <button @click="downloadWhisper" class="self-start text-xs px-2.5 py-1 transition-all" style="border:1px solid rgba(31,27,23,0.2); border-radius:2px; color:rgba(31,27,23,0.55);">Preload now</button>
+        </template>
+      </div>
+
+      <!-- Delete all: covers both translator and Whisper -->
+      <div v-if="cacheSize || whisperSize" class="flex justify-end px-1">
         <button
           @click="clearCache"
           :disabled="clearing"
@@ -173,8 +200,9 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { LANGS } from '../data/stories.js'
 import { updateSettings, deleteAccount, logout } from '../utils/api.js'
 import { t } from '../utils/i18n.js'
-import { localModelsEnabled, setLocalModelsEnabled, clearModelCache, modelCacheBytes, fmtBytes } from '../utils/modelCache.js'
+import { localModelsEnabled, setLocalModelsEnabled, clearModelCache, translatorCacheBytes, whisperCacheBytes, fmtBytes } from '../utils/modelCache.js'
 import { preload, onExplainerProgress } from '../utils/localExplainer.js'
+import { preloadWhisper, onWhisperProgress } from '../utils/localWhisper.js'
 
 const props = defineProps({ currentUser: Object, lang: String, installPrompt: Object })
 const emit  = defineEmits(['openAuth', 'userUpdated', 'logout'])
@@ -190,17 +218,26 @@ const deleting       = ref(false)
 const deleteError    = ref('')
 
 const modelsEnabled       = ref(localModelsEnabled())
-const cacheSize           = ref('')
+const cacheSize           = ref('')   // translator model size
+const whisperSize         = ref('')   // whisper model size
 const clearing            = ref(false)
 const modelDownloading    = ref(false)
 const modelDownloadPct    = ref(0)
 const modelDownloadError  = ref(false)
 
-onMounted(async () => {
-  const bytes = await modelCacheBytes()
-  if (bytes > 0) cacheSize.value = fmtBytes(bytes)
-})
+const whisperDownloading  = ref(false)
+const whisperDownloadPct  = ref(0)
+const whisperDownloadError = ref(false)
 
+async function refreshCacheSizes() {
+  const [tBytes, wBytes] = await Promise.all([translatorCacheBytes(), whisperCacheBytes()])
+  cacheSize.value   = tBytes > 0 ? fmtBytes(tBytes) : ''
+  whisperSize.value = wBytes > 0 ? fmtBytes(wBytes) : ''
+}
+
+onMounted(refreshCacheSizes)
+
+// Translator progress
 let _pendingFiles = 0, _doneFiles = 0
 const _removeProgress = onExplainerProgress((info) => {
   if (info.status === 'initiate') {
@@ -216,13 +253,33 @@ const _removeProgress = onExplainerProgress((info) => {
       setTimeout(async () => {
         modelDownloading.value = false
         _pendingFiles = 0; _doneFiles = 0
-        const bytes = await modelCacheBytes()
-        cacheSize.value = bytes > 0 ? fmtBytes(bytes) : ''
+        await refreshCacheSizes()
       }, 600)
     }
   }
 })
-onUnmounted(() => _removeProgress())
+
+// Whisper progress
+let _wPending = 0, _wDone = 0
+const _removeWhisperProgress = onWhisperProgress((data) => {
+  if (data.type !== 'model_progress') return
+  const { status, progress } = data.info
+  if (status === 'initiate') { _wPending++; whisperDownloading.value = true }
+  if (status === 'progress') { whisperDownloading.value = true; whisperDownloadPct.value = Math.round(progress ?? 0) }
+  if (status === 'done' || status === 'ready') {
+    _wDone++
+    if (_wDone >= _wPending && _wPending > 0) {
+      whisperDownloadPct.value = 100
+      setTimeout(async () => {
+        whisperDownloading.value = false
+        _wPending = 0; _wDone = 0
+        await refreshCacheSizes()
+      }, 600)
+    }
+  }
+})
+
+onUnmounted(() => { _removeProgress(); _removeWhisperProgress() })
 
 async function downloadModel() {
   modelDownloading.value   = true
@@ -231,12 +288,26 @@ async function downloadModel() {
   _pendingFiles = 0; _doneFiles = 0
   try {
     await preload(props.lang)
-    const bytes = await modelCacheBytes()
-    cacheSize.value = bytes > 0 ? fmtBytes(bytes) : ''
+    await refreshCacheSizes()
   } catch {
     modelDownloadError.value = true
   } finally {
     modelDownloading.value = false
+  }
+}
+
+async function downloadWhisper() {
+  whisperDownloading.value   = true
+  whisperDownloadError.value = false
+  whisperDownloadPct.value   = 0
+  _wPending = 0; _wDone = 0
+  try {
+    await preloadWhisper()
+    await refreshCacheSizes()
+  } catch {
+    whisperDownloadError.value = true
+  } finally {
+    whisperDownloading.value = false
   }
 }
 
@@ -254,8 +325,9 @@ async function installApp() {
 async function clearCache() {
   clearing.value = true
   await clearModelCache()
-  cacheSize.value = ''
-  clearing.value  = false
+  cacheSize.value   = ''
+  whisperSize.value = ''
+  clearing.value    = false
 }
 
 const voiceDescHtml = computed(() => {
