@@ -2,7 +2,7 @@
   <div class="browse-root">
 
     <!-- ════════════════════════════════════
-         LANDING — Continue + Drawers
+         HOME — mode menu
     ════════════════════════════════════ -->
     <template v-if="!level">
 
@@ -22,11 +22,73 @@
 
       </div>
 
-      <!-- Stories — shown directly -->
+      <!-- Mode menu -->
+      <div class="drawer-list">
+        <button @click="pick('read')" class="drawer-row">
+          <div>
+            <div class="drawer-label">Read</div>
+            <div class="drawer-sub">Stories, articles &amp; imported texts</div>
+          </div>
+          <span class="drawer-arrow">→</span>
+        </button>
+        <button @click="pick('podcasts')" class="drawer-row">
+          <div>
+            <div class="drawer-label">Listen</div>
+            <div class="drawer-sub">Podcast dictation &amp; audio exercises</div>
+          </div>
+          <span class="drawer-arrow">→</span>
+        </button>
+        <button @click="$emit('go', 'write')" class="drawer-row">
+          <div>
+            <div class="drawer-label">Write</div>
+            <div class="drawer-sub">Handwriting &amp; transcription practice</div>
+          </div>
+          <span class="drawer-arrow">→</span>
+        </button>
+        <button @click="$emit('go', 'speak')" class="drawer-row">
+          <div>
+            <div class="drawer-label">Speak</div>
+            <div class="drawer-sub">Pronunciation &amp; reading aloud</div>
+          </div>
+          <span class="drawer-arrow">→</span>
+        </button>
+        <button @click="$emit('go', 'vocab')" class="drawer-row">
+          <div>
+            <div class="drawer-label">Vocab</div>
+            <div class="drawer-sub">{{ vocabCount ? `${vocabCount} word${vocabCount !== 1 ? 's' : ''} saved` : 'Review saved words' }}</div>
+          </div>
+          <span class="drawer-arrow">→</span>
+        </button>
+        <button @click="$emit('go', 'messages')" class="drawer-row">
+          <div>
+            <div class="drawer-label">Messages</div>
+            <div class="drawer-sub">Conversation practice</div>
+          </div>
+          <span class="drawer-arrow">→</span>
+        </button>
+        <button @click="$emit('go', 'journal')" class="drawer-row">
+          <div>
+            <div class="drawer-label">Journal</div>
+            <div class="drawer-sub">Free writing &amp; notes</div>
+          </div>
+          <span class="drawer-arrow">→</span>
+        </button>
+      </div>
+
+    </template>
+
+
+    <!-- ════════════════════════════════════
+         READ — stories + sub-sections
+    ════════════════════════════════════ -->
+    <template v-else-if="level === 'read'">
+      <div class="nav-bar">
+        <button @click="back" class="back-link">← Home</button>
+        <span class="nav-title">Read</span>
+      </div>
+
+      <!-- Stories -->
       <div class="stories-section">
-        <div class="stories-header">
-          <span class="section-label">{{ t(lang, 'storiesSection') }}</span>
-        </div>
         <div v-if="storiesLoading" class="status-text">{{ t(lang, 'loading') }}</div>
         <div v-else-if="!stories.length" class="status-text italic-muted">{{ t(lang, 'noStoriesYet') }}</div>
         <div v-else class="item-list" :dir="isRTL(lang) ? 'rtl' : 'ltr'">
@@ -42,12 +104,8 @@
         </div>
       </div>
 
-      <!-- Other categories -->
-      <div class="drawer-list">
-        <button @click="pick('podcasts')" class="drawer-row">
-          <span class="drawer-label">{{ t(lang, 'podcasts') }}</span>
-          <span class="drawer-arrow">→</span>
-        </button>
+      <!-- Sub-sections: Articles, History -->
+      <div class="drawer-list" style="margin-bottom:2rem">
         <button @click="pick('articles')" class="drawer-row">
           <span class="drawer-label">{{ t(lang, 'articles') }}</span>
           <span class="drawer-arrow">→</span>
@@ -61,13 +119,11 @@
       <!-- Import URL + paste/upload text -->
       <div class="import-section">
 
-        <!-- Entry toggles (collapsed state) -->
         <div v-if="!showImport && !showPaste" class="flex gap-3">
           <button @click="showImport = true" class="import-toggle">{{ t(lang, 'orPasteUrl') }}</button>
           <button @click="showPaste = true"  class="import-toggle">Upload text</button>
         </div>
 
-        <!-- URL import -->
         <div v-if="showImport">
           <div class="import-row">
             <input
@@ -94,7 +150,6 @@
           </div>
         </div>
 
-        <!-- Paste / upload text (local only — never sent to server) -->
         <div v-if="showPaste" class="flex flex-col gap-2">
           <div class="import-row">
             <input
@@ -137,13 +192,17 @@
     ════════════════════════════════════ -->
     <template v-else-if="level === 'podcasts' && !source">
       <div class="nav-bar">
-        <button @click="back" class="back-link">← Archive</button>
+        <button @click="back" class="back-link">{{ backLabel }}</button>
         <span class="nav-title">{{ t(lang, 'podcasts') }}</span>
       </div>
-      <!-- JRE pinned — English only -->
+      <!-- Pinned English podcasts -->
       <div v-if="lang === 'en'" class="item-list" style="margin-bottom:0.5rem">
         <button @click="source = JRE_NAME" class="item-row">
           <span class="item-title">{{ JRE_NAME }}</span>
+          <span class="item-sub" style="white-space:nowrap">Latest 3</span>
+        </button>
+        <button @click="source = LEX_NAME" class="item-row">
+          <span class="item-title">{{ LEX_NAME }}</span>
           <span class="item-sub" style="white-space:nowrap">Latest 3</span>
         </button>
       </div>
@@ -226,7 +285,7 @@
     ════════════════════════════════════ -->
     <template v-else-if="level === 'articles' && !source">
       <div class="nav-bar">
-        <button @click="back" class="back-link">← Archive</button>
+        <button @click="back" class="back-link">{{ backLabel }}</button>
         <span class="nav-title">{{ t(lang, 'articles') }}</span>
       </div>
 
@@ -325,7 +384,7 @@
     ════════════════════════════════════ -->
     <template v-else-if="level === 'history'">
       <div class="nav-bar">
-        <button @click="back" class="back-link">← Archive</button>
+        <button @click="back" class="back-link">{{ backLabel }}</button>
         <span class="nav-title">{{ t(lang, 'history') }}</span>
       </div>
       <div v-if="historyLoading" class="status-text">{{ t(lang, 'loading') }}</div>
@@ -375,16 +434,23 @@ const props = defineProps({
 const emit = defineEmits(['load', 'stories-loaded', 'go', 'open-listen'])
 
 // ── Nav state ──────────────────────────────────────────────────
-const level  = ref(null)
-const source = ref(null)
+const level     = ref(null)
+const source    = ref(null)
+const backLevel = ref(null)
+
+const LEVEL_LABELS = { read: 'Read', podcasts: 'Listen', articles: 'Articles' }
+const backLabel = computed(() =>
+  backLevel.value ? `← ${LEVEL_LABELS[backLevel.value] ?? 'Back'}` : '← Home'
+)
 
 function pick(cat) {
-  level.value  = cat
-  source.value = null
+  backLevel.value = level.value
+  level.value     = cat
+  source.value    = null
   if (cat === 'history' && !todayArticle.value) loadHistory()
 }
 
-function back() { level.value = null; source.value = null }
+function back() { level.value = backLevel.value ?? null; backLevel.value = null; source.value = null }
 
 // ── Vocab summary ──────────────────────────────────────────────
 const vocabCount = computed(() =>
@@ -511,6 +577,8 @@ function _writeStore(key, val) { localStorage.setItem(key, JSON.stringify(val)) 
 // ── Podcasts ───────────────────────────────────────────────────
 const JRE_FEED = 'https://feeds.megaphone.fm/GLT1412515089'
 const JRE_NAME = 'The Joe Rogan Experience'
+const LEX_FEED = 'https://lexfridman.com/feed/podcast/'
+const LEX_NAME = 'Lex Fridman Podcast'
 
 // Subscriptions in localStorage per language: [{feed_url, podcast_name, artwork, lang}]
 const POD_KEY = 'szol_podcast_subs'
@@ -574,9 +642,11 @@ async function importRss() {
 watch(source, async (name) => {
   if (!name || level.value !== 'podcasts') { currentEpisodes.value = []; return }
   const sub = podcastShows.value.find(s => s.podcast_name === name)
-  // pinned JRE = named JRE but NOT manually subscribed; subscribed copy shows all episodes
+  // pinned shows = named but NOT manually subscribed; subscribed copy shows all episodes
   const isPinnedJre = name === JRE_NAME && !sub
-  const feedUrl = isPinnedJre ? JRE_FEED : sub?.feed_url
+  const isPinnedLex = name === LEX_NAME && !sub
+  const isPinned = isPinnedJre || isPinnedLex
+  const feedUrl = isPinnedJre ? JRE_FEED : isPinnedLex ? LEX_FEED : sub?.feed_url
   if (!feedUrl) { currentEpisodes.value = []; return }
   episodesLoading.value = true
   const [data, dbEps] = await Promise.all([
@@ -596,7 +666,7 @@ watch(source, async (name) => {
       segments: db?.segments ?? [],
     }
   })
-  currentEpisodes.value = isPinnedJre ? eps.slice(0, 3) : eps
+  currentEpisodes.value = isPinned ? eps.slice(0, 3) : eps
 })
 
 function listenEpisode(ep) {
@@ -793,7 +863,7 @@ function pushLocal({ title, content, source: src = '' }) {
 
 // ── Init ───────────────────────────────────────────────────────
 async function init(lang) {
-  level.value = null; source.value = null
+  level.value = null; source.value = null; backLevel.value = null
   await Promise.all([loadStories(lang), loadProgress()])
 }
 
@@ -938,6 +1008,14 @@ watch(() => props.currentUser, loadProgress)
   color: #1f1b17;
   font-family: 'IM Fell English', serif;
   letter-spacing: 0.01em;
+}
+
+.drawer-sub {
+  font-size: 0.72rem;
+  color: rgba(31,27,23,0.38);
+  font-family: 'EB Garamond', serif;
+  font-style: italic;
+  margin-top: 0.1rem;
 }
 
 .drawer-arrow {
