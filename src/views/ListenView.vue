@@ -459,10 +459,38 @@
         <!-- Idle -->
         <template v-else>
           <div class="text-sm text-stone-500">{{ t(lang, 'noTranscript') }}</div>
-          <button
-            @click="pasteMode = true"
-            class="text-sm px-4 py-1.5 self-start rounded border border-stone-600 text-stone-300 hover:border-stone-400 transition-all"
-          >{{ t(lang, 'pasteTranscript') }}</button>
+
+          <!-- Whisper progress -->
+          <div v-if="whisperPhase !== 'idle' && whisperPhase !== 'done'" class="flex flex-col gap-2">
+            <div class="text-xs text-stone-400">
+              <span v-if="whisperPhase === 'fetching'">Downloading audio…</span>
+              <span v-else-if="whisperPhase === 'decoding'">Decoding audio…</span>
+              <span v-else-if="whisperPhase === 'model'">Loading Whisper model… {{ whisperModelPct }}%</span>
+              <span v-else-if="whisperPhase === 'transcribing'">Transcribing… {{ whisperTranscribePct }}%</span>
+              <span v-else-if="whisperPhase === 'error'" class="text-red-400">{{ whisperError }}</span>
+            </div>
+            <div
+              v-if="whisperPhase === 'model' || whisperPhase === 'transcribing'"
+              class="h-0.5 w-48 bg-stone-800 rounded-full overflow-hidden"
+            >
+              <div
+                class="h-full bg-emerald-700 rounded-full transition-all duration-300"
+                :style="{ width: (whisperPhase === 'model' ? whisperModelPct : whisperTranscribePct) + '%' }"
+              />
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3 flex-wrap">
+            <button
+              v-if="selectedStory?.audio_url && (whisperPhase === 'idle' || whisperPhase === 'error')"
+              @click="startWhisper"
+              class="text-sm px-4 py-1.5 rounded border border-stone-600 text-stone-300 hover:border-emerald-600 hover:text-emerald-400 transition-all"
+            >Transcribe with Whisper</button>
+            <button
+              @click="pasteMode = true"
+              class="text-sm px-4 py-1.5 rounded border border-stone-600 text-stone-300 hover:border-stone-400 transition-all"
+            >{{ t(lang, 'pasteTranscript') }}</button>
+          </div>
         </template>
 
       </div>
@@ -516,10 +544,29 @@ import { isRTL } from '../utils/rtl.js'
 import { spokenNumbers } from '../utils/spokenNumbers.js'
 import { rootHighlightOn, applyRoots, clearRoots } from '../utils/rootHighlight.js'
 import { useLocalTranslator } from '../composables/useLocalTranslator.js'
+import { useWhisper }         from '../composables/useWhisper.js'
 import { getStoredTranscript, saveStoredTranscript } from '../utils/transcriptStore.js'
 
 const { translateText, isTranslating, isDownloading, downloadPct, downloadLabel } = useLocalTranslator()
 const localTranslation = ref('')
+
+const {
+  phase:         whisperPhase,
+  modelPct:      whisperModelPct,
+  transcribePct: whisperTranscribePct,
+  errorMsg:      whisperError,
+  transcribe:    whisperTranscribe,
+  reset:         whisperReset,
+} = useWhisper()
+
+async function startWhisper() {
+  if (!selectedStory.value?.audio_url) return
+  const segs = await whisperTranscribe(selectedStory.value.audio_url, props.lang)
+  if (segs?.length) {
+    segments.value = segs
+    await saveStoredTranscript(selectedStory.value.id, segs)
+  }
+}
 
 const props = defineProps({
   story:       Object,
@@ -940,6 +987,7 @@ function backToList() {
   pasteMode.value          = false
   pasteText.value          = ''
   pasteError.value         = ''
+  whisperReset()
 }
 
 // ── YouTube player (dictation) ────────────────────────────────────────────────
