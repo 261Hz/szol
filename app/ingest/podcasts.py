@@ -473,6 +473,7 @@ def ingest_podcasts(db, dry_run: bool = False) -> int:
                 lang=source["lang"],
                 title=title,
                 audio_url=audio,
+                feed_url=source.get("feed_url"),
                 duration_sec=_duration_sec(entry),
                 description=_strip_html(entry.get("summary", "") or "")[:1000],
                 published_at=_parse_date(entry),

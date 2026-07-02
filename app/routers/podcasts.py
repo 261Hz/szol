@@ -111,6 +111,7 @@ def subscribe_podcast(payload: _SubscribeIn, db: Session = Depends(get_db)):
             lang         = payload.lang,
             title        = title,
             audio_url    = audio,
+            feed_url     = payload.feed_url,
             duration_sec = _duration_sec(entry),
             description  = _strip_html(entry.get("summary", "") or "")[:1000],
             published_at = _parse_date(entry),

@@ -291,6 +291,7 @@ class PodcastEpisode(Base):
     lang         = Column(String(10), nullable=False, index=True)
     title        = Column(String, nullable=False)
     audio_url    = Column(String, nullable=False, unique=True)
+    feed_url     = Column(String)       # RSS feed URL the episode came from
     duration_sec = Column(Integer)
     description  = Column(String)
     published_at = Column(TIMESTAMP(timezone=True))

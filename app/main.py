@@ -2,7 +2,7 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from . import models
 from .database import engine
-from .routers import user, auth, stories, words, vocab, progress, chat, transcript, listen, user_stories, messages, feed, stats, collections, podcasts, ink
+from .routers import user, auth, stories, words, vocab, progress, chat, transcript, listen, user_stories, messages, feed, stats, collections, podcasts, ink, proxy
 from .config import settings
 from .limiter import limiter
 
@@ -23,6 +23,7 @@ def _run_migrations():
         "ALTER TABLE users ALTER COLUMN password DROP NOT NULL",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_guest BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS trust_level VARCHAR NOT NULL DEFAULT 'guest'",
+        "ALTER TABLE podcast_episodes ADD COLUMN IF NOT EXISTS feed_url VARCHAR",
     ]
     with engine.connect() as conn:
         for sql in stmts:
@@ -79,6 +80,7 @@ app.include_router(stats.router)         # /stats
 app.include_router(collections.router)   # /collections
 app.include_router(podcasts.router)      # /podcasts
 app.include_router(ink.router)           # /ink/*
+app.include_router(proxy.router)         # /proxy/*
 
 
 @app.post("/ingest/run", status_code=202)

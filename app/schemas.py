@@ -380,11 +380,12 @@ class PodcastEpisodeResponse(BaseModel):
     lang:           str
     title:          str
     audio_url:      str
-    source_type:    str                 = "podcast"
-    duration_sec:   Optional[int]       = None
-    description:    Optional[str]       = None
-    published_at:   Optional[datetime]  = None
-    has_transcript: bool                = False
+    feed_url:       Optional[str]        = None
+    source_type:    str                  = "podcast"
+    duration_sec:   Optional[int]        = None
+    description:    Optional[str]        = None
+    published_at:   Optional[datetime]   = None
+    has_transcript: bool                 = False
     segments:       Optional[List[dict]] = None
     fetched_at:     datetime
 
