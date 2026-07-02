@@ -20,7 +20,10 @@ export default async function handler(req, res) {
   if (!key || !secret) return res.status(501).json({ error: 'Podcast Index credentials not configured' })
 
   const epoch = Math.floor(Date.now() / 1000).toString()
-  const auth  = crypto.createHash('sha1').update(key + secret + epoch).digest('hex')
+  // Podcast Index API requires SHA-1 for its authentication scheme — algorithm is not our choice.
+  // See https://podcastindex-org.github.io/docs-api/#auth
+  // lgtm[js/weak-cryptographic-algorithm]
+  const auth  = crypto.createHash('sha1').update(key + secret + epoch).digest('hex') // lgtm[js/weak-cryptographic-algorithm]
 
   try {
     const url = `https://api.podcastindex.org/api/1.0/episodes/byfeedurl?url=${encodeURIComponent(feedUrl)}&max=200`
