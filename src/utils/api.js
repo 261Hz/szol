@@ -420,6 +420,16 @@ export async function savePodcastTranscript(episodeId, segments) {
   }).catch(() => null)
 }
 
+export async function fetchPodcastIndexTranscript(feedUrl, audioUrl) {
+  if (!feedUrl) return null
+  const params = new URLSearchParams({ feedUrl })
+  if (audioUrl) params.set('audioUrl', audioUrl)
+  const res = await fetch(`/api/podcast-index?${params}`, { headers: authHeaders() }).catch(() => null)
+  if (!res?.ok) return null
+  const data = await res.json().catch(() => null)
+  return data?.transcript_url ?? null
+}
+
 export async function fetchOgjreTranscript(title) {
   if (!/#\d+/.test(title)) return null
   const slugify = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')

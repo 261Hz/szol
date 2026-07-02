@@ -3,10 +3,6 @@ import { pipeline, env } from '@huggingface/transformers'
 env.allowLocalModels = false
 env.useBrowserCache  = true
 
-// Multilingual base — never use .en suffix for a language-learning app
-const MODEL = 'onnx-community/whisper-base'
-
-// Map app lang codes → Whisper language names (ISO 639-1 also accepted by v4)
 const WHISPER_LANG = {
   en: 'english',    es: 'spanish',    fr: 'french',      de: 'german',
   it: 'italian',    pt: 'portuguese', ru: 'russian',     ja: 'japanese',
@@ -17,12 +13,12 @@ const WHISPER_LANG = {
   id: 'indonesian', hi: 'hindi',      bg: 'bulgarian',
 }
 
-let transcriber = null
+let transcriber     = null
+let cancelRequested = false
 
 async function load() {
   if (transcriber) return
 
-  // Try WebGPU (several-x faster on a decent GPU), fall back to WASM
   let device = 'wasm'
   try {
     if (navigator?.gpu) {
@@ -31,8 +27,19 @@ async function load() {
     }
   } catch {}
 
-  transcriber = await pipeline('automatic-speech-recognition', MODEL, {
-    dtype: { encoder_model: 'fp32', decoder_model_merged: 'q4' },
+  // whisper-small on WebGPU: meaningfully better multilingual WER (~240 MB)
+  // whisper-base on WASM: fits comfortably, q4 kernels are unreliable on WASM so use q8
+  const model = device === 'webgpu'
+    ? 'onnx-community/whisper-small'
+    : 'onnx-community/whisper-base'
+
+  const dtype = {
+    encoder_model:        'fp32',
+    decoder_model_merged: device === 'webgpu' ? 'q4' : 'q8',
+  }
+
+  transcriber = await pipeline('automatic-speech-recognition', model, {
+    dtype,
     device,
     progress_callback: (info) => self.postMessage({ type: 'model_progress', info }),
   })
@@ -41,7 +48,13 @@ async function load() {
 self.onmessage = async ({ data }) => {
   const { id, type } = data
 
+  if (type === 'cancel') {
+    cancelRequested = true
+    return
+  }
+
   if (type === 'load') {
+    cancelRequested = false
     try {
       await load()
       self.postMessage({ id, type: 'ready' })
@@ -52,6 +65,7 @@ self.onmessage = async ({ data }) => {
   }
 
   if (type === 'transcribe') {
+    cancelRequested = false
     const { audio, samplingRate, lang, totalChunks } = data
     try {
       await load()
@@ -68,10 +82,12 @@ self.onmessage = async ({ data }) => {
           return_timestamps: true,
           chunk_length_s:    30,
           stride_length_s:   5,
-          // fires once per processed chunk (not per token) in long-form mode
-          callback_function: () => {
+          // chunk_callback fires once per 30-s audio window — correct for progress %
+          // callback_function fires per decode token — wrong for progress, causes spam
+          chunk_callback: () => {
             chunksProcessed++
             self.postMessage({ type: 'chunk_done', chunksProcessed, totalChunks })
+            if (cancelRequested) throw new Error('CANCELLED')
           },
         },
       )

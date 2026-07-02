@@ -478,6 +478,11 @@
                 :style="{ width: (whisperPhase === 'model' ? whisperModelPct : whisperTranscribePct) + '%' }"
               />
             </div>
+            <button
+              v-if="whisperPhase !== 'error'"
+              @click="whisperCancel"
+              class="self-start text-xs text-stone-600 hover:text-red-400 transition-all"
+            >Cancel</button>
           </div>
 
           <div class="flex items-center gap-3 flex-wrap">
@@ -538,7 +543,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, watchEffect } from 'vue'
 import Fuse from 'fuse.js'
 import { LANGS } from '../data/stories.js'
-import { fetchListenStories, checkTranslation, fetchPodcastTranscript, fetchOgjreTranscript, savePodcastTranscript, fetchPodcasts } from '../utils/api.js'
+import { fetchListenStories, checkTranslation, fetchPodcastTranscript, fetchOgjreTranscript, savePodcastTranscript, fetchPodcasts, fetchPodcastIndexTranscript } from '../utils/api.js'
 import { t } from '../utils/i18n.js'
 import { isRTL } from '../utils/rtl.js'
 import { spokenNumbers } from '../utils/spokenNumbers.js'
@@ -557,6 +562,7 @@ const {
   errorMsg:      whisperError,
   transcribe:    whisperTranscribe,
   reset:         whisperReset,
+  cancel:        whisperCancel,
 } = useWhisper()
 
 async function startWhisper() {
@@ -885,6 +891,26 @@ async function tryFetchTranscript(storyId, title, podcastName) {
           transcriptLoading.value = false
           await saveStoredTranscript(storyId, data.segments)
           return
+        }
+      }
+    }
+
+    // Podcast Index lookup — catches episodes with transcripts registered by
+    // third-party services (Podscribe, Scribie, etc.) not in the RSS feed
+    const piFeedUrl = selectedStory.value?.podcast_feed_url ?? selectedStory.value?.feed_url
+    if (piFeedUrl) {
+      const audioForLookup = storyId?.startsWith('http') ? storyId : selectedStory.value?.audio_url
+      const piTxUrl = await fetchPodcastIndexTranscript(piFeedUrl, audioForLookup).catch(() => null)
+      if (piTxUrl) {
+        const r = await fetch(`/api/fetch-transcript?url=${encodeURIComponent(piTxUrl)}`).catch(() => null)
+        if (r?.ok) {
+          const data = await r.json().catch(() => null)
+          if (data?.segments?.length) {
+            segments.value = data.segments
+            transcriptLoading.value = false
+            await saveStoredTranscript(storyId, data.segments)
+            return
+          }
         }
       }
     }

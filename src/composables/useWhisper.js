@@ -1,8 +1,7 @@
 import { ref, onUnmounted } from 'vue'
-import { transcribeAudio, onWhisperProgress } from '../utils/localWhisper.js'
+import { transcribeAudio, onWhisperProgress, cancelCurrentTranscription } from '../utils/localWhisper.js'
 
 export function useWhisper() {
-  // phase: 'idle' | 'fetching' | 'decoding' | 'model' | 'transcribing' | 'done' | 'error'
   const phase         = ref('idle')
   const modelPct      = ref(0)
   const transcribePct = ref(0)
@@ -29,7 +28,7 @@ export function useWhisper() {
     }
   })
 
-  onUnmounted(removeListener)
+  onUnmounted(() => { removeListener(); cancel() })
 
   async function transcribe(audioUrl, lang) {
     phase.value         = 'idle'
@@ -44,18 +43,25 @@ export function useWhisper() {
       phase.value = 'done'
       return segments
     } catch (e) {
+      if (e.message === 'CANCELLED') {
+        phase.value = 'idle'
+        return null
+      }
       errorMsg.value = e.message
       phase.value    = 'error'
       return null
     }
   }
 
-  function reset() {
-    phase.value = 'idle'
-    errorMsg.value = ''
-    modelPct.value = 0
+  function cancel() {
+    cancelCurrentTranscription()
+    phase.value         = 'idle'
+    errorMsg.value      = ''
+    modelPct.value      = 0
     transcribePct.value = 0
   }
 
-  return { phase, modelPct, transcribePct, errorMsg, transcribe, reset }
+  function reset() { cancel() }
+
+  return { phase, modelPct, transcribePct, errorMsg, transcribe, reset, cancel }
 }
