@@ -129,6 +129,9 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
     let supportsRanges = false
     let codec          = detectCodec(audioUrl, '')
 
+    // Resolve to either the direct URL or proxy URL — whichever HEAD succeeds.
+    // This means proxy-resolved URLs also feed the range-chunk path, not just single-fetch.
+    let fetchBase = audioUrl
     try {
       const head = await fetch(audioUrl, { method: 'HEAD', signal: ctrl.signal })
       if (head.ok) {
@@ -138,7 +141,23 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
       }
     } catch (e) {
       if (e.name === 'AbortError') throw new Error('CANCELLED')
-      // HEAD failed or CORS-blocked — continue with codec guessed from URL
+      // Direct HEAD failed (CORS or network) — try proxy HEAD so we get real metadata
+      // and can use the proxy for range-chunked fetches too.
+      if (e instanceof TypeError) {
+        try {
+          const proxyUrl  = `${BACKEND}/proxy/audio?url=${encodeURIComponent(audioUrl)}`
+          const proxyHead = await fetch(proxyUrl, { method: 'HEAD', signal: ctrl.signal })
+          if (proxyHead.ok) {
+            fetchBase      = proxyUrl
+            contentLength  = parseInt(proxyHead.headers.get('content-length') || '0', 10)
+            supportsRanges = proxyHead.headers.get('accept-ranges') === 'bytes'
+            codec          = detectCodec(proxyUrl, proxyHead.headers.get('content-type') || '')
+          }
+        } catch (pe) {
+          if (pe.name === 'AbortError') throw new Error('CANCELLED')
+          // proxy HEAD also failed — continue with codec guessed from URL, single-fetch later
+        }
+      }
     }
 
     // Real episode duration beats byte-count estimate: 64 kbps feeds are 2× longer than
@@ -149,8 +168,8 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
     totalEstimatedChunks = Math.max(1, Math.ceil(estimatedSecs / 25))
 
     if (codec === 'mp3' && contentLength > RANGE_CHUNK && supportsRanges) {
-      // Range is not a CORS-safelisted header — triggers OPTIONS preflight many CDNs reject.
-      // Wrap in try/catch so failures fall through to single-fetch.
+      // fetchBase may be the proxy URL here — proxy passes Range headers through,
+      // so chunked fetches work the same regardless of whether we're going direct or proxied.
       try {
         arrayBuffers = []
         const numChunks = Math.ceil(contentLength / RANGE_CHUNK)
@@ -158,7 +177,7 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
           if (ctrl.signal.aborted) throw new Error('CANCELLED')
           const start = i * RANGE_CHUNK
           const end   = Math.min(start + RANGE_CHUNK - 1, contentLength - 1)
-          const r = await fetch(audioUrl, { signal: ctrl.signal, headers: { Range: `bytes=${start}-${end}` } })
+          const r = await fetch(fetchBase, { signal: ctrl.signal, headers: { Range: `bytes=${start}-${end}` } })
           if (!r.ok && r.status !== 206) throw new Error(`HTTP ${r.status}`)
           arrayBuffers.push(await r.arrayBuffer())
         }
@@ -186,18 +205,16 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
         }
       }
 
-      // Try direct fetch first; fall through to backend proxy on CORS TypeError.
-      // The proxy response resolves tracking redirects, giving us real Content-Type —
-      // fixing the codec-detection blind spot for extensionless redirect URLs.
+      // fetchBase is already direct or proxy — use it directly.
+      // If fetchBase is still the original URL (proxy HEAD failed), fall back to proxy on TypeError.
       let r
       try {
-        r = await fetch(audioUrl, { signal: ctrl.signal })
+        r = await fetch(fetchBase, { signal: ctrl.signal })
       } catch (directErr) {
         if (directErr.name === 'AbortError') throw new Error('CANCELLED')
-        if (directErr instanceof TypeError) {
+        if (directErr instanceof TypeError && fetchBase === audioUrl) {
           const proxyUrl = `${BACKEND}/proxy/audio?url=${encodeURIComponent(audioUrl)}`
           r = await fetch(proxyUrl, { signal: ctrl.signal })
-          // Re-detect codec from actual resolved response (tracking redirects resolved)
           codec = detectCodec(r.url || audioUrl, r.headers.get('content-type') || '')
         } else {
           throw directErr

@@ -69,7 +69,7 @@ self.onmessage = async ({ data }) => {
       let chunksProcessed = 0
 
       const result = await transcriber(
-        { array: pcm, sampling_rate: samplingRate },
+        pcm,
         {
           language:          whisperLang,
           task:              'transcribe',
