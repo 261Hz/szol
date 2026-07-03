@@ -432,31 +432,6 @@
             </div>
           </div>
 
-          <!-- Whisper progress -->
-          <div v-if="whisperPhase !== 'idle' && whisperPhase !== 'done' && !whisperNeedsSizeConfirm" class="flex flex-col gap-2">
-            <div class="text-xs text-stone-400">
-              <span v-if="whisperPhase === 'fetching'">Downloading audio…</span>
-              <span v-else-if="whisperPhase === 'decoding'">Decoding audio…</span>
-              <span v-else-if="whisperPhase === 'model'">Loading Whisper model… {{ whisperModelPct }}%</span>
-              <span v-else-if="whisperPhase === 'transcribing'">Transcribing… {{ whisperTranscribePct }}%</span>
-              <span v-else-if="whisperPhase === 'error'" class="text-red-400">{{ whisperError }}</span>
-            </div>
-            <div
-              v-if="whisperPhase === 'model' || whisperPhase === 'transcribing'"
-              class="h-0.5 w-48 bg-stone-800 rounded-full overflow-hidden"
-            >
-              <div
-                class="h-full bg-emerald-700 rounded-full transition-all duration-300"
-                :style="{ width: (whisperPhase === 'model' ? whisperModelPct : whisperTranscribePct) + '%' }"
-              />
-            </div>
-            <button
-              v-if="whisperPhase !== 'error'"
-              @click="whisperCancel"
-              class="self-start text-xs text-stone-600 hover:text-red-400 transition-all"
-            >Cancel</button>
-          </div>
-
           <div class="flex items-center gap-3 flex-wrap">
             <button
               v-if="selectedStory?.audio_url && (whisperPhase === 'idle' || whisperPhase === 'error')"
@@ -470,6 +445,34 @@
           </div>
         </template>
 
+      </div>
+
+      <!-- Whisper progress — shown here so it persists once segments start appearing -->
+      <div v-if="whisperPhase !== 'idle' && whisperPhase !== 'done' && !whisperNeedsSizeConfirm" class="flex items-center gap-3">
+        <div class="text-xs" style="color:rgba(31,27,23,0.4);">
+          <span v-if="whisperPhase === 'fetching'">Downloading audio…</span>
+          <span v-else-if="whisperPhase === 'decoding'">Decoding…</span>
+          <span v-else-if="whisperPhase === 'model'">Loading model… {{ whisperModelPct }}%</span>
+          <span v-else-if="whisperPhase === 'transcribing'">Transcribing… {{ whisperTranscribePct }}%</span>
+          <span v-else-if="whisperPhase === 'error'" style="color:#8b3a3a;">{{ whisperError }}</span>
+        </div>
+        <div
+          v-if="whisperPhase === 'model' || whisperPhase === 'transcribing'"
+          class="flex-1 h-0.5 rounded-full overflow-hidden"
+          style="background:rgba(31,27,23,0.08); max-width:10rem;"
+        >
+          <div
+            class="h-full rounded-full transition-all duration-300"
+            style="background:#8b3a3a;"
+            :style="{ width: (whisperPhase === 'model' ? whisperModelPct : whisperTranscribePct) + '%' }"
+          />
+        </div>
+        <button
+          v-if="whisperPhase !== 'error'"
+          @click="whisperCancel"
+          class="text-xs transition-all"
+          style="color:rgba(31,27,23,0.3);"
+        >Cancel</button>
       </div>
 
       <!-- Action row -->
@@ -543,18 +546,22 @@ const {
 
 async function startWhisper() {
   if (!selectedStory.value?.audio_url) return
-  // Real episode duration: prefer loaded audio element, fall back to RSS itunes:duration.
-  // duration_sec comes from the backend PodcastEpisodeResponse schema.
-  // CORS-blocked audio won't load metadata, so the RSS value is the reliable source.
   const episodeSecs = duration.value || selectedStory.value?.duration_sec || null
+  const storyId     = selectedStory.value.id
+
   const segs = await whisperTranscribe(
     selectedStory.value.audio_url,
     props.lang,
     episodeSecs,
+    (newSegs) => {
+      segments.value = [...segments.value, ...newSegs]
+      saveStoredTranscript(storyId, segments.value)
+    },
   )
+  // On clean completion segs === accumulated; on cancel/error we keep what arrived.
   if (segs?.length) {
     segments.value = segs
-    await saveStoredTranscript(selectedStory.value.id, segs)
+    await saveStoredTranscript(storyId, segs)
   }
 }
 

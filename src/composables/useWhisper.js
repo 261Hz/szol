@@ -43,7 +43,7 @@ export function useWhisper() {
   // episodeDurationSecs: pass audioEl.duration (or itunes:duration) so the AAC memory
   // cap is accurate. Without it we estimate from file size ÷ 128 kbps, which
   // under-counts 64 kbps feeds by 2× and can let large episodes slip through.
-  async function transcribe(audioUrl, lang, episodeDurationSecs) {
+  async function transcribe(audioUrl, lang, episodeDurationSecs, onSegments) {
     // Abort any in-progress run before starting a new one.
     _sizeConfirmResolve?.(false)
     _sizeConfirmResolve = null
@@ -72,7 +72,7 @@ export function useWhisper() {
           return
         }
         phase.value = p
-      }, episodeDurationSecs)
+      }, episodeDurationSecs, onSegments)
 
       transcribePct.value = 100
       phase.value = 'done'

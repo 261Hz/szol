@@ -118,7 +118,7 @@ async function decodeAudioTo16k(arrayBuffer) {
 // episodeDurationSecs: pass from RSS itunes:duration or audio element.
 //   Without it, byte-count ÷ 128 kbps is used — badly wrong for 64 kbps feeds.
 //   A 3-hour 64 kbps episode estimates as 90 min, just under the cap, and would OOM.
-export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSecs) {
+export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSecs, onSegments) {
   const ctrl = new AbortController()
   _currentAbort = ctrl
 
@@ -273,6 +273,7 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
     })
 
     allSegments.push(...segments)
+    onSegments?.(segments)
     timeOffset += segSamples / 16000
   }
 
