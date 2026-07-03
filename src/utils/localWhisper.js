@@ -4,6 +4,11 @@
 // Backend URL — matches api.js. On CORS failure the audio is proxied through here.
 const BACKEND = 'https://szol.onrender.com'
 
+// Hostnames that failed CORS this session — skip direct HEAD and go straight to
+// the proxy probe. Podtrac, pdst, and similar trackers always block CORS; caching
+// here avoids 3-4 redirect hops per episode from the same feed family.
+const _corsBlocked = new Set()
+
 let worker    = null
 let seq       = 1
 const pending   = new Map()
@@ -144,22 +149,25 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
     }
 
     if (!arrayBuffers) {
-    // Resolve to either the direct URL or proxy URL — whichever HEAD succeeds.
-    // This means proxy-resolved URLs also feed the range-chunk path, not just single-fetch.
     let fetchBase = audioUrl
-    // Try direct HEAD first for same-origin or CORS-permissive feeds.
     let directOk = false
-    try {
-      const head = await fetch(audioUrl, { method: 'HEAD', signal: ctrl.signal })
-      if (head.ok) {
-        directOk      = true
-        contentLength = parseInt(head.headers.get('content-length') || '0', 10)
-        supportsRanges = head.headers.get('accept-ranges') === 'bytes'
-        codec          = detectCodec(audioUrl, head.headers.get('content-type') || '')
+    let _host = ''
+    try { _host = new URL(audioUrl).hostname } catch {}
+    // Skip direct HEAD for hosts that CORS-blocked us earlier this session.
+    if (!_corsBlocked.has(_host)) {
+      try {
+        const head = await fetch(audioUrl, { method: 'HEAD', signal: ctrl.signal })
+        if (head.ok) {
+          directOk      = true
+          contentLength = parseInt(head.headers.get('content-length') || '0', 10)
+          supportsRanges = head.headers.get('accept-ranges') === 'bytes'
+          codec          = detectCodec(audioUrl, head.headers.get('content-type') || '')
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') throw new Error('CANCELLED')
+        if (e instanceof TypeError && _host) _corsBlocked.add(_host)
+        // CORS or network — fall through to proxy probe below
       }
-    } catch (e) {
-      if (e.name === 'AbortError') throw new Error('CANCELLED')
-      // CORS or network — fall through to proxy probe below
     }
 
     // When direct HEAD failed or gave ambiguous results, probe via proxy with a
