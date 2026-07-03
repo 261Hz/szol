@@ -16,6 +16,10 @@ let _cache = null  // { url: string, buffers: ArrayBuffer[] }
 // 20 MB per fetch segment. MP3 frames are independently decodable at byte offsets;
 // AAC/MP4 containers need the moov atom — they cannot be range-decoded.
 const RANGE_CHUNK   = 20 * 1024 * 1024
+// 3-minute transcription windows within each decoded buffer. Decouples the
+// fetch/decode granularity (memory) from the inference granularity (latency).
+// First segments reach the UI ~1 min in rather than after a full 17-min chunk.
+const WINDOW_SAMPS  = 3 * 60 * 16000
 // Fallback bit-rate when RSS duration is unavailable.
 // 128 kbps is safe for most podcasts; pass episodeDurationSecs for 64 kbps feeds.
 const BYTES_PER_SEC = 16_000
@@ -279,20 +283,29 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
     if (ctrl.signal.aborted) throw new Error('CANCELLED')
     onPhase?.('transcribing')
 
-    const segSamples = pcm.length  // capture before transfer detaches the buffer
-    // pcm is a standalone Float32Array — transfer its buffer directly (no slice copy)
-    const segments = await new Promise((resolve, reject) => {
-      const id = seq++
-      pending.set(id, { resolve, reject })
-      getWorker().postMessage(
-        { id, type: 'transcribe', audio: pcm.buffer, samplingRate: 16000, lang, totalSecs, timeOffset },
-        [pcm.buffer],
-      )
-    })
+    // Split the decoded buffer into 3-min windows. Each slice is a standalone
+    // Float32Array (pcm.slice() copies), so pcm stays valid for all windows;
+    // only the transferred slice is detached in the worker.
+    const numWin = Math.ceil(pcm.length / WINDOW_SAMPS)
+    for (let w = 0; w < numWin; w++) {
+      if (ctrl.signal.aborted) throw new Error('CANCELLED')
+      const wStart   = w * WINDOW_SAMPS
+      const pcmSlice = pcm.slice(wStart, Math.min(wStart + WINDOW_SAMPS, pcm.length))
+      const winSamps = pcmSlice.length
 
-    allSegments.push(...segments)
-    onSegments?.(segments)
-    timeOffset += segSamples / 16000
+      const segments = await new Promise((resolve, reject) => {
+        const id = seq++
+        pending.set(id, { resolve, reject })
+        getWorker().postMessage(
+          { id, type: 'transcribe', audio: pcmSlice.buffer, samplingRate: 16000, lang, totalSecs, timeOffset },
+          [pcmSlice.buffer],
+        )
+      })
+
+      allSegments.push(...segments)
+      onSegments?.(segments)
+      timeOffset += winSamps / 16000
+    }
   }
 
   return allSegments
