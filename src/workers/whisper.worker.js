@@ -58,35 +58,35 @@ self.onmessage = async ({ data }) => {
   }
 
   if (type === 'transcribe') {
-    // timeOffset: seconds to add to all returned timestamps (per-segment transcription)
-    // chunksOffset: chunk count already processed by prior segments (cumulative progress)
-    const { audio, samplingRate, lang, totalChunks, chunksOffset = 0, timeOffset = 0 } = data
+    // timeOffset: seconds already transcribed before this 20 MB segment
+    // totalSecs:  full episode duration (for progress %)
+    const { audio, samplingRate, lang, totalSecs, timeOffset = 0 } = data
     try {
       await load()
 
       const pcm         = new Float32Array(audio)
       const whisperLang = WHISPER_LANG[lang] ?? null
-      let chunksProcessed = 0
+      let maxTime = 0  // highest timestamp seen so far in this segment
 
       const streamer = new WhisperTextStreamer(transcriber.tokenizer, {
-        on_chunk_end: () => {
-          chunksProcessed++
-          self.postMessage({
-            type: 'chunk_done',
-            chunksProcessed: chunksOffset + chunksProcessed,
-            totalChunks,
-          })
+        callback_function: () => {},  // silence the default stdout-write per token
+        on_chunk_end: (time) => {
+          // time is seconds within this segment; add timeOffset for episode position
+          maxTime = Math.max(maxTime, time ?? 0)
+          self.postMessage({ type: 'chunk_done', seconds: timeOffset + maxTime, totalSecs })
         },
       })
 
       const result = await transcriber(
         pcm,
         {
-          language:          whisperLang,
-          task:              'transcribe',
-          return_timestamps: true,
-          chunk_length_s:    30,
-          stride_length_s:   5,
+          language:             whisperLang,
+          task:                 'transcribe',
+          return_timestamps:    true,
+          chunk_length_s:       30,
+          stride_length_s:      5,
+          repetition_penalty:   1.15,
+          no_repeat_ngram_size: 3,
           streamer,
         },
       )

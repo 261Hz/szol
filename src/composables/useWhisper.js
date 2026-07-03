@@ -31,8 +31,8 @@ export function useWhisper() {
     }
     if (data.type === 'chunk_done') {
       if (phase.value !== 'transcribing') phase.value = 'transcribing'
-      const pct = data.totalChunks
-        ? Math.round((data.chunksProcessed / data.totalChunks) * 100)
+      const pct = data.totalSecs
+        ? Math.round((data.seconds / data.totalSecs) * 100)
         : 0
       transcribePct.value = Math.min(99, pct)
     }

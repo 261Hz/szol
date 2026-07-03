@@ -125,7 +125,7 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
   onPhase?.('fetching')
 
   let arrayBuffers
-  let totalEstimatedChunks = 1
+  let totalSecs = 0
 
   try {
     let contentLength  = 0
@@ -136,8 +136,7 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
     if (_cache?.url === audioUrl) {
       arrayBuffers = _cache.buffers.map(b => b.slice(0))
       const totalBytes = arrayBuffers.reduce((s, b) => s + b.byteLength, 0)
-      const estimatedSecs = episodeDurationSecs ?? totalBytes / BYTES_PER_SEC
-      totalEstimatedChunks = Math.max(1, Math.ceil(estimatedSecs / 25))
+      totalSecs = episodeDurationSecs ?? totalBytes / BYTES_PER_SEC
     }
 
     if (!arrayBuffers) {
@@ -175,9 +174,8 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
     // Real episode duration beats byte-count estimate: 64 kbps feeds are 2× longer than
     // 128 kbps would predict, so the byte estimate alone would let a 3-hour episode slip
     // under the safety cap.
-    const estimatedSecs  = episodeDurationSecs ?? (contentLength ? contentLength / BYTES_PER_SEC : 0)
-    const estimatedMins  = Math.round(estimatedSecs / 60)
-    totalEstimatedChunks = Math.max(1, Math.ceil(estimatedSecs / 25))
+    totalSecs            = episodeDurationSecs ?? (contentLength ? contentLength / BYTES_PER_SEC : 0)
+    const estimatedMins  = Math.round(totalSecs / 60)
 
     if (codec === 'mp3' && contentLength > RANGE_CHUNK && supportsRanges) {
       // fetchBase may be the proxy URL here — proxy passes Range headers through,
@@ -253,9 +251,8 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
 
   // Per-segment pipeline: decode → Whisper (with timeOffset) → free PCM → next.
   // Peak RAM ≤ one segment's decoded PCM at a time, bounded regardless of episode length.
-  const allSegments   = []
-  let timeOffset      = 0
-  let chunksProcessed = 0
+  const allSegments = []
+  let timeOffset    = 0
 
   for (let i = 0; i < arrayBuffers.length; i++) {
     if (ctrl.signal.aborted) throw new Error('CANCELLED')
@@ -267,28 +264,19 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
     if (ctrl.signal.aborted) throw new Error('CANCELLED')
     onPhase?.('transcribing')
 
-    const segDuration = pcm.length / 16000
-    const segChunks   = Math.ceil(segDuration / 25)
-
+    const segSamples = pcm.length  // capture before transfer detaches the buffer
     // pcm is a standalone Float32Array — transfer its buffer directly (no slice copy)
     const segments = await new Promise((resolve, reject) => {
       const id = seq++
       pending.set(id, { resolve, reject })
       getWorker().postMessage(
-        {
-          id, type: 'transcribe',
-          audio: pcm.buffer, samplingRate: 16000, lang,
-          totalChunks:  totalEstimatedChunks,
-          chunksOffset: chunksProcessed,
-          timeOffset,
-        },
+        { id, type: 'transcribe', audio: pcm.buffer, samplingRate: 16000, lang, totalSecs, timeOffset },
         [pcm.buffer],
       )
     })
 
     allSegments.push(...segments)
-    timeOffset      += segDuration
-    chunksProcessed += segChunks
+    timeOffset += segSamples / 16000
   }
 
   return allSegments
