@@ -1,4 +1,4 @@
-import { pipeline, env } from '@huggingface/transformers'
+import { pipeline, env, WhisperTextStreamer } from '@huggingface/transformers'
 
 env.allowLocalModels = false
 env.useBrowserCache  = true
@@ -68,6 +68,17 @@ self.onmessage = async ({ data }) => {
       const whisperLang = WHISPER_LANG[lang] ?? null
       let chunksProcessed = 0
 
+      const streamer = new WhisperTextStreamer(transcriber.tokenizer, {
+        on_chunk_end: () => {
+          chunksProcessed++
+          self.postMessage({
+            type: 'chunk_done',
+            chunksProcessed: chunksOffset + chunksProcessed,
+            totalChunks,
+          })
+        },
+      })
+
       const result = await transcriber(
         pcm,
         {
@@ -76,17 +87,7 @@ self.onmessage = async ({ data }) => {
           return_timestamps: true,
           chunk_length_s:    30,
           stride_length_s:   5,
-          // chunk_callback fires once per 30-s audio window — correct hook for % progress.
-          // Note: WASM ONNX compute is synchronous so the main thread cannot send a cancel
-          // message mid-inference; cancellation is handled by terminating the worker instead.
-          chunk_callback: () => {
-            chunksProcessed++
-            self.postMessage({
-              type: 'chunk_done',
-              chunksProcessed: chunksOffset + chunksProcessed,
-              totalChunks,
-            })
-          },
+          streamer,
         },
       )
 

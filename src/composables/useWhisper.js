@@ -19,7 +19,14 @@ export function useWhisper() {
       if (status === 'progress') modelPct.value = Math.round(progress ?? 0)
       if (status === 'done') {
         modelFiles.done++
-        if (modelFiles.done >= modelFiles.total) modelPct.value = 100
+        if (modelFiles.done >= modelFiles.total) {
+          modelPct.value = 100
+          // Model fully loaded — flip to transcribing immediately so the UI
+          // shows "Transcribing…" rather than freezing on "Loading model… 100%"
+          // while ONNX inference runs before the first chunk_done arrives.
+          phase.value         = 'transcribing'
+          transcribePct.value = 0
+        }
       }
     }
     if (data.type === 'chunk_done') {

@@ -9,6 +9,9 @@ let seq       = 1
 const pending   = new Map()
 const listeners = new Set()
 let _currentAbort = null
+// One-episode cache: avoids re-downloading on inference crash + retry.
+// Stores compressed ArrayBuffers (before decode) keyed by audio URL.
+let _cache = null  // { url: string, buffers: ArrayBuffer[] }
 
 // 20 MB per fetch segment. MP3 frames are independently decodable at byte offsets;
 // AAC/MP4 containers need the moov atom — they cannot be range-decoded.
@@ -129,6 +132,15 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
     let supportsRanges = false
     let codec          = detectCodec(audioUrl, '')
 
+    // Serve from cache on retry — avoids re-downloading after an inference crash.
+    if (_cache?.url === audioUrl) {
+      arrayBuffers = _cache.buffers.map(b => b.slice(0))
+      const totalBytes = arrayBuffers.reduce((s, b) => s + b.byteLength, 0)
+      const estimatedSecs = episodeDurationSecs ?? totalBytes / BYTES_PER_SEC
+      totalEstimatedChunks = Math.max(1, Math.ceil(estimatedSecs / 25))
+    }
+
+    if (!arrayBuffers) {
     // Resolve to either the direct URL or proxy URL — whichever HEAD succeeds.
     // This means proxy-resolved URLs also feed the range-chunk path, not just single-fetch.
     let fetchBase = audioUrl
@@ -223,6 +235,11 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       arrayBuffers = [await r.arrayBuffer()]
     }
+
+    // Cache after successful fetch so retries skip the download.
+    _cache = { url: audioUrl, buffers: arrayBuffers.map(b => b.slice(0)) }
+    } // end if (!arrayBuffers) fetch block
+
   } catch (e) {
     if (e.message === 'CANCELLED' || e.name === 'AbortError') throw new Error('CANCELLED')
     // Any TypeError from fetch() is a network or CORS failure.
