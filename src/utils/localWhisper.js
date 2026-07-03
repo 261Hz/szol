@@ -143,31 +143,45 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
     // Resolve to either the direct URL or proxy URL — whichever HEAD succeeds.
     // This means proxy-resolved URLs also feed the range-chunk path, not just single-fetch.
     let fetchBase = audioUrl
+    // Try direct HEAD first for same-origin or CORS-permissive feeds.
+    let directOk = false
     try {
       const head = await fetch(audioUrl, { method: 'HEAD', signal: ctrl.signal })
       if (head.ok) {
-        contentLength  = parseInt(head.headers.get('content-length') || '0', 10)
+        directOk      = true
+        contentLength = parseInt(head.headers.get('content-length') || '0', 10)
         supportsRanges = head.headers.get('accept-ranges') === 'bytes'
         codec          = detectCodec(audioUrl, head.headers.get('content-type') || '')
       }
     } catch (e) {
       if (e.name === 'AbortError') throw new Error('CANCELLED')
-      // Direct HEAD failed (CORS or network) — try proxy HEAD so we get real metadata
-      // and can use the proxy for range-chunked fetches too.
-      if (e instanceof TypeError) {
-        try {
-          const proxyUrl  = `${BACKEND}/proxy/audio?url=${encodeURIComponent(audioUrl)}`
-          const proxyHead = await fetch(proxyUrl, { method: 'HEAD', signal: ctrl.signal })
-          if (proxyHead.ok) {
-            fetchBase      = proxyUrl
-            contentLength  = parseInt(proxyHead.headers.get('content-length') || '0', 10)
-            supportsRanges = proxyHead.headers.get('accept-ranges') === 'bytes'
-            codec          = detectCodec(proxyUrl, proxyHead.headers.get('content-type') || '')
-          }
-        } catch (pe) {
-          if (pe.name === 'AbortError') throw new Error('CANCELLED')
-          // proxy HEAD also failed — continue with codec guessed from URL, single-fetch later
+      // CORS or network — fall through to proxy probe below
+    }
+
+    // When direct HEAD failed or gave ambiguous results, probe via proxy with a
+    // 2-byte Range request.  A 206 response is definitive proof of range support
+    // and sidesteps every expose_headers / extensionless-URL ambiguity:
+    //   • status 206 → supportsRanges = true, no header-readability caveats
+    //   • content-type IS a CORS-safelisted header, always readable → real codec
+    //   • Content-Range tells us the exact file size even if content-length was 0
+    if (!directOk || !supportsRanges) {
+      try {
+        const proxyUrl   = `${BACKEND}/proxy/audio?url=${encodeURIComponent(audioUrl)}`
+        const probe      = await fetch(proxyUrl, { signal: ctrl.signal, headers: { Range: 'bytes=0-1' } })
+        if (probe.status === 206 || probe.ok) {
+          fetchBase      = proxyUrl
+          supportsRanges = probe.status === 206
+          codec          = detectCodec(audioUrl, probe.headers.get('content-type') || '')
+          // Content-Range: bytes 0-1/TOTAL — extract total if content-length was missing
+          const cr = probe.headers.get('content-range') || ''
+          const crTotal = parseInt(cr.split('/')[1] || '0', 10)
+          if (crTotal > 0) contentLength = crTotal
+          else if (!contentLength) contentLength = parseInt(probe.headers.get('content-length') || '0', 10)
+          await probe.body?.cancel().catch(() => {})
         }
+      } catch (pe) {
+        if (pe.name === 'AbortError') throw new Error('CANCELLED')
+        // proxy probe failed — continue with what we have, single-fetch later
       }
     }
 
@@ -177,7 +191,10 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
     totalSecs            = episodeDurationSecs ?? (contentLength ? contentLength / BYTES_PER_SEC : 0)
     const estimatedMins  = Math.round(totalSecs / 60)
 
-    if (codec === 'mp3' && contentLength > RANGE_CHUNK && supportsRanges) {
+    // Use chunked path for MP3 (or unknown codec via proxy — probe confirmed 206).
+    // AAC containers can't be range-decoded (moov atom required), so only chunk non-AAC.
+    const canChunk = codec !== 'aac' && contentLength > RANGE_CHUNK && supportsRanges
+    if (canChunk) {
       // fetchBase may be the proxy URL here — proxy passes Range headers through,
       // so chunked fetches work the same regardless of whether we're going direct or proxied.
       try {
@@ -202,9 +219,10 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
       // All three must be decoded in full — apply the same size guard regardless of codec.
       if (estimatedMins > AAC_MAX_MINS) {
         throw new Error(
-          `This episode is ~${estimatedMins} min. Decoding the full file requires ` +
-          `~${Math.round(estimatedMins * 20)} MB of memory. ` +
-          `Download the file and paste a local transcript instead.`
+          `This episode is ~${estimatedMins} min. The audio format (AAC/MP4) can't be ` +
+          `range-fetched, so the full file must be decoded at once — ` +
+          `~${Math.round(estimatedMins * 20)} MB peak memory. ` +
+          `Paste a transcript instead, or download the audio and use a desktop transcription tool.`
         )
       }
       if (estimatedMins > AAC_WARN_MINS) {
