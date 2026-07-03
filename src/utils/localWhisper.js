@@ -131,6 +131,13 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
   const ctrl = new AbortController()
   _currentAbort = ctrl
 
+  // Start warming up the worker/model now, in parallel with the audio probe and
+  // chunk download. On a cold start the model takes 60-90 s to load from HuggingFace;
+  // without this the load only begins after chunk 0 is fully downloaded and decoded,
+  // adding that 10-15 s chunk time on top. We ignore the resolved value — the worker
+  // processes messages in order, so the later transcribe call queues behind load.
+  preloadWhisper().catch(() => {})
+
   onPhase?.('fetching')
 
   let arrayBuffers
