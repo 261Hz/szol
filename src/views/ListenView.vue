@@ -492,6 +492,13 @@
           >{{ isTranslating ? '…' : (localTranslation ? t(lang, 'retranslateBtn') : t(lang, 'translateBtn')) }}</button>
 
           <button
+            v-if="segments.length && playerReady && !isYouTubeStory()"
+            @click="syncTranscript"
+            class="act-btn"
+            title="Sync transcript: marks the current audio position as the start of this segment"
+          >Sync</button>
+
+          <button
             v-if="selectedStory.audio_url"
             @click="downloadAudio"
             :disabled="downloadingAudio"
@@ -713,6 +720,10 @@ watch(() => props.story, (newStory) => {
 
 const segments            = ref([])
 const segmentIdx          = ref(0)
+// Piecewise timestamp corrections for dynamic ad insertion drift.
+// Each entry: { fromIdx, delta } where delta = actualAudioTime - transcriptTime.
+// Apply the most recent entry whose fromIdx ≤ the segment being played.
+const syncPoints          = ref([])
 const userInput           = ref('')
 const showTranscript      = ref(false)
 const resumeSegment       = ref(null)
@@ -962,6 +973,7 @@ async function loadStory(story, startAt = null) {
   selectedStory.value    = story
   segments.value         = story.segments ?? []
   segmentIdx.value       = 0
+  syncPoints.value       = []
   userInput.value        = ''
   showTranscript.value   = false
   localTranslation.value = ''
@@ -1037,7 +1049,7 @@ function initPlayer(id) {
         onReady(e) {
           playerReady.value = true
           duration.value    = e.target.getDuration() || 0
-          let seekTarget = segments.value[segmentIdx.value]?.start ?? 0
+          let seekTarget = adjStart(segmentIdx.value)
           if (_pendingStartAt !== null) {
             seekTarget = _pendingStartAt
             const idx  = segments.value.findIndex(s => s.start <= _pendingStartAt && s.end >= _pendingStartAt)
@@ -1084,10 +1096,10 @@ function loadYTApi(id) {
 function pollYTTime() {
   if (!player?.getCurrentTime) return
   currentTime.value = player.getCurrentTime()
-  const seg = segments.value[segmentIdx.value]
-  if (seg?.end != null && currentTime.value >= seg.end) {
+  const end = adjEnd(segmentIdx.value)
+  if (end > 0 && currentTime.value >= end) {
     player.pauseVideo()
-    currentTime.value = seg.end
+    currentTime.value = end
   }
 }
 
@@ -1098,7 +1110,7 @@ const audioEl = ref(null)
 function onAudioLoaded() {
   playerReady.value = true
   duration.value    = audioEl.value?.duration || 0
-  const startAt = segments.value[segmentIdx.value]?.start ?? 0
+  const startAt = adjStart(segmentIdx.value)
   if (audioEl.value && Math.abs(audioEl.value.currentTime - startAt) > 1) {
     audioEl.value.currentTime = startAt
   }
@@ -1107,10 +1119,10 @@ function onAudioLoaded() {
 function onAudioTimeUpdate() {
   if (!audioEl.value) return
   currentTime.value = audioEl.value.currentTime
-  const seg = segments.value[segmentIdx.value]
-  if (seg?.end != null && currentTime.value >= seg.end) {
+  const end = adjEnd(segmentIdx.value)
+  if (end > 0 && currentTime.value >= end) {
     audioEl.value.pause()
-    currentTime.value = seg.end
+    currentTime.value = end
   }
 }
 
@@ -1139,7 +1151,7 @@ function rewind() {
 
 function seekToSegmentStart() {
   if (!playerReady.value) return
-  seekTo(segments.value[segmentIdx.value]?.start ?? 0)
+  seekTo(adjStart(segmentIdx.value))
 }
 
 function seekTo(t) {
@@ -1153,8 +1165,7 @@ function seekTo(t) {
 
 function nextSegment() {
   if (segmentIdx.value >= segments.value.length - 1) return
-  const next = segments.value[segmentIdx.value + 1]
-  seekTo(next.start)
+  seekTo(adjStart(segmentIdx.value + 1))
   if (isYouTubeStory()) player.pauseVideo()
   else if (audioEl.value) audioEl.value.pause()
   segmentIdx.value++
@@ -1212,6 +1223,40 @@ function fmtTime(secs) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
+// ── Transcript sync (DAI offset correction) ───────────────────────────────────
+
+function getSyncDelta(segIdx) {
+  let delta = 0
+  for (const sp of syncPoints.value) {
+    if (sp.fromIdx <= segIdx) delta = sp.delta
+    else break
+  }
+  return delta
+}
+
+function adjStart(segIdx) {
+  const s = segments.value[segIdx]
+  return s ? s.start + getSyncDelta(segIdx) : 0
+}
+
+function adjEnd(segIdx) {
+  const s = segments.value[segIdx]
+  if (!s) return 0
+  return (s.end ?? s.start + 30) + getSyncDelta(segIdx)
+}
+
+// Called by the Sync button — records the current audio position as the true
+// start of the current segment and applies the resulting delta to all subsequent
+// segments, leaving earlier corrections untouched.
+function syncTranscript() {
+  if (!currentSegment.value || !audioEl.value) return
+  const delta = audioEl.value.currentTime - currentSegment.value.start
+  syncPoints.value = [
+    ...syncPoints.value.filter(sp => sp.fromIdx < segmentIdx.value),
+    { fromIdx: segmentIdx.value, delta },
+  ]
+}
+
 // ── Speed / volume / skip ─────────────────────────────────────────────────────
 
 function setSpeed(rate) {
@@ -1225,7 +1270,7 @@ function applyVolume() {
 
 function skipBack() {
   if (!playerReady.value) return
-  const segStart = segments.value[segmentIdx.value]?.start ?? 0
+  const segStart = adjStart(segmentIdx.value)
   const now      = isYouTubeStory() ? player.getCurrentTime() : (audioEl.value?.currentTime ?? 0)
   seekTo(Math.max(segStart, now - 15))
 }
@@ -1478,7 +1523,7 @@ function resumeFromSaved() {
   segmentIdx.value     = idx
   userInput.value      = ''
   showTranscript.value = false
-  seekTo(segments.value[idx]?.start ?? 0)
+  seekTo(adjStart(idx))
 }
 
 watch(segmentIdx, saveProgress)
