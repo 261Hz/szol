@@ -60,11 +60,32 @@ def _ssrf_safe(url: str) -> bool:
         return False
 
 
-@router.get("/audio")
+@router.api_route("/audio", methods=["GET", "HEAD"])
 @limiter.limit("30/minute")
 async def proxy_audio(url: str, request: Request):
     if not _ssrf_safe(url):
         raise HTTPException(400, "Invalid or disallowed URL")
+
+    # HEAD: fetch upstream headers only (GET+immediate close so CDNs that reject HEAD still work)
+    if request.method == "HEAD":
+        client = httpx.AsyncClient(follow_redirects=True, timeout=httpx.Timeout(15))
+        try:
+            upstream_req = client.build_request("GET", url, headers={"User-Agent": "szol-app/1.0"})
+            r = await client.send(upstream_req, stream=True)
+            resp_headers: dict[str, str] = {
+                "Content-Type":                r.headers.get("content-type", "audio/mpeg"),
+                "Accept-Ranges":               r.headers.get("accept-ranges", "bytes"),
+                "Access-Control-Allow-Origin": "*",
+            }
+            if cl := r.headers.get("content-length"):
+                resp_headers["Content-Length"] = cl
+        except httpx.RequestError as e:
+            raise HTTPException(502, f"Could not reach upstream: {e}")
+        finally:
+            await r.aclose()
+            await client.aclose()
+        from fastapi.responses import Response
+        return Response(status_code=200, headers=resp_headers)
 
     fwd: dict[str, str] = {"User-Agent": "szol-app/1.0"}
     if rng := request.headers.get("range"):
