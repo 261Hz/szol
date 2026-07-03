@@ -518,7 +518,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, watchEffect } from 'vue'
 import Fuse from 'fuse.js'
 import { LANGS } from '../data/stories.js'
-import { fetchListenStories, checkTranslation, fetchPodcastTranscript, fetchOgjreTranscript, savePodcastTranscript, fetchPodcasts, fetchPodcastIndexTranscript } from '../utils/api.js'
+import { fetchListenStories, checkTranslation, fetchPodcastTranscript, fetchOgjreTranscript, savePodcastTranscript, fetchPodcasts, fetchPodcastIndexTranscript, authHeaders } from '../utils/api.js'
 import { t } from '../utils/i18n.js'
 import { isRTL } from '../utils/rtl.js'
 import { spokenNumbers } from '../utils/spokenNumbers.js'
@@ -625,7 +625,7 @@ async function submitClipReport() {
   if (!clip) return
   await fetch('/api/report-clip', {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body:    JSON.stringify({
       video_id:  clip.video_id,
       start_sec: clip.start_sec,
@@ -874,7 +874,9 @@ async function tryFetchTranscript(storyId, title, podcastName) {
     // On-demand episodes: try embedded podcast:transcript URL from RSS
     const txUrl = selectedStory.value?.transcript_url
     if (txUrl) {
-      const r = await fetch(`/api/fetch-transcript?url=${encodeURIComponent(txUrl)}`).catch(() => null)
+      const r = await fetch(`/api/fetch-transcript?url=${encodeURIComponent(txUrl)}`, { headers: authHeaders() }).catch(() => null)
+      if (!r) { console.warn('[transcript] fetch-transcript request failed (network/CORS)') }
+      else if (!r.ok) { console.warn('[transcript] fetch-transcript returned', r.status, txUrl) }
       if (r?.ok) {
         const data = await r.json().catch(() => null)
         if (data?.segments?.length) {
@@ -894,7 +896,9 @@ async function tryFetchTranscript(storyId, title, podcastName) {
       const episodeGuid    = selectedStory.value?.guid ?? null
       const piTxUrl = await fetchPodcastIndexTranscript(piFeedUrl, audioForLookup, episodeGuid).catch(() => null)
       if (piTxUrl) {
-        const r = await fetch(`/api/fetch-transcript?url=${encodeURIComponent(piTxUrl)}`).catch(() => null)
+        const r = await fetch(`/api/fetch-transcript?url=${encodeURIComponent(piTxUrl)}`, { headers: authHeaders() }).catch(() => null)
+        if (!r) { console.warn('[transcript] fetch-transcript (PI) request failed (network/CORS)') }
+        else if (!r.ok) { console.warn('[transcript] fetch-transcript (PI) returned', r.status, piTxUrl) }
         if (r?.ok) {
           const data = await r.json().catch(() => null)
           if (data?.segments?.length) {
