@@ -553,6 +553,15 @@ const {
 
 async function startWhisper() {
   if (!selectedStory.value?.audio_url) return
+  // Wait up to 4 s for the audio element to report its duration — the byte-count
+  // fallback assumes 128 kbps but high-quality podcasts encode at 256-320 kbps,
+  // causing the progress bar to stick near 0% for the entire run.
+  if (!duration.value) {
+    await new Promise(r => {
+      const stop = watchEffect(() => { if (duration.value) { stop(); r() } })
+      setTimeout(() => { stop(); r() }, 4000)
+    })
+  }
   const episodeSecs = duration.value || selectedStory.value?.duration_sec || null
   const storyId     = selectedStory.value.id
 
@@ -1096,11 +1105,6 @@ function loadYTApi(id) {
 function pollYTTime() {
   if (!player?.getCurrentTime) return
   currentTime.value = player.getCurrentTime()
-  const end = adjEnd(segmentIdx.value)
-  if (end > 0 && currentTime.value >= end) {
-    player.pauseVideo()
-    currentTime.value = end
-  }
 }
 
 // ── HTML5 audio handlers ──────────────────────────────────────────────────────
@@ -1119,11 +1123,6 @@ function onAudioLoaded() {
 function onAudioTimeUpdate() {
   if (!audioEl.value) return
   currentTime.value = audioEl.value.currentTime
-  const end = adjEnd(segmentIdx.value)
-  if (end > 0 && currentTime.value >= end) {
-    audioEl.value.pause()
-    currentTime.value = end
-  }
 }
 
 // ── Unified player controls ───────────────────────────────────────────────────

@@ -134,7 +134,9 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
   onPhase?.('fetching')
 
   let arrayBuffers
-  let totalSecs = 0
+  let totalSecs    = 0
+  const allSegments = []
+  let timeOffset    = 0
 
   try {
     let contentLength  = 0
@@ -207,22 +209,52 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
     // AAC containers can't be range-decoded (moov atom required), so only chunk non-AAC.
     const canChunk = codec !== 'aac' && contentLength > RANGE_CHUNK && supportsRanges
     if (canChunk) {
-      // fetchBase may be the proxy URL here — proxy passes Range headers through,
-      // so chunked fetches work the same regardless of whether we're going direct or proxied.
+      // Interleaved: fetch one 20 MB chunk → decode → transcribe its 3-min windows →
+      // then fetch the next chunk. First text arrives after ~one-chunk-download + first
+      // window inference (~40–60 s total) instead of waiting for the full episode download.
+      const cacheBuffers = []
       try {
-        arrayBuffers = []
         const numChunks = Math.ceil(contentLength / RANGE_CHUNK)
         for (let i = 0; i < numChunks; i++) {
           if (ctrl.signal.aborted) throw new Error('CANCELLED')
+          onPhase?.('fetching')
           const start = i * RANGE_CHUNK
           const end   = Math.min(start + RANGE_CHUNK - 1, contentLength - 1)
           const r = await fetch(fetchBase, { signal: ctrl.signal, headers: { Range: `bytes=${start}-${end}` } })
           if (!r.ok && r.status !== 206) throw new Error(`HTTP ${r.status}`)
-          arrayBuffers.push(await r.arrayBuffer())
+          const buf = await r.arrayBuffer()
+          cacheBuffers.push(buf.slice(0))  // cache copy before decodeAudioData detaches buf
+
+          if (ctrl.signal.aborted) throw new Error('CANCELLED')
+          onPhase?.('decoding')
+          const pcm = await decodeAudioTo16k(buf)
+
+          if (ctrl.signal.aborted) throw new Error('CANCELLED')
+          onPhase?.('transcribing')
+          const numWin = Math.ceil(pcm.length / WINDOW_SAMPS)
+          for (let w = 0; w < numWin; w++) {
+            if (ctrl.signal.aborted) throw new Error('CANCELLED')
+            const wStart   = w * WINDOW_SAMPS
+            const pcmSlice = pcm.slice(wStart, Math.min(wStart + WINDOW_SAMPS, pcm.length))
+            const winSamps = pcmSlice.length
+            const segs = await new Promise((resolve, reject) => {
+              const id = seq++
+              pending.set(id, { resolve, reject })
+              getWorker().postMessage(
+                { id, type: 'transcribe', audio: pcmSlice.buffer, samplingRate: 16000, lang, totalSecs, timeOffset },
+                [pcmSlice.buffer],
+              )
+            })
+            allSegments.push(...segs)
+            onSegments?.(segs)
+            timeOffset += winSamps / 16000
+          }
         }
+        _cache = { url: audioUrl, buffers: cacheBuffers }
+        return allSegments  // done — bottom transcription loop is for cache/single-fetch only
       } catch (e) {
         if (e.name === 'AbortError' || e.message === 'CANCELLED') throw e
-        arrayBuffers = null  // range fetch failed; fall through to single-fetch
+        // Range fetch failed — fall through to single-fetch below
       }
     }
 
@@ -276,11 +308,7 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
     throw e.message.match(/^(This episode|HTTP )/) ? e : new Error(`Could not load audio: ${e.message}`)
   }
 
-  // Per-segment pipeline: decode → Whisper (with timeOffset) → free PCM → next.
-  // Peak RAM ≤ one segment's decoded PCM at a time, bounded regardless of episode length.
-  const allSegments = []
-  let timeOffset    = 0
-
+  // Cache-hit and single-fetch paths land here (chunked path returned early above).
   for (let i = 0; i < arrayBuffers.length; i++) {
     if (ctrl.signal.aborted) throw new Error('CANCELLED')
     onPhase?.('decoding')
