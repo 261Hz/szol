@@ -198,21 +198,18 @@ export async function transcribeAudio(audioUrl, lang, onPhase, episodeDurationSe
     }
 
     if (!arrayBuffers) {
-      // Single-fetch path: AAC, unknown codec, or range fallback.
-      if (codec !== 'mp3') {
-        if (estimatedMins > AAC_MAX_MINS) {
-          throw new Error(
-            `This episode is ~${estimatedMins} min. AAC/MP4 audio must be decoded in full — ` +
-            `${estimatedMins} min exceeds safe memory limits. ` +
-            `Download the file and paste a local transcript instead.`
-          )
-        }
-        if (estimatedMins > AAC_WARN_MINS) {
-          // Await the callback so the UI can pause for user confirmation.
-          // If the caller returns false the fetch is cancelled before it starts.
-          const proceed = await onPhase?.('size_warning', { estimatedMins })
-          if (proceed === false) throw new Error('CANCELLED')
-        }
+      // Single-fetch path: AAC, unknown codec, or MP3 that couldn't be ranged.
+      // All three must be decoded in full — apply the same size guard regardless of codec.
+      if (estimatedMins > AAC_MAX_MINS) {
+        throw new Error(
+          `This episode is ~${estimatedMins} min. Decoding the full file requires ` +
+          `~${Math.round(estimatedMins * 20)} MB of memory. ` +
+          `Download the file and paste a local transcript instead.`
+        )
+      }
+      if (estimatedMins > AAC_WARN_MINS) {
+        const proceed = await onPhase?.('size_warning', { estimatedMins })
+        if (proceed === false) throw new Error('CANCELLED')
       }
 
       // fetchBase is already direct or proxy — use it directly.
