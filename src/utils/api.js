@@ -20,7 +20,7 @@ function getToken() {
   return localStorage.getItem('szol_token')
 }
 
-function authHeaders(extra = {}) {
+export function authHeaders(extra = {}) {
   const token = getToken()
   return token ? { Authorization: `Bearer ${token}`, ...extra } : { ...extra }
 }
