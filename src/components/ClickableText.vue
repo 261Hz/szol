@@ -80,23 +80,28 @@ const tokens = computed(() => {
 })
 
 // ── Desktop: direct click ─────────────────────────────────────────────────────
+//
+// Don't gate this on device capability (matchMedia('pointer: coarse')) -- that
+// reflects whether the device HAS a touchscreen, not whether THIS input came
+// from one. Hybrid devices (e.g. Windows touchscreen laptops) report coarse
+// pointer even while the user is clicking with a mouse/trackpad, which made
+// clicks silently do nothing (the touch handlers never fire for real mouse
+// input). Instead, only ignore a click if a real touch tap just handled the
+// same interaction (suppresses the browser's synthetic click after a tap).
 
 function handleClick(word) {
-  if (isTouchDevice()) return  // touch path handles this via touchend
+  if (Date.now() - lastTouchEmitAt < 500) return
   emit('tap', { word, sentence: props.text })
 }
 
 // ── Mobile: tap (short) and long-press (vocab popup) ─────────────────────────
 
 const popup = ref(null)   // { word, x, y } or null
-let pressTimer = null
-let touchMoved = false
-let touchWord  = null
-let touchEvent = null
-
-function isTouchDevice() {
-  return window.matchMedia('(pointer: coarse)').matches
-}
+let pressTimer      = null
+let touchMoved      = false
+let touchWord       = null
+let touchEvent      = null
+let lastTouchEmitAt = 0
 
 function handleTouchStart(e, word) {
   touchMoved = false
@@ -118,7 +123,10 @@ function handleTouchEnd() {
     // Timer hasn't fired → short tap
     clearTimeout(pressTimer)
     pressTimer = null
-    if (!touchMoved) emit('tap', { word: touchWord, sentence: props.text })
+    if (!touchMoved) {
+      lastTouchEmitAt = Date.now()
+      emit('tap', { word: touchWord, sentence: props.text })
+    }
   }
   // If pressTimer is null, long-press already fired → nothing extra
   touchWord  = null
