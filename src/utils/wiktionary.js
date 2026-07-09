@@ -2,6 +2,15 @@
 // Returns { definitions: string[], examples: string[] } or null.
 // The REST endpoint returns structured JSON unlike the extracts API,
 // so no per-language parsing hacks needed.
+//
+// IMPORTANT: this REST endpoint (page/definition) only works on en.wiktionary.org.
+// Every other edition (de, fr, es, it, pt, ru, ja, zh, ko, ar, he, ...) returns
+// 501 Not Implemented -- confirmed live, not a rate-limit fluke (cached 14 days
+// at the edge). So for non-English words, we try a native-language adapter
+// first (dictionary.js) where one exists, then fall back to this REST call,
+// which will only succeed for lang === 'en'.
+
+import { lookupAdapter } from './dictionary.js'
 
 // ar/he Wiktionary REST endpoint returns 501 — omitted intentionally
 const WIKT_CODE = {
@@ -56,6 +65,9 @@ async function fetchDefinition(word, siteCode) {
 }
 
 export async function searchWiktionary(word, lang) {
+  const adapted = await lookupAdapter(word, lang)
+  if (adapted) return adapted
+
   const code = WIKT_CODE[lang] ?? 'en'
   return fetchDefinition(word, code)
 }
