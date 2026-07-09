@@ -48,10 +48,10 @@ jobs:
           path: android/**/*.apk
           retention-days: 14
 
-      - name: Rename APK for release
+      - name: Rename debug APK for release
         run: cp android/app/build/outputs/apk/debug/app-debug.apk szol-debug.apk
 
-      - name: Publish to GitHub Releases (rolling android-latest tag)
+      - name: Publish debug build to GitHub Releases (rolling android-latest tag)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-latest
@@ -60,3 +60,44 @@ jobs:
           files: szol-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Signed, obfuscated release build -- this is what the website's
+      #    Settings page links to (see Upload to Vercel Blob below). Skips
+      #    cleanly if the signing secrets aren't configured yet.
+      - name: Decode release keystore
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "${{ runner.temp }}/szol-release.keystore"
+
+      - name: Build release APK
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+          echo "=== APK search ==="
+          find . -name "*.apk" 2>/dev/null
+        env:
+          RELEASE_KEYSTORE_PATH:     ${{ runner.temp }}/szol-release.keystore
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS:         ${{ secrets.ANDROID_KEY_ALIAS }}
+
+      - name: Upload release APK to Vercel Blob (what the website's Settings page links to)
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.BLOB_READ_WRITE_TOKEN != '' }}
+        run: |
+          node -e "
+            const { put } = require('@vercel/blob');
+            const fs = require('fs');
+            (async () => {
+              const body = fs.readFileSync('android/app/build/outputs/apk/release/app-release.apk');
+              const blob = await put('szol.apk', body, {
+                access: 'public',
+                addRandomSuffix: false,
+                allowOverwrite: true,
+                contentType: 'application/vnd.android.package-archive',
+              });
+              console.log('APK now at:', blob.url);
+              console.log('If this is the first upload, set VITE_APK_BLOB_URL to this value in Vercel project env vars.');
+            })();
+          "
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}

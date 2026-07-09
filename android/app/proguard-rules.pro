@@ -5,17 +5,30 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# WebView <-> JS bridge: methods called via reflection from JS must survive
+# shrinking/renaming, or every native call the web app makes silently breaks.
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Capacitor core + bridge + all plugins (including Cordova-compat ones) are
+# invoked via reflection by plugin name/method -- keep them and their
+# annotations intact.
+-keep class com.getcapacitor.** { *; }
+-keep @com.getcapacitor.annotation.CapacitorPlugin class * { *; }
+-keepclassmembers @com.getcapacitor.annotation.CapacitorPlugin class * {
+    @com.getcapacitor.annotation.PermissionCallback <methods>;
+    @com.getcapacitor.annotation.ActivityCallback <methods>;
+    public <methods>;
+}
+-keep class org.apache.cordova.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# ML Kit (digital ink recognition) and Play Services use reflection heavily.
+-keep class com.google.mlkit.** { *; }
+-keep class com.google.android.gms.** { *; }
+-dontwarn com.google.mlkit.**
+-dontwarn com.google.android.gms.**
+
+# Keep line numbers for readable crash stack traces; hide the source file name.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
