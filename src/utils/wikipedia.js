@@ -10,7 +10,7 @@
 // Maps the app's short language codes to Wikipedia subdomain codes.
 const WIKI_LANG = {
   en: 'en', es: 'es', fr: 'fr', de: 'de', it: 'it',
-  ru: 'ru', he: 'he', ar: 'ar', arz: 'ar',
+  ru: 'ru', he: 'he', ar: 'ar', arz: 'ar', pt: 'pt',
   ja: 'ja', zh: 'zh', 'zh-TW': 'zh', hu: 'hu', el: 'el',
 }
 

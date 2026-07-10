@@ -11,7 +11,7 @@
 // Most are 1:1 with the language code. arz (Egyptian Arabic) falls back to 'ar'.
 // ar, hu: Wikivoyage editions still in Wikimedia Incubator — not included.
 const WIKI_LANG = {
-  en: 'en', es: 'es', fr: 'fr', de: 'de', it: 'it',
+  en: 'en', es: 'es', fr: 'fr', de: 'de', it: 'it', pt: 'pt',
   ru: 'ru', he: 'he', ja: 'ja', zh: 'zh', 'zh-TW': 'zh', el: 'el', id: 'id',
 }
 

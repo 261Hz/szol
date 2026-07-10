@@ -18,6 +18,7 @@ const TATOEBA_LANG = {
   'zh-TW': 'cmn', // Traditional Mandarin Chinese (same corpus)
   hu:  'hun',
   el:  'ell',
+  pt:  'por',
 }
 
 // fetchTatoeba() searches Tatoeba for example sentences containing the given word.

@@ -79,7 +79,7 @@ function fmtCount(n) {
 }
 
 const REGIONS_BASE = [
-  { name: 'Western Europe', langs: ['en', 'fr', 'de', 'es', 'it', 'el'] },
+  { name: 'Western Europe', langs: ['en', 'fr', 'de', 'es', 'it', 'pt', 'el'] },
   { name: 'Central & East', langs: ['hu', 'ru'] },
   { name: 'Middle East',    langs: ['ar', 'arz', 'he'] },
   { name: 'East Asia',      langs: ['ja', 'zh', 'zh-TW'] },

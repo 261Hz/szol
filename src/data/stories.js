@@ -58,6 +58,10 @@ export const LANGS = {
   es:  { name: 'Español',    wiki: 'es', rtl: false, script: false, bcp47: 'es-ES' },
   // 'es-ES' = Spanish as spoken in Spain
 
+  pt:  { name: 'Português',  wiki: 'pt', rtl: false, script: false, bcp47: 'pt-PT' },
+  // 'pt-PT' = European Portuguese, matching the existing pt-PT mapping already
+  // used elsewhere (WriteView.vue's handwriting recognition language list).
+
   id:  { name: 'Bahasa Indonesia', wiki: 'id', rtl: false, script: false, bcp47: 'id-ID' },
   // Indonesian: Latin alphabet, LTR. 'id-ID' = Indonesian as spoken in Indonesia.
 }
