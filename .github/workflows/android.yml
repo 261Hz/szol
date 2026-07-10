@@ -10,6 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      # `if:` conditions can't reference `secrets` directly (GitHub Actions
+      # rejects the workflow file at parse time with "Unrecognized
+      # named-value: 'secrets'") -- route through env instead, which works.
+      HAS_ANDROID_SIGNING: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_BLOB_TOKEN:      ${{ secrets.BLOB_READ_WRITE_TOKEN != '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -65,11 +71,11 @@ jobs:
       #    Settings page links to (see Upload to Vercel Blob below). Skips
       #    cleanly if the signing secrets aren't configured yet.
       - name: Decode release keystore
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.HAS_ANDROID_SIGNING == 'true' }}
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "${{ runner.temp }}/szol-release.keystore"
 
       - name: Build release APK
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.HAS_ANDROID_SIGNING == 'true' }}
         run: |
           cd android
           chmod +x gradlew
@@ -82,7 +88,7 @@ jobs:
           RELEASE_KEY_ALIAS:         ${{ secrets.ANDROID_KEY_ALIAS }}
 
       - name: Upload release APK to Vercel Blob (what the website's Settings page links to)
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.BLOB_READ_WRITE_TOKEN != '' }}
+        if: ${{ env.HAS_ANDROID_SIGNING == 'true' && env.HAS_BLOB_TOKEN == 'true' }}
         run: |
           node -e "
             const { put } = require('@vercel/blob');
