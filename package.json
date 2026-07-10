@@ -16,6 +16,7 @@
     "@extractus/article-extractor": "^8.1.0",
     "@huggingface/transformers": "^4.2.0",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/blob": "^2.6.1",
     "capacitor-mlkit-digitalink-plugin": "^0.4.1",
     "fuse.js": "^7.4.2",
     "hanzi-writer": "^3.7.3",
@@ -25,7 +26,6 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.4.1",
-    "@vercel/blob": "^2.6.1",
     "@tailwindcss/vite": "^4.2.4",
     "@vitejs/plugin-vue": "^6.0.6",
     "esbuild": "^0.28.1",

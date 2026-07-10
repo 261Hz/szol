@@ -96,13 +96,13 @@ jobs:
             (async () => {
               const body = fs.readFileSync('android/app/build/outputs/apk/release/app-release.apk');
               const blob = await put('szol.apk', body, {
-                access: 'public',
+                access: 'private',
                 addRandomSuffix: false,
                 allowOverwrite: true,
                 contentType: 'application/vnd.android.package-archive',
               });
-              console.log('APK now at:', blob.url);
-              console.log('If this is the first upload, set VITE_APK_BLOB_URL to this value in Vercel project env vars.');
+              console.log('Uploaded (private):', blob.pathname);
+              console.log('Served to users via /api/download-apk, not this blob URL directly.');
             })();
           "
         env:

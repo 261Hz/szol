@@ -156,13 +156,14 @@
           class="flex-shrink-0 text-sm px-4 py-1.5 transition-all"
           style="background:#8b3a3a; color:#e8dcc4; border-radius:2px;"
         >Install</button>
-        <!-- APK download (Android only). Served from Vercel Blob (same-origin-ish,
-             stable single-hop URL) rather than linked straight at GitHub Releases --
-             GitHub's redirect to its signed CDN URL routinely made Android's download
-             manager hang at 100% (report the total size but never signal completion). -->
+        <!-- APK download (Android only). Same-origin endpoint that streams the
+             APK from a private Vercel Blob store and tracks the download --
+             rather than linking straight at GitHub Releases, whose redirect to
+             its signed CDN URL routinely made Android's download manager hang
+             at 100% (reports the total size but never signals completion). -->
         <a
           v-if="isAndroid"
-          :href="apkDownloadUrl"
+          href="/api/download-apk"
           class="flex-shrink-0 text-sm px-4 py-1.5 transition-all text-center"
           style="border:1px solid rgba(31,27,23,0.2); color:#1f1b17; border-radius:2px; text-decoration:none;"
         >Download APK</a>
@@ -216,11 +217,6 @@ const emit  = defineEmits(['openAuth', 'userUpdated', 'logout'])
 const ua       = navigator.userAgent
 const isIOS    = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 const isAndroid = /Android/.test(ua)
-
-// Vercel Blob URL (set once the CI upload step is configured); falls back to
-// the old GitHub Releases link so the button still works before that's set up.
-const apkDownloadUrl = import.meta.env.VITE_APK_BLOB_URL
-  ?? 'https://github.com/261Hz/szol/releases/download/android-latest/szol-debug.apk'
 
 const openToMessages = ref(props.currentUser?.open_to_messages ?? false)
 const settingsError  = ref('')
