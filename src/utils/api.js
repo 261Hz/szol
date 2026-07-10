@@ -75,11 +75,21 @@ export async function login(email, password) {
   return access_token
 }
 
-export async function register(username, email, password, proficiency, target_lang, native_lang, cfTurnstileResponse = null) {
-  const url = cfTurnstileResponse
-    ? `${API_URL}/users/?cf_turnstile_response=${encodeURIComponent(cfTurnstileResponse)}`
-    : `${API_URL}/users/`
-  const res = await apiFetch(url, {
+// Site-entry gate (App.vue's splash) -- verifies a Turnstile token before the
+// app shows any content. Fails closed: any non-2xx response means "blocked."
+export async function verifyTurnstile(token) {
+  const res = await fetch(`${API_URL}/auth/verify-turnstile`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ turnstile_token: token }),
+  })
+  if (!res.ok) throw new Error('Turnstile verification failed')
+}
+
+export async function register(username, email, password, proficiency, target_lang, native_lang) {
+  // Turnstile is verified once at site entry (App.vue's splash), not here --
+  // every visitor already passed the challenge before reaching this form.
+  const res = await apiFetch(`${API_URL}/users/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

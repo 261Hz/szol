@@ -2,14 +2,18 @@
 <template>
   <div class="min-h-screen">
 
-    <!-- Loading splash -->
+    <!-- Loading splash. Also gates the whole site behind a Turnstile check --
+         nothing past this screen renders until the visitor is verified, so
+         this stays up (or shows the error state) regardless of appLoading
+         once gateError is set. Fails closed: a failed/errored/timed-out
+         check leaves the visitor stuck here, not waved through. -->
     <Transition name="splash">
       <div
-        v-if="appLoading"
+        v-if="appLoading || gateError"
         class="fixed inset-0 z-[100] flex flex-col items-center justify-center"
         style="background:#e8dcc4;"
       >
-        <div class="flex flex-col items-center gap-4">
+        <div v-if="!gateError" class="flex flex-col items-center gap-4">
           <div class="text-4xl font-bold tracking-tight select-none" style="color:#1f1b17; font-family:'IM Fell English',serif;">
             Sz<span style="color:#8b3a3a">ó</span>l
           </div>
@@ -18,9 +22,30 @@
             <div class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#8b3a3a; animation-delay: 150ms" />
             <div class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#8b3a3a; animation-delay: 300ms" />
           </div>
+          <!-- Turnstile mounts here. Managed/non-interactive by default --
+               only shows a visible widget if Cloudflare decides this visitor
+               needs an actual challenge. -->
+          <div ref="turnstileEl" />
+        </div>
+        <div v-else class="flex flex-col items-center gap-3 px-6 text-center">
+          <div class="text-2xl font-bold tracking-tight select-none" style="color:#1f1b17; font-family:'IM Fell English',serif;">
+            Sz<span style="color:#8b3a3a">ó</span>l
+          </div>
+          <div class="text-sm" style="color:rgba(31,27,23,0.6); max-width:22rem;">Unable to verify your browser. Check your connection and try again.</div>
+          <button
+            @click="retryGate"
+            class="text-sm px-4 py-1.5 transition-all"
+            style="background:#2a2018; color:#e8dcc4; border-radius:2px;"
+          >Retry</button>
         </div>
       </div>
     </Transition>
+
+    <!-- Nothing below mounts until the Turnstile gate passes -- otherwise
+         WelcomeView (and its data fetches, e.g. learner counts) renders into
+         the DOM immediately regardless of the splash, just visually hidden
+         under it. A scraper that ignores CSS/z-index would still see it. -->
+    <template v-if="!appLoading && !gateError">
 
     <!-- First-visit onboarding: language picker + sign in / guest -->
     <WelcomeView
@@ -169,13 +194,16 @@
     <LitClock v-if="activeLang === 'en'" />
 
     </template>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, computed, onMounted, defineAsyncComponent } from 'vue'
+import { ref, watch, computed, onMounted, nextTick, defineAsyncComponent } from 'vue'
 
 const appLoading    = ref(true)
+const gateError     = ref(false)
+const turnstileEl   = ref(null)
 const installPrompt = ref(null)
 
 window.addEventListener('beforeinstallprompt', e => {
@@ -203,7 +231,7 @@ const JournalView    = defineAsyncComponent(() => import('./views/JournalView.vu
 const ParallelView   = defineAsyncComponent(() => import('./views/ParallelView.vue'))
 
 import { LANGS } from './data/stories.js'
-import { getMe, logout, onUnauthorized, getAccountVocab, saveVocabWord, removeVocabWord, requestWordClip } from './utils/api.js'
+import { getMe, logout, onUnauthorized, getAccountVocab, saveVocabWord, removeVocabWord, requestWordClip, verifyTurnstile } from './utils/api.js'
 import { updateSEO } from './utils/seo.js'
 import { useEchoIndex } from './composables/useEchoIndex.js'
 
@@ -251,6 +279,65 @@ onUnauthorized(() => {
   showAuth.value    = true
 })
 
+// ── Site-entry Turnstile gate ─────────────────────────────────────────────────
+// Blocks the whole app behind a bot check before any content renders, rather
+// than only checking at registration -- see the discussion that led here.
+// Fails closed: any failure/error/timeout leaves gateError set and the
+// splash's error state up, never appLoading = false.
+
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY ?? ''
+let turnstileWidgetId    = null
+
+async function waitForTurnstileScript(timeoutMs = 8000) {
+  const start = Date.now()
+  while (!window.turnstile) {
+    if (Date.now() - start > timeoutMs) throw new Error('Turnstile script did not load')
+    await new Promise(r => setTimeout(r, 100))
+  }
+}
+
+function getTurnstileToken(timeoutMs = 15000) {
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const finish = (fn, arg) => { if (!settled) { settled = true; clearTimeout(timer); fn(arg) } }
+    const timer  = setTimeout(() => finish(reject, new Error('Turnstile timed out')), timeoutMs)
+
+    waitForTurnstileScript()
+      .then(() => {
+        if (!turnstileEl.value) { finish(reject, new Error('No Turnstile mount point')); return }
+        const opts = {
+          sitekey:            TURNSTILE_SITE_KEY,
+          appearance:         'interaction-only', // invisible unless Cloudflare needs to challenge this visitor
+          callback:           (token) => finish(resolve, token),
+          'error-callback':   ()      => finish(reject, new Error('Turnstile error')),
+          'expired-callback': ()      => finish(reject, new Error('Turnstile expired')),
+        }
+        turnstileWidgetId = window.turnstile.render(turnstileEl.value, opts)
+      })
+      .catch(err => finish(reject, err))
+  })
+}
+
+async function runGate() {
+  if (!TURNSTILE_SITE_KEY) { gateError.value = true; return false }
+  try {
+    const token = await getTurnstileToken()
+    await verifyTurnstile(token)
+    return true
+  } catch {
+    gateError.value = true
+    return false
+  }
+}
+
+async function retryGate() {
+  gateError.value       = false
+  turnstileWidgetId     = null // the old widget's DOM node was torn down when the error view showed
+  appLoading.value      = true
+  await nextTick() // let the splash's normal (non-error) subtree remount before rendering into it
+  const ok = await runGate()
+  if (ok) appLoading.value = false
+}
 
 onMounted(async () => {
   // Honor ?lang= query param (from hreflang links / shared URLs) — override stored lang
@@ -275,15 +362,26 @@ onMounted(async () => {
     history.replaceState(null, '', window.location.pathname)
   }
 
-  const user = await getMe()
-  if (user) {
-    currentUser.value = user
-    await syncVocabOnLogin()
-  } else {
-    localStorage.removeItem('szol_token')
-  }
+  // Gate, minimum splash duration ("just for looks" -- keep the logo visible
+  // a beat instead of it vanishing the instant these resolve), and the
+  // existing session check all run in parallel.
+  const [gateOk] = await Promise.all([
+    runGate(),
+    new Promise(r => setTimeout(r, 1200)),
+    (async () => {
+      const user = await getMe()
+      if (user) {
+        currentUser.value = user
+        await syncVocabOnLogin()
+      } else {
+        localStorage.removeItem('szol_token')
+      }
+    })(),
+  ])
 
-  appLoading.value = false
+  if (gateOk) appLoading.value = false
+  // else: gateError is already set by runGate(); the splash's error/retry
+  // state stays up and appLoading is left true.
 })
 
 // Convert a server UserVocabResponse → local vocabBank entry format

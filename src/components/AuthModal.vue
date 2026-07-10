@@ -195,9 +195,6 @@
                 <option v-for="lvl in proficiencyOptions" :key="lvl.value" :value="lvl.value" style="background:#ece4ca; color:#1f1b17;">{{ lvl.label }}</option>
               </select>
             </div>
-
-            <!-- Turnstile -->
-            <div v-if="turnstileSiteKey" ref="turnstileEl" class="flex justify-center" />
           </template>
 
           <div v-if="error" class="text-xs leading-snug px-3 py-2"
@@ -234,7 +231,6 @@ import { LANGS } from '../data/stories.js'
 import { t } from '../utils/i18n.js'
 
 const API_URL          = import.meta.env.VITE_API_URL              ?? 'https://szol.onrender.com'
-const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY   ?? ''
 const authToken        = () => localStorage.getItem('szol_token')
 
 const props = defineProps({ lang: { type: String, default: 'en' } })
@@ -255,9 +251,6 @@ const loading         = ref(false)
 const showResend        = ref(false)
 const resending         = ref(false)
 const resendSuccess     = ref(false)
-const turnstileToken    = ref('')
-const turnstileEl       = ref(null)
-let   turnstileWidgetId = null
 
 const usernameAvailable  = ref(null)   // null=unchecked, true=free, false=taken
 const checkingUsername   = ref(false)
@@ -279,35 +272,6 @@ watch(username, (val) => {
       checkingUsername.value = false
     }
   }, 500)
-})
-
-// ── Turnstile explicit render ─────────────────────────────────────────────────
-async function mountTurnstile() {
-  if (!turnstileSiteKey) return
-  await nextTick()
-  if (!turnstileEl.value) return
-
-  let waited = 0
-  while (!window.turnstile && waited < 2000) {
-    await new Promise(r => setTimeout(r, 100))
-    waited += 100
-  }
-  if (!window.turnstile) return
-
-  if (turnstileWidgetId !== null) {
-    window.turnstile.reset(turnstileWidgetId)
-    return
-  }
-  turnstileWidgetId = window.turnstile.render(turnstileEl.value, {
-    sitekey:           turnstileSiteKey,
-    callback:          (t) => { turnstileToken.value = t },
-    'expired-callback': () => { turnstileToken.value = '' },
-    theme:             'light',
-  })
-}
-
-watch([activeTab, registerStep], ([tab, step]) => {
-  if (tab === 'Register' && step === 2) mountTurnstile()
 })
 
 // ── Language / proficiency options ────────────────────────────────────────────
@@ -382,7 +346,6 @@ function switchTab(tab) {
   showResend.value      = false
   resendSuccess.value   = false
   usernameAvailable.value = null
-  turnstileWidgetId     = null
 }
 
 // ── Error formatting ──────────────────────────────────────────────────────────
@@ -428,7 +391,7 @@ async function doRegister() {
   error.value   = ''
   loading.value = true
   try {
-    await register(username.value, email.value, password.value, proficiency.value || null, targetLang.value, nativeLang.value, turnstileToken.value || null)
+    await register(username.value, email.value, password.value, proficiency.value || null, targetLang.value, nativeLang.value)
     await login(email.value, password.value)
     const user = await getMe()
     emit('logged-in', user)
