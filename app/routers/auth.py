@@ -17,6 +17,69 @@ router = APIRouter(
 )
 
 
+def _verify_and_consume_turnstile(token: str, db: Session) -> None:
+    """
+    Verifies a Turnstile token with Cloudflare and marks it consumed.
+    Fails CLOSED: any missing config, network error, bad/expired/reused
+    token raises an HTTPException rather than letting the request through.
+    """
+    if not settings.TURNSTILE_SECRET:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Auth not configured")
+
+    try:
+        resp = http.post(
+            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+            data={"secret": settings.TURNSTILE_SECRET, "response": token},
+            timeout=5,
+        )
+        result = resp.json()
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Could not verify challenge. Try again.")
+
+    if not result.get("success"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Challenge failed. Please try again.")
+
+    # Token age — Turnstile tokens expire after 5 minutes
+    challenge_ts = result.get("challenge_ts", "")
+    if challenge_ts:
+        try:
+            ts = datetime.fromisoformat(challenge_ts.replace("Z", "+00:00"))
+            if (datetime.now(timezone.utc) - ts).total_seconds() > 300:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Challenge expired. Please try again.")
+        except ValueError:
+            pass
+
+    # Token deduplication — each Turnstile token is single-use
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    # Purge tokens older than 10 minutes (they can't be replayed anyway after 5 min, but keep it clean)
+    db.query(models.UsedTurnstileToken).filter(
+        models.UsedTurnstileToken.created_at < datetime.now(timezone.utc) - timedelta(minutes=10)
+    ).delete(synchronize_session=False)
+
+    if db.query(models.UsedTurnstileToken).filter(
+        models.UsedTurnstileToken.token_hash == token_hash
+    ).first():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Challenge already used. Please try again.")
+
+    db.add(models.UsedTurnstileToken(token_hash=token_hash))
+    db.commit()
+
+
+@router.post("/auth/verify-turnstile", status_code=status.HTTP_200_OK)
+@limiter.limit("30/hour")
+def verify_turnstile(request: Request, body: schemas.TurnstileVerify, db: Session = Depends(get_db)):
+    """
+    Site-entry gate: verifies a Turnstile token before the app lets the
+    visitor past the loading splash. Fails closed -- see
+    _verify_and_consume_turnstile. Doesn't create or identify a user; this
+    is purely "is this a real browser" verification for the whole site,
+    not tied to login/registration.
+    """
+    _verify_and_consume_turnstile(body.turnstile_token, db)
+    return {"verified": True}
+
+
 @router.post("/login", response_model=schemas.Token)
 def login(user_credentials: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == user_credentials.username).first()
@@ -40,48 +103,9 @@ def create_guest(request: Request, body: schemas.GuestCreate, db: Session = Depe
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid request")
 
     # 2. Turnstile — fail CLOSED (never let through if verification fails)
-    if not settings.TURNSTILE_SECRET:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Auth not configured")
+    _verify_and_consume_turnstile(body.turnstile_token, db)
 
-    try:
-        resp = http.post(
-            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-            data={"secret": settings.TURNSTILE_SECRET, "response": body.turnstile_token},
-            timeout=5,
-        )
-        result = resp.json()
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Could not verify challenge. Try again.")
-
-    if not result.get("success"):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Challenge failed. Please try again.")
-
-    # 3. Token age — Turnstile tokens expire after 5 minutes
-    challenge_ts = result.get("challenge_ts", "")
-    if challenge_ts:
-        try:
-            ts = datetime.fromisoformat(challenge_ts.replace("Z", "+00:00"))
-            if (datetime.now(timezone.utc) - ts).total_seconds() > 300:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Challenge expired. Please try again.")
-        except ValueError:
-            pass
-
-    # 4. Token deduplication — each Turnstile token is single-use
-    token_hash = hashlib.sha256(body.turnstile_token.encode()).hexdigest()
-
-    # Purge tokens older than 10 minutes (they can't be replayed anyway after 5 min, but keep it clean)
-    db.query(models.UsedTurnstileToken).filter(
-        models.UsedTurnstileToken.created_at < datetime.now(timezone.utc) - timedelta(minutes=10)
-    ).delete(synchronize_session=False)
-
-    if db.query(models.UsedTurnstileToken).filter(
-        models.UsedTurnstileToken.token_hash == token_hash
-    ).first():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Challenge already used. Please try again.")
-
-    db.add(models.UsedTurnstileToken(token_hash=token_hash))
-
-    # 5. Create guest user
+    # 3. Create guest user
     guest_id = uuid.uuid4()
     new_user = models.User(
         id=guest_id,
@@ -96,7 +120,7 @@ def create_guest(request: Request, body: schemas.GuestCreate, db: Session = Depe
     db.commit()
     db.refresh(new_user)
 
-    # 6. Short-lived JWT — 48 hours, no refresh for guests
+    # 4. Short-lived JWT — 48 hours, no refresh for guests
     access_token = oauth2.create_jwt_token(
         data={"user_id": str(new_user.id), "trust_level": "guest", "is_guest": True},
         expire_minutes=settings.GUEST_JWT_EXPIRE_HOURS * 60,

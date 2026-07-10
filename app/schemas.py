@@ -64,6 +64,9 @@ class GuestCreate(BaseModel):
     turnstile_token: str
     website:         str = ""   # honeypot — must be empty
 
+class TurnstileVerify(BaseModel):
+    turnstile_token: str
+
 class GuestResponse(BaseModel):
     access_token: str
     token_type:   str = "bearer"
