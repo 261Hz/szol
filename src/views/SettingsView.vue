@@ -156,18 +156,19 @@
           class="flex-shrink-0 text-sm px-4 py-1.5 transition-all"
           style="background:#8b3a3a; color:#e8dcc4; border-radius:2px;"
         >Install</button>
-        <!-- APK download (Android only). Same-origin endpoint that streams the
-             APK from a private Vercel Blob store and tracks the download --
-             rather than linking straight at GitHub Releases, whose redirect to
-             its signed CDN URL routinely made Android's download manager hang
-             at 100% (reports the total size but never signals completion). -->
-        <a
+        <!-- APK download (Android only). Fetches the APK as a blob and triggers
+             the save from that, rather than a plain <a href> navigation -- a
+             real navigation to /api/download-apk left some mobile browsers'
+             tab actually sitting on that URL (even with the download
+             attribute set), so refreshing the page re-triggered the download.
+             fetch() never changes the page's location, so that can't happen. -->
+        <button
           v-if="isAndroid"
-          href="/api/download-apk"
-          download="szol.apk"
-          class="flex-shrink-0 text-sm px-4 py-1.5 transition-all text-center"
-          style="border:1px solid rgba(31,27,23,0.2); color:#1f1b17; border-radius:2px; text-decoration:none;"
-        >Download APK</a>
+          @click="downloadApk"
+          :disabled="apkDownloading"
+          class="flex-shrink-0 text-sm px-4 py-1.5 transition-all disabled:opacity-50"
+          style="border:1px solid rgba(31,27,23,0.2); color:#1f1b17; border-radius:2px;"
+        >{{ apkDownloading ? 'Downloading…' : 'Download APK' }}</button>
       </div>
     </div>
 
@@ -218,6 +219,29 @@ const emit  = defineEmits(['openAuth', 'userUpdated', 'logout'])
 const ua       = navigator.userAgent
 const isIOS    = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 const isAndroid = /Android/.test(ua)
+
+const apkDownloading = ref(false)
+
+async function downloadApk() {
+  if (apkDownloading.value) return
+  apkDownloading.value = true
+  try {
+    const res  = await fetch('/api/download-apk')
+    const blob = await res.blob()
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = 'szol.apk'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  } catch {
+    // network error -- button just re-enables, user can retry
+  } finally {
+    apkDownloading.value = false
+  }
+}
 
 const openToMessages = ref(props.currentUser?.open_to_messages ?? false)
 const settingsError  = ref('')

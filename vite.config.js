@@ -26,6 +26,11 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Without this, the SPA navigation fallback (needed so refreshing on a
+        // client-side route doesn't 404) also catches direct <a href> clicks on
+        // /api/* endpoints -- e.g. the APK download link -- and serves the
+        // cached app shell instead of letting the request reach the function.
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
             // App API — network first, fall back to cache
