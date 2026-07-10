@@ -136,7 +136,7 @@
       </div>
     </div>
 
-    <!-- ── Install app ── -->
+    <!-- ── Install as web app (PWA) ── -->
     <div class="flex items-center justify-between gap-4 py-3 px-4" style="border:1px solid rgba(31,27,23,0.12); border-radius:3px;">
       <div class="flex flex-col gap-0.5">
         <div class="text-sm" style="color:#1f1b17;">Install app</div>
@@ -144,32 +144,40 @@
         <div v-if="isIOS" class="text-xs" style="color:rgba(31,27,23,0.55);">
           Tap <span style="font-family:monospace;">Share</span> in Safari, then "Add to Home Screen".
         </div>
-        <div v-else class="text-xs" style="color:rgba(31,27,23,0.45);">Add Szól to your home screen for quick access.</div>
+        <div v-else class="text-xs" style="color:rgba(31,27,23,0.45);">Adds Szól to your home screen. Quickest option — no download.</div>
       </div>
 
       <!-- iOS: no button, instruction is enough -->
-      <div v-if="!isIOS" class="flex flex-col items-end gap-1.5">
-        <!-- PWA prompt (Android Chrome / desktop Chrome) -->
-        <button
-          v-if="installPrompt"
-          @click="installApp"
-          class="flex-shrink-0 text-sm px-4 py-1.5 transition-all"
-          style="background:#8b3a3a; color:#e8dcc4; border-radius:2px;"
-        >Install</button>
-        <!-- APK download (Android only). Fetches the APK as a blob and triggers
-             the save from that, rather than a plain <a href> navigation -- a
-             real navigation to /api/download-apk left some mobile browsers'
-             tab actually sitting on that URL (even with the download
-             attribute set), so refreshing the page re-triggered the download.
-             fetch() never changes the page's location, so that can't happen. -->
-        <button
-          v-if="isAndroid"
-          @click="downloadApk"
-          :disabled="apkDownloading"
-          class="flex-shrink-0 text-sm px-4 py-1.5 transition-all disabled:opacity-50"
-          style="border:1px solid rgba(31,27,23,0.2); color:#1f1b17; border-radius:2px;"
-        >{{ apkDownloading ? 'Downloading…' : 'Download APK' }}</button>
+      <button
+        v-if="!isIOS && installPrompt"
+        @click="installApp"
+        class="flex-shrink-0 text-sm px-4 py-1.5 transition-all"
+        style="background:#8b3a3a; color:#e8dcc4; border-radius:2px;"
+      >Install</button>
+    </div>
+
+    <!-- ── Download native Android app (APK) ── -->
+    <!-- Separate from the PWA install above -- both were shown together under
+         one ambiguous "Install app" heading, which just looked like two
+         buttons for the same thing. This is a different install method (a
+         native Capacitor app, not a browser tab), so it gets its own row. -->
+    <div v-if="isAndroid" class="flex items-center justify-between gap-4 py-3 px-4" style="border:1px solid rgba(31,27,23,0.12); border-radius:3px;">
+      <div class="flex flex-col gap-0.5">
+        <div class="text-sm" style="color:#1f1b17;">Android app (APK)</div>
+        <div class="text-xs" style="color:rgba(31,27,23,0.45);">Native app with full offline handwriting recognition and device voices. Larger download.</div>
       </div>
+      <!-- Fetches the APK as a blob and triggers the save from that, rather
+           than a plain <a href> navigation -- a real navigation to
+           /api/download-apk left some mobile browsers' tab actually sitting
+           on that URL (even with the download attribute set), so refreshing
+           the page re-triggered the download. fetch() never changes the
+           page's location, so that can't happen. -->
+      <button
+        @click="downloadApk"
+        :disabled="apkDownloading"
+        class="flex-shrink-0 text-sm px-4 py-1.5 transition-all disabled:opacity-50"
+        style="border:1px solid rgba(31,27,23,0.2); color:#1f1b17; border-radius:2px;"
+      >{{ apkDownloading ? 'Downloading…' : 'Download APK' }}</button>
     </div>
 
     <!-- ── Danger Zone ── -->
