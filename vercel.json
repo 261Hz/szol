@@ -1,6 +1,7 @@
 {
   "functions": {
-    "api/roots-analyze.js": { "maxDuration": 60 }
+    "api/roots-analyze.js": { "maxDuration": 60 },
+    "api/download-apk.js":  { "maxDuration": 60 }
   },
   "headers": [
     {

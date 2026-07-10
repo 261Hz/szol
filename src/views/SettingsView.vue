@@ -164,6 +164,7 @@
         <a
           v-if="isAndroid"
           href="/api/download-apk"
+          download="szol.apk"
           class="flex-shrink-0 text-sm px-4 py-1.5 transition-all text-center"
           style="border:1px solid rgba(31,27,23,0.2); color:#1f1b17; border-radius:2px; text-decoration:none;"
         >Download APK</a>
