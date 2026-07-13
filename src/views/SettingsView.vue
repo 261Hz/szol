@@ -166,18 +166,22 @@
         <div class="text-sm" style="color:#1f1b17;">Android app (APK)</div>
         <div class="text-xs" style="color:rgba(31,27,23,0.45);">Native app with full offline handwriting recognition and device voices. Larger download.</div>
       </div>
-      <!-- Fetches the APK as a blob and triggers the save from that, rather
-           than a plain <a href> navigation -- a real navigation to
-           /api/download-apk left some mobile browsers' tab actually sitting
-           on that URL (even with the download attribute set), so refreshing
-           the page re-triggered the download. fetch() never changes the
-           page's location, so that can't happen. -->
-      <button
-        @click="downloadApk"
-        :disabled="apkDownloading"
-        class="flex-shrink-0 text-sm px-4 py-1.5 transition-all disabled:opacity-50"
-        style="border:1px solid rgba(31,27,23,0.2); color:#1f1b17; border-radius:2px;"
-      >{{ apkDownloading ? 'Downloading…' : 'Download APK' }}</button>
+      <!-- Plain link, opened in a new tab -- NOT a blob: URL. Brave on
+           Android/iOS has a confirmed bug (brave/brave-browser#53680) where a
+           blob: URL opens but silently fails to actually save, which is what
+           a fetch+blob+anchor-click approach (tried previously) hits. A
+           direct link avoids that entirely. target="_blank" keeps this app's
+           own tab on its own URL throughout, so refreshing it can't
+           re-trigger anything (Content-Disposition: attachment from
+           download-apk.js is what makes any browser treat this as a download
+           regardless of how the navigation happened). -->
+      <a
+        href="/api/download-apk"
+        target="_blank"
+        rel="noopener"
+        class="flex-shrink-0 text-sm px-4 py-1.5 transition-all text-center"
+        style="border:1px solid rgba(31,27,23,0.2); color:#1f1b17; border-radius:2px; text-decoration:none;"
+      >Download APK</a>
     </div>
 
     <!-- ── Danger Zone ── -->
@@ -227,29 +231,6 @@ const emit  = defineEmits(['openAuth', 'userUpdated', 'logout'])
 const ua       = navigator.userAgent
 const isIOS    = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 const isAndroid = /Android/.test(ua)
-
-const apkDownloading = ref(false)
-
-async function downloadApk() {
-  if (apkDownloading.value) return
-  apkDownloading.value = true
-  try {
-    const res  = await fetch('/api/download-apk')
-    const blob = await res.blob()
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href     = url
-    a.download = 'szol.apk'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(url)
-  } catch {
-    // network error -- button just re-enables, user can retry
-  } finally {
-    apkDownloading.value = false
-  }
-}
 
 const openToMessages = ref(props.currentUser?.open_to_messages ?? false)
 const settingsError  = ref('')

@@ -8,8 +8,6 @@ import { get } from '@vercel/blob'
 import { track } from '@vercel/analytics/server'
 import { Readable } from 'node:stream'
 
-const FALLBACK_URL = 'https://github.com/261Hz/szol/releases/download/android-latest/szol-debug.apk'
-
 export default async function handler(req, res) {
   try {
     await track('apk_download')
@@ -24,9 +22,11 @@ export default async function handler(req, res) {
     result = null
   }
 
+  // No fallback to the GitHub release here on purpose -- that would leak the
+  // repo's URL (and the account behind it) to anyone downloading the app.
   if (!result) {
-    res.writeHead(302, { Location: FALLBACK_URL })
-    return res.end()
+    res.writeHead(503, { 'Content-Type': 'text/plain' })
+    return res.end('APK temporarily unavailable. Please try again shortly.')
   }
 
   const { stream, blob } = result
