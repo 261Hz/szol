@@ -367,7 +367,7 @@ onMounted(async () => {
   // existing session check all run in parallel.
   const [gateOk] = await Promise.all([
     runGate(),
-    new Promise(r => setTimeout(r, 1200)),
+    new Promise(r => setTimeout(r, 300)),
     (async () => {
       const user = await getMe()
       if (user) {
