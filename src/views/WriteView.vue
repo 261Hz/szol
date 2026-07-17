@@ -138,6 +138,7 @@ import { Capacitor } from '@capacitor/core'
 import { DigitalInk } from 'capacitor-mlkit-digitalink-plugin'
 import { LANGS } from '../data/stories.js'
 import { useVoiceList, pickVoice } from '../utils/voices.js'
+import { TextToSpeech } from '@capacitor-community/text-to-speech'
 
 const ML_KIT_LANG = {
   'zh': 'zh-Hans-CN', 'zh-TW': 'zh-Hant-TW', 'ja': 'ja-JP', 'ko': 'ko-KR',
@@ -157,9 +158,15 @@ const emit = defineEmits(['go', 'saveWord'])
 
 const voices = useVoiceList()
 
-function speakWord(word) {
-  if (!word || typeof speechSynthesis === 'undefined') return
+async function speakWord(word) {
+  if (!word) return
   const bcp47 = LANGS[props.lang]?.bcp47 ?? props.lang
+  if (Capacitor.isNativePlatform()) {
+    await TextToSpeech.stop().catch(() => {})
+    await TextToSpeech.speak({ text: word, lang: bcp47, rate: 1.0, pitch: 1.0, volume: 1.0 }).catch(() => {})
+    return
+  }
+  if (typeof speechSynthesis === 'undefined') return
   const utt   = new SpeechSynthesisUtterance(word)
   utt.lang    = bcp47
   const voice = pickVoice(voices.value, bcp47, props.lang)
@@ -436,7 +443,20 @@ function getXY(e) {
   return { x: e.clientX - rect.left, y: e.clientY - rect.top }
 }
 
+// Some mobile browsers only allow speechSynthesis to produce audio if speak()
+// has been called synchronously inside a user gesture at least once -- later
+// async calls (e.g. speakWord() after recognition finishes) go silent
+// otherwise. Priming here piggybacks on the pointerdown gesture that starts
+// every stroke.
+let speechPrimed = false
+function primeSpeech() {
+  if (speechPrimed || typeof speechSynthesis === 'undefined' || Capacitor.isNativePlatform()) return
+  speechPrimed = true
+  speechSynthesis.speak(new SpeechSynthesisUtterance(''))
+}
+
 function startStroke(e) {
+  primeSpeech()
   if (!ctx) setupCanvas()
   if (!ctx) return
   drawing = true
