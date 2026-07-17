@@ -156,34 +156,6 @@
       >Install</button>
     </div>
 
-    <!-- ── Download native Android app (APK) ── -->
-    <!-- Separate from the PWA install above -- both were shown together under
-         one ambiguous "Install app" heading, which just looked like two
-         buttons for the same thing. This is a different install method (a
-         native Capacitor app, not a browser tab), so it gets its own row. -->
-    <div v-if="isAndroid" class="flex items-center justify-between gap-4 py-3 px-4" style="border:1px solid rgba(31,27,23,0.12); border-radius:3px;">
-      <div class="flex flex-col gap-0.5">
-        <div class="text-sm" style="color:#1f1b17;">Android app (APK)</div>
-        <div class="text-xs" style="color:rgba(31,27,23,0.45);">Native app with full offline handwriting recognition and device voices. Larger download.</div>
-      </div>
-      <!-- Plain link, opened in a new tab -- NOT a blob: URL. Brave on
-           Android/iOS has a confirmed bug (brave/brave-browser#53680) where a
-           blob: URL opens but silently fails to actually save, which is what
-           a fetch+blob+anchor-click approach (tried previously) hits. A
-           direct link avoids that entirely. target="_blank" keeps this app's
-           own tab on its own URL throughout, so refreshing it can't
-           re-trigger anything (Content-Disposition: attachment from
-           download-apk.js is what makes any browser treat this as a download
-           regardless of how the navigation happened). -->
-      <a
-        href="/api/download-apk"
-        target="_blank"
-        rel="noopener"
-        class="flex-shrink-0 text-sm px-4 py-1.5 transition-all text-center"
-        style="border:1px solid rgba(31,27,23,0.2); color:#1f1b17; border-radius:2px; text-decoration:none;"
-      >Download APK</a>
-    </div>
-
     <!-- ── Danger Zone ── -->
     <div v-if="currentUser" class="flex flex-col gap-3 p-4" style="border:1px solid rgba(139,58,58,0.25); border-radius:3px;">
       <div class="text-sm" style="color:#8b3a3a; font-family:'IM Fell English',serif;">{{ t(lang, 'dangerZone') }}</div>
@@ -230,7 +202,6 @@ const emit  = defineEmits(['openAuth', 'userUpdated', 'logout'])
 
 const ua       = navigator.userAgent
 const isIOS    = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-const isAndroid = /Android/.test(ua)
 
 const openToMessages = ref(props.currentUser?.open_to_messages ?? false)
 const settingsError  = ref('')
