@@ -543,17 +543,32 @@ async function runCheck() {
   let passed = false
 
   if (Capacitor.isNativePlatform() && mlkitReady.value) {
-    // Native: ML Kit Digital Ink Recognition for all languages
+    // Native: ML Kit Digital Ink Recognition for all languages.
+    // The plugin (capacitor-mlkit-digitalink-plugin) is a rough, hand-rolled
+    // wrapper -- its download/recognition flow has failure paths that don't
+    // always surface cleanly, so a rejection here doesn't necessarily mean
+    // the handwriting was wrong. Fall through to the same backend recognizer
+    // the web path uses rather than failing the word outright.
     const result = await DigitalInk.doRecognition({
       model: mlkitLang(),
       writingArea: { w: canvasCssWidth.value || window.innerWidth, h: CANVAS_HEIGHT },
-    }).catch(() => null)
+    }).catch((err) => { console.warn('[MLKit] doRecognition failed:', err); return null })
     const candidates = result?.results?.candidates ?? []
-    const top        = normWord(candidates[0] ?? '')
-    const want       = normWord(currentUnit.value)
-    const minStrokes = isCJK.value || isArabic.value ? 1 : want.length
-    recognizedText.value = candidates[0] ?? null
-    passed = top !== '' && top === want && userStrokes.length >= minStrokes
+    if (candidates.length > 0) {
+      const top        = normWord(candidates[0])
+      const want       = normWord(currentUnit.value)
+      const minStrokes = isCJK.value || isArabic.value ? 1 : want.length
+      recognizedText.value = candidates[0]
+      passed = top !== '' && top === want && userStrokes.length >= minStrokes
+    } else {
+      const fallback   = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth.value, CANVAS_HEIGHT)
+      const fbList     = fallback?.candidates ?? (fallback?.text ? [fallback.text] : [])
+      const top        = normWord(fbList[0] ?? '')
+      const want       = normWord(currentUnit.value)
+      const minStrokes = isArabic.value ? 1 : want.length
+      recognizedText.value = fbList[0] ?? null
+      passed = top !== '' && top === want && userStrokes.length >= minStrokes
+    }
   } else if (isCJK.value) {
     // CJK / Japanese freeform: Google Handwriting Input
     const result = await googleRecognizeInk(userStrokes, props.lang, canvasCssWidth.value, CANVAS_HEIGHT)
